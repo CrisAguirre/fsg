@@ -5,16 +5,16 @@ function Navbar() {
   return (
     <nav className="navbar glass" id="navbar">
       <div className="navbar__inner container">
-        <a href="/" className="navbar__brand" aria-label="FSG — Inicio">
+        <a href="/" className="navbar__brand" aria-label="Glassescanner — Inicio">
           <img
             src={logo}
-            alt="FSG Logo"
+            alt="Glassescanner Logo"
             className="navbar__logo"
             width="40"
             height="40"
           />
           <span className="navbar__wordmark">
-            <span className="text-gradient">FSG</span>
+            <span className="text-gradient">Glassescanner</span>
           </span>
         </a>
 

@@ -1,0 +1,114 @@
+/* ── Navbar ─────────────────────────────────────────────────── */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--navbar-height);
+  z-index: 1000;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--border-glass);
+  background: rgba(7, 11, 24, 0.7);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+
+.navbar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  gap: var(--space-lg);
+}
+
+/* ── Brand ──────────────────────────────────────────────────── */
+.navbar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.navbar__logo {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+  box-shadow: 0 0 12px var(--cyan-glow);
+}
+
+.navbar__brand:hover .navbar__logo {
+  transform: scale(1.08);
+  box-shadow: 0 0 24px var(--cyan-glow), 0 0 48px rgba(0, 212, 255, 0.12);
+}
+
+.navbar__wordmark {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ── Links ──────────────────────────────────────────────────── */
+.navbar__links {
+  display: flex;
+  list-style: none;
+  gap: var(--space-xl);
+  align-items: center;
+}
+
+.navbar__links a {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  position: relative;
+  padding: var(--space-xs) 0;
+  transition: color var(--transition-fast);
+}
+
+.navbar__links a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--gradient-brand);
+  border-radius: var(--radius-full);
+  transition: width var(--transition-normal);
+}
+
+.navbar__links a:hover {
+  color: var(--text-heading);
+}
+
+.navbar__links a:hover::after {
+  width: 100%;
+}
+
+/* ── Actions ────────────────────────────────────────────────── */
+.navbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.btn--sm {
+  padding: 8px 20px;
+  font-size: 0.8125rem;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .navbar__links {
+    display: none;
+  }
+
+  .navbar__wordmark {
+    font-size: 1.1rem;
+  }
+}

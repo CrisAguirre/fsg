@@ -14,3 +14,12 @@
 .verdict--compatible { border-left: 3px solid #22c55e; }
 .verdict--parcial { border-left: 3px solid #eab308; }
 .verdict--incompatible { border-left: 3px solid #ef4444; }
+.scanner__tabs button, .scanner__row .btn, .scanner select { min-height: 44px; font-size: 1rem; }
+.scanner select { max-width: 100%; border-radius: 10px; padding: .5rem; background: rgba(255,255,255,.06); color: inherit; }
+@media (max-width: 640px) {
+  .scanner { padding-top: 5rem; }
+  .scanner__video, .scanner__preview { max-height: 300px; }
+  .scanner__row { flex-direction: column; align-items: stretch; }
+  .scanner__row .btn { width: 100%; }
+  .scanner__grid { grid-template-columns: 1fr; }
+}

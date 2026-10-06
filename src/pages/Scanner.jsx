@@ -185,8 +185,19 @@ export default function Scanner() {
     setPreview(URL.createObjectURL(f));
   }
 
-  async function runAnalysis() {
-    if (!consent) return setError("Debes aceptar el tratamiento de datos biométricos (Ley 1581).");
+  async function erasePhoto() {
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(null); setPreview(null); setMetrics(null); setRecs([]); setError("");
+    try {
+      const r = await fetch(`${API_URL}/analyze/photo`, { method: "DELETE" });
+      const j = await r.json().catch(() => ({}));
+      setError(j.msg ?? "Foto borrada de este dispositivo.");
+    } catch {
+      setError("Foto borrada de este dispositivo (sin conexión al servidor).");
+    }
+  }
+
+  async function runAnalysis() {    if (!consent) return setError("Debes aceptar el tratamiento de datos biométricos (Ley 1581).");
     if (!file) return setError(tab === "camara" ? "Captura primero con la cámara." : "Sube primero una foto.");
     setError(""); setLoading("Analizando rostro…"); setMetrics(null); setRecs([]);
     try {
@@ -257,6 +268,9 @@ export default function Scanner() {
             </select>
             <button className="btn btn--primary" onClick={runAnalysis} disabled={!!loading}>
               {loading || "Analizar compatibilidad"}
+            </button>
+            <button className="btn btn--glass" onClick={erasePhoto}>
+              🗑 Borrar mi foto
             </button>
           </div>
         </div>

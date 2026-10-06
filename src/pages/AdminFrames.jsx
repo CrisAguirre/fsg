@@ -11,6 +11,10 @@ export default function AdminFrames() {
   const [editando, setEditando] = useState(false);
   const [msg, setMsg] = useState("");
   const [stats, setStats] = useState(null);
+  const [adminKey, setAdminKey] = useState(() => sessionStorage.getItem("gs_admin_key") ?? "");
+
+  const auth = adminKey ? { "X-Admin-Key": adminKey } : {};
+  const saveKey = (k) => { setAdminKey(k); sessionStorage.setItem("gs_admin_key", k); };
 
   const load = () =>
     fetch(`${API_URL}/frames`).then((r) => r.json()).then(setFrames).catch(() => setMsg("Sin conexión al backend"));
@@ -28,22 +32,26 @@ export default function AdminFrames() {
     const body = { ...form };
     num.forEach((k) => (body[k] = Number(body[k])));
     const url = editando ? `${API_URL}/frames/${form.id}` : `${API_URL}/frames`;
-    const r = await fetch(url, { method: editando ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const r = await fetch(url, { method: editando ? "PUT" : "POST", headers: { "Content-Type": "application/json", ...auth }, body: JSON.stringify(body) });
+    if (r.status === 401) return setMsg("Clave admin incorrecta (401). Pídela al responsable.");
     if (!r.ok) return setMsg(`Error ${r.status}: ${(await r.text()).slice(0, 160)}`);
     setForm(VACIO); setEditando(false); setMsg("Guardado ✓"); load();
   }
 
   async function borrar(id) {
     if (!confirm(`Eliminar ${id}?`)) return;
-    const r = await fetch(`${API_URL}/frames/${id}`, { method: "DELETE" });
-    setMsg(r.ok ? "Eliminado ✓" : "Error al eliminar");
+    const r = await fetch(`${API_URL}/frames/${id}`, { method: "DELETE", headers: auth });
+    setMsg(r.status === 401 ? "Clave admin incorrecta (401)." : r.ok ? "Eliminado ✓" : "Error al eliminar");
     load();
   }
 
   return (
     <div className="container admin">
       <h1>Catálogo <span className="text-gradient">por óptica</span></h1>
-      <p className="scanner__sub">Cada óptica filtra por <code>optica_id</code>. Sin login aún: protege esta ruta en prod (TODO auth).</p>
+      <p className="scanner__sub">Cada óptica filtra por <code>optica_id</code>. Las mutaciones exigen clave admin (header <code>X-Admin-Key</code>).</p>
+      <div className="glass admin__form" style={{ padding: ".8rem 1rem" }}>
+        <label>Clave admin<input type="password" value={adminKey} onChange={(e) => saveKey(e.target.value)} placeholder="X-Admin-Key (solo sesión, no se guarda en disco)" autoComplete="off" /></label>
+      </div>
       {stats && <p className="glass admin__stats">Feedback: {stats.n} respuestas · ayuda {stats.avg_helpful ?? "—"}/5 · parcial {Math.round((stats.parcial_rate ?? 0) * 100)}% · <i>{stats.sugerencia}</i></p>}
       {msg && <p>{msg}</p>}
       <form className="glass admin__form" onSubmit={guardar}>

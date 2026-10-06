@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { analyzePhoto, recommend, listFrames, API_URL } from "../lib/api.js";
+import { drawGlasses } from "../components/tryon/GlassesOverlay.js";
 import "./Scanner.css";
 
 const MAX_MB = 5;
@@ -19,8 +20,17 @@ export default function Scanner() {
   const overlayRef = useRef(null);
   const streamRef = useRef(null);
   const landmarkerRef = useRef(null);
+  const imgLandmarkerRef = useRef(null);
+  const lastLmRef = useRef(null);
+  const photoCanvasRef = useRef(null);
+  const photoImgRef = useRef(null);
   const rafRef = useRef(0);
   const [livePts, setLivePts] = useState(0);
+  const [tryOn, setTryOn] = useState(true);
+  const [tryId, setTryId] = useState("F01");
+  const tryFrame = frames.find((x) => x.id === tryId) ?? frames[0];
+  const tryRef = useRef({ on: true, forma: "rectangular" });
+  tryRef.current = { on: tryOn, forma: tryFrame?.forma ?? "rectangular" };
 
   useEffect(() => {
     fetch(`${API_URL}/health`).then(() => setBackendOk(true)).catch(() => setBackendOk(false));
@@ -75,14 +85,20 @@ export default function Scanner() {
           const ctx = cnv.getContext("2d");
           ctx.clearRect(0, 0, cnv.width, cnv.height);
           if (pts > 0) {
-            ctx.fillStyle = "rgba(0,212,255,.8)";
             const lm = res.faceLandmarks[0];
-            const sx = cnv.width / v.videoWidth;
-            const sy = cnv.height / v.videoHeight;
-            for (let i = 0; i < lm.length; i += 6) {
-              ctx.beginPath();
-              ctx.arc(lm[i].x * v.videoWidth * sx, lm[i].y * v.videoHeight * sy, 1.6, 0, 7);
-              ctx.fill();
+            lastLmRef.current = lm;
+            const t = tryRef.current;
+            if (t.on) {
+              drawGlasses(ctx, lm, v.videoWidth, v.videoHeight, cnv.width, cnv.height, t.forma);
+            } else {
+              ctx.fillStyle = "rgba(0,212,255,.8)";
+              const sx = cnv.width / v.videoWidth;
+              const sy = cnv.height / v.videoHeight;
+              for (let i = 0; i < lm.length; i += 6) {
+                ctx.beginPath();
+                ctx.arc(lm[i].x * v.videoWidth * sx, lm[i].y * v.videoHeight * sy, 1.6, 0, 7);
+                ctx.fill();
+              }
             }
           }
         } catch { /* un frame fallido no rompe el loop */ }
@@ -100,6 +116,51 @@ export default function Scanner() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   }
+
+  // Try-on en foto capturada/subida (IMAGE mode, reutiliza el mismo CDN)
+  useEffect(() => {
+    if (!preview) return;
+    let dead = false;
+    (async () => {
+      try {
+        const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
+        if (!imgLandmarkerRef.current) {
+          const fileset = await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+          );
+          if (dead) return;
+          imgLandmarkerRef.current = await FaceLandmarker.createFromOptions(fileset, {
+            baseOptions: {
+              modelAssetPath:
+                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+              delegate: "GPU",
+            },
+            runningMode: "IMAGE",
+            numFaces: 1,
+          });
+        }
+        const img = photoImgRef.current;
+        const cnv = photoCanvasRef.current;
+        if (!img || !cnv) return;
+        await new Promise((r) => (img.complete && img.naturalWidth ? r() : (img.onload = r)));
+        if (dead) return;
+        const W = img.naturalWidth, H = img.naturalHeight;
+        const maxW = 640;
+        const sc = Math.min(1, maxW / W);
+        cnv.width = Math.round(W * sc);
+        cnv.height = Math.round(H * sc);
+        const ctx = cnv.getContext("2d");
+        ctx.clearRect(0, 0, cnv.width, cnv.height);
+        ctx.drawImage(img, 0, 0, cnv.width, cnv.height);
+        if (!tryRef.current.on) return;
+        const res = imgLandmarkerRef.current.detect(img);
+        const lm = res?.faceLandmarks?.[0];
+        if (lm) drawGlasses(ctx, lm, W, H, cnv.width, cnv.height, tryRef.current.forma, "#c839ff");
+      } catch { /* foto sin try-on sigue permitiendo análisis */ }
+    })();
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview, tryId, tryOn]);
 
   function capture() {
     const v = videoRef.current;
@@ -181,9 +242,19 @@ export default function Scanner() {
 
       {preview && (
         <div className="glass scanner__panel">
-          <h3>Vista previa</h3>
-          <img src={preview} alt="rostro para análisis" className="scanner__preview" />
+          <h3>Vista previa + probador</h3>
+          <img ref={photoImgRef} src={preview} alt="rostro para análisis" className="scanner__preview" style={{ display: "none" }} />
+          <canvas ref={photoCanvasRef} className="scanner__preview" />
           <div className="scanner__row">
+            <label style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
+              <input type="checkbox" checked={tryOn} onChange={(e) => setTryOn(e.target.checked)} />
+              Probador
+            </label>
+            <select value={tryId} onChange={(e) => setTryId(e.target.value)} aria-label="Marco para probar">
+              {(recs.length ? recs.map((r) => frames.find((x) => x.id === r.frame_id)).filter(Boolean) : frames).map((f) => (
+                <option key={f.id} value={f.id}>{f.nombre} · {f.forma}</option>
+              ))}
+            </select>
             <button className="btn btn--primary" onClick={runAnalysis} disabled={!!loading}>
               {loading || "Analizar compatibilidad"}
             </button>
@@ -216,7 +287,7 @@ export default function Scanner() {
         </div>
       )}
 
-      <p className="scanner__sub">Try-on 3D (Three.js GLB en <code>public/glasses/*.glb</code>, escala por IPD, anclaje puente) se monta en S4 sobre este mismo veredicto.</p>
+      <p className="scanner__sub">Probador procedural v1 (6 formas). v1.1: modelos GLB fotorrealistas en <code>public/glasses/*.glb</code> con Three.js sobre este mismo veredicto.</p>
     </div>
   );
 }

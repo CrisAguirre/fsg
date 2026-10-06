@@ -1,0 +1,10 @@
+.admin { padding: 6rem 1rem 3rem; display: grid; gap: 1rem; }
+.admin__stats { padding: .8rem 1rem; }
+.admin__form { padding: 1rem; display: grid; gap: .8rem; }
+.admin__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; }
+.admin__grid label { display: grid; gap: .3rem; font-size: .85rem; }
+.admin__grid input, .admin__grid select { min-height: 40px; border-radius: 8px; padding: .4rem .6rem; background: rgba(255,255,255,.06); color: inherit; border: 1px solid rgba(255,255,255,.12); }
+.admin__tablewrap { overflow-x: auto; padding: .5rem; }
+.admin__table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.admin__table th, .admin__table td { padding: .5rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,.08); white-space: nowrap; }
+@media (max-width: 640px) { .admin { padding-top: 5rem; } }

@@ -4,6 +4,30 @@ import { drawGlasses } from "../components/tryon/GlassesOverlay.js";
 import { renderGLB } from "../components/tryon/GlassesGLB.js";
 import "./Scanner.css";
 
+function FeedbackBox({ metrics, top }) {
+  const [v, setV] = useState(0);
+  const [done, setDone] = useState(false);
+  if (done) return <p className="glass scanner__panel">¡Gracias! Tu voto ayuda a calibrar el sistema. ✓</p>;
+  return (
+    <div className="glass scanner__panel">
+      <b>¿La explicación te ayudó a decidir? </b>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button key={n} className="btn btn--glass" style={{ margin: ".2rem", opacity: v === n ? 1 : 0.6 }} onClick={() => setV(n)}>{n}★</button>
+      ))}
+      <button
+        className="btn btn--primary" disabled={!v}
+        onClick={async () => {
+          await fetch(`${API_URL}/feedback`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ face_shape: metrics?.face_shape ?? "oval", frame_id: top?.frame_id ?? "F01", verdict: top?.verdict ?? "compatible", helpful: v }),
+          }).catch(() => {});
+          setDone(true);
+        }}
+      >Enviar</button>
+    </div>
+  );
+}
+
 const MAX_MB = 5;
 
 export default function Scanner() {
@@ -299,6 +323,7 @@ export default function Scanner() {
       )}
 
       {recs.length > 0 && (
+        <>
         <div className="scanner__grid">
           {recs.slice(0, 6).map((r) => {
             const f = frames.find((x) => x.id === r.frame_id);
@@ -311,6 +336,8 @@ export default function Scanner() {
             );
           })}
         </div>
+        <FeedbackBox metrics={metrics} top={recs[0]} />
+        </>
       )}
 
       <p className="scanner__sub">Probador procedural v1 (6 formas). v1.1: modelos GLB fotorrealistas en <code>public/glasses/*.glb</code> con Three.js sobre este mismo veredicto.</p>

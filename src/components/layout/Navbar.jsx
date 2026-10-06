@@ -23,6 +23,7 @@ function Navbar() {
           <li><a href="/#how-it-works">Cómo funciona</a></li>
           <li><a href="/#precision">Precisión</a></li>
           <li><a href="/scanner">Escáner</a></li>
+          <li><a href="/admin/frames">Catálogo</a></li>
         </ul>
 
         <div className="navbar__actions">

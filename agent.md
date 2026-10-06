@@ -44,6 +44,7 @@ src/
 2.  **Scanner híbrido:** ruta `/scanner` (cámara `getUserMedia` + subida), preview landmarks MediaPipe, `POST /analyze` → `POST /recommend`, probador procedural (`GlassesOverlay.js` 6 formas) + GLB (`GlassesGLB.js` con fallback), botón Borrar mi foto, CSS móvil 640px.
 3.  **Rebranding a Glassescanner** + docs: `GLASSESCANNER_PLAN.md`, `INVESTIGACION_SISTEMA_EXPERTO.md`, `ENV_SETUP.md`, `PILOTO_30.md`, `SCANNER_SPEC.md`, `public/glasses/README.md`.
 4.  **Fixes deploy:** SPA rewrite `vercel.json`, CORS prod, `motor 3.6.1 + pymongo 4.9.2`, `VITE_API_URL` a Render.
+5.  **Admin + piloto:** `/admin/frames` con `X-Admin-Key` (sessionStorage), `/piloto` (registro por caso con `optica_id`), encuesta 1–5★ → `/feedback` + `/feedback/stats`, `RECALIBRACION.md`, probador GLB con fallback.
 
 ## Próximos Pasos (Sugerencias)
 *   Añadir la lógica de enrutamiento (ej. React Router) si la aplicación crecerá a múltiples páginas.

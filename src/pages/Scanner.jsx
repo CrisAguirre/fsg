@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { analyzePhoto, recommend, listFrames, API_URL } from "../lib/api.js";
 import { drawGlasses } from "../components/tryon/GlassesOverlay.js";
+import { renderGLB } from "../components/tryon/GlassesGLB.js";
 import "./Scanner.css";
 
 const MAX_MB = 5;
@@ -24,6 +25,8 @@ export default function Scanner() {
   const lastLmRef = useRef(null);
   const photoCanvasRef = useRef(null);
   const photoImgRef = useRef(null);
+  const glbCanvasRef = useRef(null);
+  const [glb3d, setGlb3d] = useState(null); // null=probando, true=GLB, false=procedural
   const rafRef = useRef(0);
   const [livePts, setLivePts] = useState(0);
   const [tryOn, setTryOn] = useState(true);
@@ -156,6 +159,14 @@ export default function Scanner() {
         const res = imgLandmarkerRef.current.detect(img);
         const lm = res?.faceLandmarks?.[0];
         if (lm) drawGlasses(ctx, lm, W, H, cnv.width, cnv.height, tryRef.current.forma, "#c839ff");
+        // Vista 3D fotorrealista si la óptica subió el GLB; si no, queda oculta.
+        try {
+          const g = glbCanvasRef.current;
+          if (g) {
+            const ok = await renderGLB(g, { forma: tryRef.current.forma, ipdPx: 100 }).catch(() => false);
+            setGlb3d(ok ? true : false);
+          }
+        } catch { setGlb3d(false); }
       } catch { /* foto sin try-on sigue permitiendo análisis */ }
     })();
     return () => { dead = true; };
@@ -256,6 +267,7 @@ export default function Scanner() {
           <h3>Vista previa + probador</h3>
           <img ref={photoImgRef} src={preview} alt="rostro para análisis" className="scanner__preview" style={{ display: "none" }} />
           <canvas ref={photoCanvasRef} className="scanner__preview" />
+          <canvas ref={glbCanvasRef} className="scanner__preview" style={{ display: glb3d ? undefined : "none" }} aria-label="Vista 3D fotorrealista" />
           <div className="scanner__row">
             <label style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
               <input type="checkbox" checked={tryOn} onChange={(e) => setTryOn(e.target.checked)} />

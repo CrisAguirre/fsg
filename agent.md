@@ -5,8 +5,8 @@ Este documento proporciona el contexto actual del proyecto para que otras inteli
 ## Información General
 *   **Nombre del Proyecto:** Glassescanner (anteriormente conocido como FSG - Facial Scanner for Glasses).
 *   **Propósito:** Aplicación web para el escaneo facial 3D y recomendación de monturas de gafas con alta precisión (99.8%).
-*   **Stack Tecnológico:** Vite, React 19.
-*   **Estado Actual:** Landing page inicial (maquetación) completada.
+*   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GLB opcional). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + Mongo).
+*   **Estado Actual:** Landing + ruta `/scanner` funcional (cámara en vivo con overlay landmarks + probador procedural 6 formas + GLB fotorrealista si existe, subida JPG/PNG/WebP, veredicto Compatible/Parcial/Incompatible con 3 razones, borrado Ley 1581). Desplegado: front Vercel + back Render + Mongo.
 
 ## Identidad Corporativa y Diseño (Design System)
 El diseño se basa fuertemente en el estilo **Aeroglass / Glassmorphism** (efectos de cristal translúcido, desenfoques, bordes luminosos) y una temática "tech-futurista".
@@ -40,12 +40,10 @@ src/
 ```
 
 ## Cambios Recientes
-1.  **Maquetación Base:** Se construyó la landing page completa (Navbar, Hero, Features, How it works, CTA, Footer) utilizando CSS puro y variables.
-2.  **Ajuste del Hero:** Se configuró para mostrar únicamente el icono (`logo.png`) flotante con efectos de aura (anillos y glow), removiendo el logotipo con texto original.
-3.  **Rebranding a Glassescanner:** Se actualizó el nombre de "FSG" a "Glassescanner" en:
-    *   El título del documento HTML (`<title>`).
-    *   El texto del Navbar (junto al logo).
-    *   El Footer (copyright y menciones).
+1.  **Maquetación Base:** landing completa (Navbar, Hero, Features, How it works, CTA, Footer).
+2.  **Scanner híbrido:** ruta `/scanner` (cámara `getUserMedia` + subida), preview landmarks MediaPipe, `POST /analyze` → `POST /recommend`, probador procedural (`GlassesOverlay.js` 6 formas) + GLB (`GlassesGLB.js` con fallback), botón Borrar mi foto, CSS móvil 640px.
+3.  **Rebranding a Glassescanner** + docs: `GLASSESCANNER_PLAN.md`, `INVESTIGACION_SISTEMA_EXPERTO.md`, `ENV_SETUP.md`, `PILOTO_30.md`, `SCANNER_SPEC.md`, `public/glasses/README.md`.
+4.  **Fixes deploy:** SPA rewrite `vercel.json`, CORS prod, `motor 3.6.1 + pymongo 4.9.2`, `VITE_API_URL` a Render.
 
 ## Próximos Pasos (Sugerencias)
 *   Añadir la lógica de enrutamiento (ej. React Router) si la aplicación crecerá a múltiples páginas.

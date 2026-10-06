@@ -16,7 +16,11 @@ export default function Scanner() {
   const [error, setError] = useState("");
   const [backendOk, setBackendOk] = useState(null);
   const videoRef = useRef(null);
+  const overlayRef = useRef(null);
   const streamRef = useRef(null);
+  const landmarkerRef = useRef(null);
+  const rafRef = useRef(0);
+  const [livePts, setLivePts] = useState(0);
 
   useEffect(() => {
     fetch(`${API_URL}/health`).then(() => setBackendOk(true)).catch(() => setBackendOk(false));
@@ -36,14 +40,63 @@ export default function Scanner() {
         videoRef.current.srcObject = s;
         await videoRef.current.play().catch(() => {});
       }
-      // Preview landmarks (progresivo): Tasks-Vision LIVE_STREAM se activa en S2 sin bloquear.
-      import("@mediapipe/tasks-vision").catch(() => {});
+      // Overlay landmarks en vivo (progresivo, no bloquea si falla la red/CDN)
+      startLiveLandmarks().catch(() => {});
     } catch {
       setError("No se pudo abrir la cámara (permiso, HTTPS o sin cámara). Usa la pestaña Subir foto.");
     }
   }
 
+  async function startLiveLandmarks() {
+    const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
+    const fileset = await FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+    );
+    landmarkerRef.current = await FaceLandmarker.createFromOptions(fileset, {
+      baseOptions: {
+        modelAssetPath:
+          "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+        delegate: "GPU",
+      },
+      outputFaceBlendshapes: false,
+      runningMode: "VIDEO",
+      numFaces: 1,
+    });
+    const loop = async () => {
+      const v = videoRef.current;
+      const cnv = overlayRef.current;
+      if (v && cnv && v.videoWidth && landmarkerRef.current) {
+        cnv.width = v.clientWidth || v.videoWidth;
+        cnv.height = v.clientHeight || v.videoHeight;
+        try {
+          const res = landmarkerRef.current.detectForVideo(v, performance.now());
+          const pts = res?.faceLandmarks?.[0]?.length ?? 0;
+          setLivePts(pts);
+          const ctx = cnv.getContext("2d");
+          ctx.clearRect(0, 0, cnv.width, cnv.height);
+          if (pts > 0) {
+            ctx.fillStyle = "rgba(0,212,255,.8)";
+            const lm = res.faceLandmarks[0];
+            const sx = cnv.width / v.videoWidth;
+            const sy = cnv.height / v.videoHeight;
+            for (let i = 0; i < lm.length; i += 6) {
+              ctx.beginPath();
+              ctx.arc(lm[i].x * v.videoWidth * sx, lm[i].y * v.videoHeight * sy, 1.6, 0, 7);
+              ctx.fill();
+            }
+          }
+        } catch { /* un frame fallido no rompe el loop */ }
+      }
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    cancelAnimationFrame(rafRef.current);
+    loop();
+  }
+
   function stopCamera() {
+    cancelAnimationFrame(rafRef.current);
+    landmarkerRef.current?.close?.();
+    landmarkerRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   }
@@ -108,7 +161,11 @@ export default function Scanner() {
 
       {tab === "camara" ? (
         <div className="glass scanner__panel">
-          <video ref={videoRef} playsInline muted className="scanner__video" />
+          <div className="scanner__camwrap">
+            <video ref={videoRef} playsInline muted className="scanner__video" />
+            <canvas ref={overlayRef} className="scanner__overlay" aria-hidden="true" />
+          </div>
+          <small>{livePts > 0 ? `Rostro en vivo: ${livePts} puntos · centra tu cara en el óvalo` : "Activa la cámara y centra tu rostro de frente."}</small>
           <div className="scanner__row">
             <button className="btn btn--glass" onClick={startCamera}>Activar cámara</button>
             <button className="btn btn--primary" onClick={capture}>Capturar</button>

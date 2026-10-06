@@ -19,13 +19,14 @@ function Navbar() {
         </a>
 
         <ul className="navbar__links">
-          <li><a href="#features">Funciones</a></li>
-          <li><a href="#how-it-works">Cómo funciona</a></li>
-          <li><a href="#precision">Precisión</a></li>
+          <li><a href="/#features">Funciones</a></li>
+          <li><a href="/#how-it-works">Cómo funciona</a></li>
+          <li><a href="/#precision">Precisión</a></li>
+          <li><a href="/scanner">Escáner</a></li>
         </ul>
 
         <div className="navbar__actions">
-          <a href="#start" className="btn btn--primary btn--sm">
+          <a href="/scanner" className="btn btn--primary btn--sm">
             Iniciar Escaneo
           </a>
         </div>

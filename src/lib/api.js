@@ -19,10 +19,13 @@ export async function analyzePhoto(fileOrBlob) {
   const fd = new FormData();
   fd.append("photo", fileOrBlob, "rostro.jpg");
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 12000);
+  const t = setTimeout(() => ctrl.abort(), 45000);
   try {
     const r = await fetch(`${API_URL}/analyze`, { method: "POST", body: fd, signal: ctrl.signal });
-    if (!r.ok) throw new Error(`analyze ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    if (!r.ok) {
+      const errText = await r.text().catch(() => "");
+      throw new Error(`analyze ${r.status}: ${errText.slice(0, 200)}`);
+    }
     return r.json();
   } finally {
     clearTimeout(t);

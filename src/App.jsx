@@ -34,14 +34,14 @@ function App() {
             </p>
 
             <div className="hero__actions">
-              <a href="#features" className="btn btn--primary">
+              <a href="/scanner" className="btn btn--primary">
                 Comenzar Escaneo
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </a>
-              <a href="#how-it-works" className="btn btn--glass">
-                Cómo funciona
+              <a href="/catalogo" className="btn btn--glass">
+                Explorar Catálogo
               </a>
             </div>
           </div>
@@ -198,8 +198,8 @@ function App() {
                 garantizando que cada montura recomendada se ajuste perfectamente
                 a la anatomía de tu rostro.
               </p>
-              <a href="#start" className="btn btn--primary">
-                Probar Ahora
+              <a href="/scanner" className="btn btn--primary">
+                Iniciar Escaneo Ahora
               </a>
             </div>
           </div>

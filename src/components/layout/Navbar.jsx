@@ -21,10 +21,10 @@ function Navbar() {
         <ul className="navbar__links">
           <li><a href="/#features">Funciones</a></li>
           <li><a href="/#how-it-works">Cómo funciona</a></li>
-          <li><a href="/#precision">Precisión</a></li>
+          <li><a href="/catalogo">Catálogo</a></li>
           <li><a href="/scanner">Escáner</a></li>
-          <li><a href="/admin/frames">Catálogo</a></li>
           <li><a href="/piloto">Piloto</a></li>
+          <li><a href="/admin/frames">Admin</a></li>
         </ul>
 
         <div className="navbar__actions">

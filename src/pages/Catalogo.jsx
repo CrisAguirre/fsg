@@ -343,6 +343,15 @@ export default function Catalogo() {
                 <p className="modal-sub">Código: <b>{selectedFrame.id}</b> · Marca: <b>{selectedFrame.marca}</b></p>
               </div>
 
+              <div className="modal-img-wrap">
+                <img
+                  src={selectedFrame.imagen_url || `/frames/${selectedFrame.forma}.jpg`}
+                  alt={selectedFrame.nombre}
+                  className="modal-frame-img"
+                  onError={(e) => { e.target.style.display = "none"; }}
+                />
+              </div>
+
               <div className="modal-specs-grid">
                 <div className="modal-spec-card">
                   <span className="spec-label">Ancho Total Montura</span>

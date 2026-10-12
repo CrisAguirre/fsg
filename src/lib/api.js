@@ -10,7 +10,10 @@ async function req(path, opts = {}) {
 }
 
 export const health = () => req("/health");
-export const listFrames = () => req("/frames");
+export const listFrames = (optica_id = null) => {
+  const qs = optica_id ? `?optica_id=${encodeURIComponent(optica_id)}` : "";
+  return req(`/frames${qs}`);
+};
 
 export async function analyzePhoto(fileOrBlob) {
   const fd = new FormData();
@@ -26,11 +29,49 @@ export async function analyzePhoto(fileOrBlob) {
   }
 }
 
-export const recommend = (metrics, frame_ids = null) =>
+export const deletePhoto = () => req("/analyze/photo", { method: "DELETE" });
+
+export const recommend = (metrics, frame_ids = null, optica_id = null) =>
   req("/recommend", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ metrics, frame_ids }),
+    body: JSON.stringify({ metrics, frame_ids, optica_id }),
+  });
+
+export const sendFeedback = (data) =>
+  req("/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+export const getFeedbackStats = () => req("/feedback/stats");
+
+export const createFrame = (frame, adminKey) =>
+  req("/frames", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
+    body: JSON.stringify(frame),
+  });
+
+export const updateFrame = (id, frame, adminKey) =>
+  req(`/frames/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
+    body: JSON.stringify(frame),
+  });
+
+export const deleteFrame = (id, adminKey) =>
+  req(`/frames/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { "X-Admin-Key": adminKey },
+  });
+
+export const seedFrames = (adminKey) =>
+  req("/frames/seed", {
+    method: "POST",
+    headers: { "X-Admin-Key": adminKey },
   });
 
 export { API_URL };
+

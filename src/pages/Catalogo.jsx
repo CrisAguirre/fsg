@@ -257,7 +257,13 @@ export default function Catalogo() {
 
                 <div className="catalogo-card__visual">
                   <div className="frame-icon-display">
-                    <span className="frame-svg-symbol">👓</span>
+                    <img
+                      src={f.imagen_url || `/frames/${f.forma}.jpg`}
+                      alt={f.nombre}
+                      className="catalogo-card__img"
+                      loading="lazy"
+                      onError={(e) => { e.target.src = ''; e.target.alt = '👓'; e.target.className = 'catalogo-card__img-fallback'; }}
+                    />
                     <span className="frame-id-tag">{f.id}</span>
                   </div>
                 </div>

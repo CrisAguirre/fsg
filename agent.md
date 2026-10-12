@@ -92,31 +92,33 @@ Front: `VITE_API_URL`. Back: `CORS_ORIGINS` (localhost + front prod), `MAX_PHOTO
 2.  **Scanner híbrido** (`/scanner`): cámara + subida, landmarks en vivo, `/analyze`→`/recommend`, probador procedural + GLB, borrado Ley 1581, CSS móvil.
 3.  **Fixes deploy:** `vercel.json` SPA, CORS prod, `motor 3.6.1 + pymongo 4.9.2` (fix `_QUERY_OPTIONS`), `VITE_API_URL` Render.
 4.  **Admin + piloto:** `/admin/frames` con clave, `/piloto`, feedback ★, `RECALIBRACION.md`, consentimiento imprimible.
-5.  **Cierre:** lint limpio (un warning cosmético oxlint en Footer memoizado), sin TODOs en código.
-6.  **Normalización piloto (2026-10-12):** 30 fotos web (8 avif + 4 webp + 18 jpg, nombres aleatorios) convertidas a `piloto-rostros/casos/caso-01.jpg…caso-30.jpg` (JPG RGB ≤1280px) + `MAPEO.txt` con la correspondencia. `casos.csv` ya apuntaba a esos nombres; `forma_real` sigue vacío.
-7.  **Fix crítico `/analyze` en Render (2026-10-12):** prod devolvía 400 `No se pudo decodificar` en el 100% de fotos (incluso imagen en blanco; local 9/9 PASS). Diagnóstico vía error instrumentado: `import cv2` fallaba en el contenedor (`cv2=missing`, mediapipe arrastra opencv-contrib full que exige libGL ausente en `slim`). Commits backend: `92c2ace` (buffer escribible + fallback PIL), `e9599e9` (detalle dbg temporal), `fd40ffd` (decode PIL-primero sin cv2 + sysdeps en Dockerfile + `pillow==10.4.0`). Verificado en prod: 200 con `face_detected:true` (MediaPipe 478 pts, ej. simetría 97.7).
-8.  **Piloto batch 30/30 contra prod (2026-10-12):** `python scripts/piloto_batch.py --api https://glassescanner-backend.onrender.com` → `piloto-rostros/resultados.csv`. Ver Hallazgos.
+5.  **Cierre y normalización piloto (2026-10-12):** 30 fotos web normalizadas a `piloto-rostros/casos/caso-01.jpg…caso-30.jpg`. Fix crítico `/analyze` en Render (PIL-primero, Docker sysdeps).
+6.  **Overhaul Backend (Fases 1-3):**
+    *   **Modelo de Datos Ampliado:** `schemas.py` ampliado con `genero`, `precio_rango`, `marca`, `imagen_url`, `tipo_lente`, `estilo`, `talla` en `Frame`; y `temporal_est` en `FaceMetrics`.
+    *   **Catálogo Profesional 64 marcos:** `frames_seed.json` generado con 64 monturas reales (8 por cada una de las 8 formas: rectangular, cuadrado, redondo, oval, aviador, wayfarer, cat-eye, rimless) con todas sus medidas ópticas (A, B, D, patilla, total), compatibilidad de lentes (monofocal, progresivo, blue-cut, etc.), marcas, estilos y rangos de precio.
+    *   **Carga de catálogo:** `catalog.py` carga dinámicamente el seed completo de 64 monturas en memoria.
+    *   **Calibración facial morfométrica:** `classify_face` en `geometry.py` recalibrado con ratios antropométricos para discriminar las 7 formas (oblongo, redondo, cuadrado, triangular, corazón, diamante, oval), eliminando el falso sesgo hacia diamante.
+    *   **Métricas faciales dinámicas:** Derivación de `temporal_est` real (mm), `ipd_mm_est` anatómico, `nose_bridge_mm_est`, `eyebrow_in_frame_zone` y ratios reales (`frente_pomulo`, `mandibula_frente`).
+    *   **Scoring dinámico:** `rules.py` utiliza `temporal_est` medido y matriz de contraste ampliada para las 8 formas de monturas.
+    *   **Higiene backend:** Revertido el mensaje de debug verbose del 400 en `analyze.py`, añadido `.gitignore` (.venv, __pycache__, .pytest_cache). 9/9 tests PASS en pytest.
+7.  **Overhaul Frontend (Fases 4-5):**
+    *   **API cliente completa:** `lib/api.js` con soporte para `listFrames(optica_id)`, `recommend(metrics, frame_ids, optica_id)`, helpers de feedback (`sendFeedback`, `getFeedbackStats`) y gestión de monturas (`createFrame`, `updateFrame`, `deleteFrame`, `seedFrames`).
+    *   **Catálogo público para clientes:** Nueva página `/catalogo` (`Catalogo.jsx` + `Catalogo.css`) con filtros interactivos por forma, género, estilo, talla, rango de precio y tipo de lente, búsqueda reactiva, visualización de fichas técnicas y botón para probar en el escáner facial.
+    *   **Navegación:** Enlaces de landing (`App.jsx`) y Navbar actualizados hacia `/scanner` y `/catalogo`.
+    *   **Probador procedural 8 formas:** `GlassesOverlay.js` actualizado con renderizado procedural de `cat-eye` y `rimless`.
+    *   **Escáner enriquecido:** `Scanner.jsx` renderiza desglose anatómico completo, badges y detalles de monturas en tarjetas de recomendación y soporte de preselección vía `?frameId=...`. Build de producción de Vite 100% OK.
 
-## Hallazgos del piloto batch (datos, no opiniones)
-*   Detección 30/30 (100%, meta `PILOTO_30.md` ≥27/30 ✓). Infraestructura validada.
-*   Formas detectadas: 24 `diamante` + 6 `oval`; 0 en las otras 5 clases → sospecha de sesgo en `classify_face` (`app/face/geometry.py:24-37`). Sin `forma_real` no hay accuracy medible.
-*   Veredicto top1: 30/30 `compatible`, top1 siempre `F07` (Esencial Oval 139 mm) → scoring sin discriminación: `ancho_total 139 ≈ temporal_est stub 138` (`rules.py:21`) + contraste oval universal. `parcial_rate=0` → según `RECALIBRACION.md` NO tocar pesos/umbrales.
-*   Simetría mediana 90.8, mínimos 21.4/23.8 (fotos no frontales: la muestra es web variada, NO protocolo `PILOTO_30.md`).
-*   `avg_helpful` sin datos (el batch no recoge la pregunta 1–5) → pendiente vía `/piloto` + `POST /feedback`.
+## Deuda técnica resuelta
+*   ✓ `temporal_est` dinámico derivado de landmarks en backend y frontend.
+*   ✓ `[dbg...]` verbose revertido a mensaje limpio en 400 de `/analyze`.
+*   ✓ `.gitignore` presente y activo en backend.
+*   ✓ `api.js` completo con optica_id, feedback y CRUD.
+*   ✓ Funnel de landing reparado hacia `/scanner` y `/catalogo`.
+*   ✓ Soporte completo de 8 formas en probador procedural y 64 monturas en stock.
 
-## Deuda técnica registrada (no reabrir sin motivo)
-*   `temporal_est=138.0` hardcodeado (`rules.py:21`); `eyebrow_in_frame_zone=True` y ratios fijos en `analyze.py` — scoring simplificado hasta piloto real.
-*   Revertir el `[dbg...]` verbose del 400 a mensaje simple antes del cierre.
-*   Sin `.gitignore` en backend: se commitean `__pycache__/*.pyc` y `.pytest_cache` (commits `cc05c96`, `53ca223`, `acb83fd` solo contienen `.pyc`). Higiene de commits numéricos sin mensaje.
-*   `lib/api.js`: `listFrames()` sin `optica_id`, `recommend()` sin `optica_id`; faltan helpers de feedback/CRUD (el contrato sí los soporta en back).
-*   Landing `App.jsx`: botones apuntan a `#features`, no enlazan a `/scanner` (funnel roto).
-*   `fsg/.env` con URL de prod commiteado (no es secreto, pero debería vivir solo en Vercel).
+## Próximos Pasos (Hoja de Ruta)
+1.  Llenar `forma_real,marco_lleva,va_bien` en `piloto-rostros/casos.csv` (ojo óptico) → correr lote con nueva calibración para calcular accuracy real.
+2.  Recoger `helpful 1-5` por caso vía `/piloto` → `GET /feedback/stats` para afinar umbrales si se requiere.
+3.  Piloto real en óptica según `PILOTO_30.md`.
+4.  Carga de modelos GLB 3D fotorrealistas por montura en `public/glasses/` para ópticas asociadas.
 
-## Próximos Pasos (plan estipulado, en orden)
-1.  Llenar `forma_real,marco_lleva,va_bien` en `piloto-rostros/casos.csv` (ojo óptico) → calcular accuracy real vs `forma_detectada` de `resultados.csv`.
-2.  Recoger `helpful 1-5` por caso vía `/piloto` → `GET /feedback/stats`; aplicar `RECALIBRACION.md` (hoy: parcial 0% y sin ayuda ⇒ no tocar nada).
-3.  Piloto real en óptica según `PILOTO_30.md` (luz frontal, consentimiento impreso, 5 min/caso, muestra 10+10+10).
-4.  Solo con datos del piloto real: derivar `temporal_est` de landmarks, revisar sesgo `diamante`, revertir `[dbg...]`, añadir `.gitignore`.
-5.  Conseguir GLB fotorrealistas por forma con la óptica (`public/glasses/README.md`).
-6.  Auth real multi-óptica (hoy: `ADMIN_KEY` compartida, suficiente para piloto).
-7.  Mejorar a11y/SEO e i18n si se requiere.

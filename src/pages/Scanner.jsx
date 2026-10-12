@@ -29,12 +29,56 @@ function FeedbackBox({ metrics, top }) {
   );
 }
 
-const MAX_MB = 5;
+const MAX_MB = 15;
+
+async function normalizeImageFile(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const maxDim = 1280;
+      let w = img.naturalWidth || img.width || 640;
+      let h = img.naturalHeight || img.height || 480;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const normalizedFile = new File([blob], "rostro.jpg", { type: "image/jpeg" });
+            resolve({ file: normalizedFile, previewUrl: URL.createObjectURL(blob) });
+          } else {
+            resolve({ file, previewUrl: URL.createObjectURL(file) });
+          }
+        },
+        "image/jpeg",
+        0.88
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ file, previewUrl: URL.createObjectURL(file) });
+    };
+    img.src = url;
+  });
+}
 
 export default function Scanner() {
   const [searchParams] = useSearchParams();
   const initialFrame = searchParams.get("frameId");
-  const [consent, setConsent] = useState(false);
+  const [consent, setConsent] = useState(true);
   const [tab, setTab] = useState("camara"); // camara | subir
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -176,7 +220,11 @@ export default function Scanner() {
         const img = photoImgRef.current;
         const cnv = photoCanvasRef.current;
         if (!img || !cnv) return;
-        await new Promise((r) => (img.complete && img.naturalWidth ? r() : (img.onload = r)));
+        await new Promise((r) => {
+          if (img.complete && img.naturalWidth) return r();
+          img.onload = () => r();
+          img.onerror = () => r();
+        });
         if (dead) return;
         const W = img.naturalWidth, H = img.naturalHeight;
         const maxW = 640;
@@ -214,17 +262,29 @@ export default function Scanner() {
       if (!b) return setError("No se pudo capturar. Intenta de nuevo.");
       setFile(new File([b], "captura.jpg", { type: "image/jpeg" }));
       setPreview(URL.createObjectURL(b));
-    }, "image/jpeg", 0.85);
+      setMetrics(null);
+      setRecs([]);
+    }, "image/jpeg", 0.88);
   }
 
-  function onUpload(e) {
+  async function onUpload(e) {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > MAX_MB * 1024 * 1024) return setError(`La foto supera ${MAX_MB} MB.`);
-    if (!/image\/(jpeg|png|webp)/.test(f.type)) return setError("Formato válido: JPG/PNG/WebP.");
     setError("");
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
+    setLoading("Cargando y optimizando imagen…");
+    try {
+      const normalized = await normalizeImageFile(f);
+      setFile(normalized.file);
+      setPreview(normalized.previewUrl);
+      setMetrics(null);
+      setRecs([]);
+    } catch {
+      setFile(f);
+      setPreview(URL.createObjectURL(f));
+    } finally {
+      setLoading("");
+      if (e.target) e.target.value = "";
+    }
   }
 
   async function erasePhoto() {
@@ -239,18 +299,33 @@ export default function Scanner() {
     }
   }
 
-  async function runAnalysis() {    if (!consent) return setError("Debes aceptar el tratamiento de datos biométricos (Ley 1581).");
-    if (!file) return setError(tab === "camara" ? "Captura primero con la cámara." : "Sube primero una foto.");
-    setError(""); setLoading("Analizando rostro…"); setMetrics(null); setRecs([]);
+  async function runAnalysis() {
+    if (!consent) {
+      setError("Debes aceptar el tratamiento de datos biométricos (Ley 1581) para continuar.");
+      return;
+    }
+    if (!file) {
+      setError(tab === "camara" ? "Captura primero con la cámara." : "Selecciona primero una foto de tu rostro.");
+      return;
+    }
+    setError("");
+    setLoading("Analizando geometría facial con IA…");
+    setMetrics(null);
+    setRecs([]);
     try {
       const m = await analyzePhoto(file);
-      if (!m.face_detected) throw new Error("No se detectó rostro frontal. Acércate a la luz y mira de frente.");
+      if (!m || !m.face_detected) {
+        throw new Error(m?.warnings?.[0] || "No se detectó un rostro frontal claro. Asegúrate de mirar de frente y tener buena luz.");
+      }
       setMetrics(m);
-      setLoading("Generando compatibilidades…");
+      setLoading("Calculando compatibilidades con el stock…");
       const r = await recommend(m, null);
       setRecs(r.sort((a, b) => b.score - a.score));
     } catch (e) {
-      setError(e.name === "AbortError" ? "El backend tardó >12 s (¿Render dormido?). Reintenta." : e.message);
+      const msg = e.name === "AbortError"
+        ? "El servidor tardó en responder. Por favor intenta de nuevo."
+        : (e.message || "Error al analizar la imagen.");
+      setError(msg);
     } finally {
       setLoading("");
     }
@@ -288,8 +363,12 @@ export default function Scanner() {
         </div>
       ) : (
         <div className="glass scanner__panel">
-          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onUpload} />
-          <small>JPG/PNG/WebP ≤ {MAX_MB} MB, de frente, sin gafas oscuras.</small>
+          <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: ".5rem", padding: "1.5rem", cursor: "pointer", border: "1px dashed rgba(0,212,255,0.4)", borderRadius: "12px", background: "rgba(0,212,255,0.03)" }}>
+            <span style={{ fontSize: "2rem" }}>📁</span>
+            <b>Haz clic aquí para seleccionar o arrastrar una foto de tu rostro</b>
+            <small style={{ color: "#8892a8" }}>Soporta cualquier formato de foto (JPG, PNG, WebP) de tu dispositivo.</small>
+            <input type="file" accept="image/*" onChange={onUpload} style={{ display: "none" }} />
+          </label>
         </div>
       )}
 
@@ -312,10 +391,11 @@ export default function Scanner() {
             <button className="btn btn--primary" onClick={runAnalysis} disabled={!!loading}>
               {loading || "Analizar compatibilidad"}
             </button>
-            <button className="btn btn--glass" onClick={erasePhoto}>
+            <button className="btn btn--glass" onClick={erasePhoto} disabled={!!loading}>
               🗑 Borrar mi foto
             </button>
           </div>
+          {error && <p className="scanner__error" style={{ margin: ".3rem 0 0" }}>{error}</p>}
         </div>
       )}
 

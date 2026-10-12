@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { analyzePhoto, recommend, listFrames, API_URL } from "../lib/api.js";
 import { drawGlasses } from "../components/tryon/GlassesOverlay.js";
 import { renderGLB } from "../components/tryon/GlassesGLB.js";
@@ -31,6 +32,8 @@ function FeedbackBox({ metrics, top }) {
 const MAX_MB = 5;
 
 export default function Scanner() {
+  const [searchParams] = useSearchParams();
+  const initialFrame = searchParams.get("frameId");
   const [consent, setConsent] = useState(false);
   const [tab, setTab] = useState("camara"); // camara | subir
   const [file, setFile] = useState(null);
@@ -54,10 +57,14 @@ export default function Scanner() {
   const rafRef = useRef(0);
   const [livePts, setLivePts] = useState(0);
   const [tryOn, setTryOn] = useState(true);
-  const [tryId, setTryId] = useState("F01");
+  const [tryId, setTryId] = useState(initialFrame || "F01");
   const tryFrame = frames.find((x) => x.id === tryId) ?? frames[0];
   const tryRef = useRef({ on: true, forma: "rectangular" });
   tryRef.current = { on: tryOn, forma: tryFrame?.forma ?? "rectangular" };
+
+  useEffect(() => {
+    if (initialFrame) setTryId(initialFrame);
+  }, [initialFrame]);
 
   useEffect(() => {
     fetch(`${API_URL}/health`).then(() => setBackendOk(true)).catch(() => setBackendOk(false));
@@ -315,23 +322,104 @@ export default function Scanner() {
       {error && <p className="scanner__error">{error}</p>}
 
       {metrics && (
-        <div className="glass scanner__panel">
-          <h3>Tu morfología</h3>
-          <p>Rostro: <b>{metrics.face_shape}</b> · Simetría: <b>{metrics.symmetry_index}</b>/100 · IPD est: <b>{metrics.ipd_mm_est} mm</b></p>
-          {metrics.warnings?.map((w) => <small key={w}>⚠ {w}<br /></small>)}
+        <div className="glass scanner__panel scanner__metrics">
+          <div className="scanner__metrics-header">
+            <h3>🔬 Análisis Morfométrico Facial</h3>
+            <span className="badge badge--cyan">Forma: {metrics.face_shape.toUpperCase()}</span>
+          </div>
+          <div className="scanner__metrics-grid">
+            <div className="metric-chip">
+              <span className="metric-label">Simetría Facial</span>
+              <span className="metric-val">{metrics.symmetry_index}%</span>
+            </div>
+            <div className="metric-chip">
+              <span className="metric-label">Distancia Pupilar (IPD)</span>
+              <span className="metric-val">{metrics.ipd_mm_est} mm</span>
+            </div>
+            <div className="metric-chip">
+              <span className="metric-label">Ancho Facial Sien-Sien</span>
+              <span className="metric-val">{metrics.temporal_est ?? 138} mm</span>
+            </div>
+            <div className="metric-chip">
+              <span className="metric-label">Puente Nasal Anatómico</span>
+              <span className="metric-val">{metrics.nose_bridge_mm_est ?? 18} mm</span>
+            </div>
+            <div className="metric-chip">
+              <span className="metric-label">Proporción Largo/Ancho</span>
+              <span className="metric-val">{metrics.ratios?.largo_ancho ?? 1.3}</span>
+            </div>
+            <div className="metric-chip">
+              <span className="metric-label">Zona de Cejas</span>
+              <span className="metric-val">{metrics.eyebrow_in_frame_zone ? "Despejada ✓" : "Atención"}</span>
+            </div>
+          </div>
+          {metrics.warnings?.map((w) => <p key={w} className="scanner__warning">⚠ {w}</p>)}
         </div>
       )}
 
       {recs.length > 0 && (
         <>
+        <div className="scanner__recs-header">
+          <h2>Monturas <span className="text-gradient">Recomendadas</span> ({recs.length})</h2>
+          <p className="scanner__sub">Compatibilidad evaluada por el motor experto según proporción facial, contraste geométrico y apoyo nasal.</p>
+        </div>
         <div className="scanner__grid">
-          {recs.slice(0, 6).map((r) => {
+          {recs.slice(0, 12).map((r) => {
             const f = frames.find((x) => x.id === r.frame_id);
+            const isSelected = tryId === r.frame_id;
             return (
-              <div key={r.frame_id} className={`glass scanner__card verdict--${r.verdict}`}>
-                <h4>{r.verdict === "compatible" ? "✓ Compatible" : r.verdict === "parcial" ? "~ Parcial" : "✕ Incompatible"} · {r.score}</h4>
-                <p><b>{f?.nombre ?? r.frame_id}</b> ({f?.forma}) — {f?.ancho_total_mm} mm</p>
-                <ul>{r.reasons.map((x) => <li key={x}>{x}</li>)}</ul>
+              <div key={r.frame_id} className={`glass scanner__card verdict--${r.verdict} ${isSelected ? "scanner__card--selected" : ""}`}>
+                <div className="scanner__card-top">
+                  <span className={`badge-verdict verdict-badge--${r.verdict}`}>
+                    {r.verdict === "compatible" ? "✓ Compatible" : r.verdict === "parcial" ? "~ Parcial" : "✕ Incompatible"}
+                  </span>
+                  <span className="scanner__card-score">{r.score} pts</span>
+                </div>
+
+                <h4 className="scanner__card-title">{f?.nombre ?? r.frame_id}</h4>
+                <div className="scanner__card-meta">
+                  <span className="tag">{f?.forma}</span>
+                  <span className="tag">{f?.marca ?? "OptiVision"}</span>
+                  <span className="tag tag--highlight">{f?.estilo}</span>
+                  <span className="tag">Talla {f?.talla ?? "M"}</span>
+                  {f?.precio_rango && <span className="tag tag--price">{f.precio_rango}</span>}
+                </div>
+
+                <div className="scanner__card-specs">
+                  <span>Calibre A: <b>{f?.A_mm}mm</b></span>
+                  <span>Alto B: <b>{f?.B_mm}mm</b></span>
+                  <span>Puente D: <b>{f?.D_mm}mm</b></span>
+                  <span>Total: <b>{f?.ancho_total_mm}mm</b></span>
+                </div>
+
+                {f?.tipo_lente && f.tipo_lente.length > 0 && (
+                  <div className="scanner__card-lentes">
+                    <small>Lentes compatibles:</small>
+                    <div className="lentes-tags">
+                      {f.tipo_lente.slice(0, 3).map((tl) => (
+                        <span key={tl} className="lente-tag">{tl}</span>
+                      ))}
+                      {f.tipo_lente.length > 3 && <span className="lente-tag">+{f.tipo_lente.length - 3}</span>}
+                    </div>
+                  </div>
+                )}
+
+                <ul className="scanner__card-reasons">
+                  {r.reasons.map((x) => <li key={x}>{x}</li>)}
+                </ul>
+
+                <button
+                  className={`btn btn--sm ${isSelected ? "btn--primary" : "btn--glass"} scanner__card-btn`}
+                  onClick={() => {
+                    setTryId(r.frame_id);
+                    setTryOn(true);
+                    if (photoCanvasRef.current) {
+                      photoCanvasRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }
+                  }}
+                >
+                  {isSelected ? "👓 Probando ahora" : "👓 Probar en probador virtual"}
+                </button>
               </div>
             );
           })}

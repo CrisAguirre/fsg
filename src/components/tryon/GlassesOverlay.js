@@ -15,21 +15,33 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
   const eyeW = Math.hypot(X(li) - X(lo), Y(li) - Y(lo));
   const ipd = Math.hypot(rc.x - lc.x, rc.y - lc.y);
   const W = eyeW * 2.1; // ancho lente ≈ 2.1× ancho ojo
-  const H = W * (forma === "aviador" ? 0.95 : forma === "redondo" ? 0.92 : forma === "oval" ? 0.72 : forma === "wayfarer" ? 0.85 : 0.68);
+  const isRimless = forma === "rimless";
+  const H = W * (forma === "aviador" ? 0.95 : forma === "redondo" ? 0.92 : forma === "oval" || forma === "rimless" ? 0.72 : forma === "wayfarer" ? 0.85 : forma === "cat-eye" ? 0.78 : 0.68);
   const ang = Math.atan2(rc.y - lc.y, rc.x - lc.x);
 
   ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(2.5, ipd * 0.02);
-  ctx.fillStyle = "rgba(0,212,255,.08)";
+  ctx.strokeStyle = isRimless ? "rgba(200,230,255,.45)" : color;
+  ctx.lineWidth = isRimless ? Math.max(1.4, ipd * 0.012) : Math.max(2.5, ipd * 0.02);
+  ctx.fillStyle = isRimless ? "rgba(0,212,255,.04)" : "rgba(0,212,255,.08)";
 
   const lens = (cx, cy, mirror = 1) => {
     ctx.beginPath();
-    if (forma === "redondo" || forma === "oval") {
-      ctx.ellipse(cx, cy, W / 2, H / 2, ang, 0, 7);
+    if (forma === "redondo" || forma === "oval" || forma === "rimless") {
+      ctx.ellipse(cx, cy, W / 2, H / 2, ang, 0, Math.PI * 2);
     } else if (forma === "aviador") {
       // gota: más alto interno, curva inferior
-      ctx.ellipse(cx, cy + H * 0.06, W / 2, H / 2, ang + mirror * 0.12, 0, 7);
+      ctx.ellipse(cx, cy + H * 0.06, W / 2, H / 2, ang + mirror * 0.12, 0, Math.PI * 2);
+    } else if (forma === "cat-eye") {
+      // cat-eye: elevación angular en el extremo exterior superior
+      const w = W / 2, h = H / 2;
+      const m = mirror; // -1 for left eye (cx - w is outer), 1 for right eye (cx + w is outer)
+      const outerX = cx + m * w * 1.05;
+      const innerX = cx - m * w * 0.85;
+      ctx.moveTo(innerX, cy - h * 0.3);
+      ctx.quadraticCurveTo(cx, cy - h * 0.9, outerX, cy - h * 1.15);
+      ctx.quadraticCurveTo(cx + m * w * 0.8, cy + h * 0.6, cx, cy + h * 0.85);
+      ctx.quadraticCurveTo(cx - m * w * 0.7, cy + h * 0.5, innerX, cy - h * 0.3);
+      ctx.closePath();
     } else if (forma === "wayfarer") {
       // trapecio: ancho arriba
       const w = W / 2, h = H / 2;

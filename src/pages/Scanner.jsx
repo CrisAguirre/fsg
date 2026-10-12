@@ -456,6 +456,16 @@ export default function Scanner() {
                   <span className="scanner__card-score">{r.score} pts</span>
                 </div>
 
+                <div className="scanner__card-img-wrap">
+                  <img
+                    src={f?.imagen_url || `/frames/${f?.forma || "rectangular"}.jpg`}
+                    alt={f?.nombre || "Montura"}
+                    className="scanner__card-img"
+                    loading="lazy"
+                    onError={(e) => { e.target.style.display = "none"; }}
+                  />
+                </div>
+
                 <h4 className="scanner__card-title">{f?.nombre ?? r.frame_id}</h4>
                 <div className="scanner__card-meta">
                   <span className="tag">{f?.forma}</span>

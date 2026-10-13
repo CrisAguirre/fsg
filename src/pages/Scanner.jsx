@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { analyzePhoto, recommend, listFrames, API_URL } from "../lib/api.js";
-import { drawGlasses, smoothLandmarks } from "../components/tryon/GlassesOverlay.js";
+import { drawGlasses, smoothLandmarks, measureGlasses, pupilDecentration } from "../components/tryon/GlassesOverlay.js";
 import { renderGLB } from "../components/tryon/GlassesGLB.js";
+import { GlassesAR } from "../components/tryon/Frame3D.js";
 import "./Scanner.css";
 
-function sampleBrightness(canvas, w, h) {
+function sampleBrightness(canvas) {
   try {
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const sw = 48, sh = 48;
     const tmp = document.createElement("canvas");
     tmp.width = sw; tmp.height = sh;
@@ -42,8 +42,6 @@ function FeedbackBox({ metrics, top }) {
     </div>
   );
 }
-
-const MAX_MB = 15;
 
 // Compatibilidad lente ↔ montura ↔ rostro (óptica real, no lista genérica).
 // En vez de mostrar todos los tipos existentes, se califica cada tipo del
@@ -154,6 +152,7 @@ export default function Scanner() {
   const [fitInfo, setFitInfo] = useState(null); // {ipdPx, angDeg, fitScale, warnings[]}
   const [photoWarn, setPhotoWarn] = useState("");
   const [tryOpacity, setTryOpacity] = useState(0.95); // slider montura
+  const [tryLens, setTryLens] = useState("monofocal"); // tinte del cristal
   const [showOriginal, setShowOriginal] = useState(false); // mantener para comparar
   const [zoomed, setZoomed] = useState(false); // detalle HD
   const rafRef = useRef(0);
@@ -161,8 +160,8 @@ export default function Scanner() {
   const [tryOn, setTryOn] = useState(true);
   const [tryId, setTryId] = useState(initialFrame || "F01");
   const tryFrame = frames.find((x) => x.id === tryId) ?? frames[0];
-  const tryRef = useRef({ on: true, forma: "rectangular", frame: null, metrics: null, alpha: 0.95 });
-  tryRef.current = { on: tryOn && !showOriginal, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity };
+  const tryRef = useRef({ on: true, forma: "rectangular", frame: null, metrics: null, alpha: 0.95, tint: "monofocal" });
+  tryRef.current = { on: tryOn && !showOriginal, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity, tint: tryLens };
 
   useEffect(() => {
     if (initialFrame) setTryId(initialFrame);
@@ -229,7 +228,7 @@ export default function Scanner() {
             lastLmRef.current = lm;
             const t = tryRef.current;
             if (t.on) {
-              drawGlasses(ctx, lm, v.videoWidth, v.videoHeight, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light: 0.55 });
+              drawGlasses(ctx, lm, v.videoWidth, v.videoHeight, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light: 0.55, tint: t.tint });
             } else {
               ctx.fillStyle = "rgba(0,212,255,.8)";
               const sx = cnv.width / v.videoWidth;
@@ -298,7 +297,7 @@ export default function Scanner() {
         const ctx = cnv.getContext("2d");
         ctx.clearRect(0, 0, cnv.width, cnv.height);
         ctx.drawImage(img, 0, 0, cnv.width, cnv.height);
-        const light = sampleBrightness(cnv, cnv.width, cnv.height);
+        const light = sampleBrightness(cnv);
         if (!tryRef.current.on) { setFitInfo(null); lastPhotoLmRef.current = null; return; }
         const res = imgLandmarkerRef.current.detect(img);
         const lm = res?.faceLandmarks?.[0];
@@ -308,7 +307,7 @@ export default function Scanner() {
           return;
         }
         const t = tryRef.current;
-        const fit = drawGlasses(ctx, lm, W, H, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light });
+        const fit = drawGlasses(ctx, lm, W, H, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light, tint: t.tint });
         if (!dead) {
           lastPhotoLmRef.current = lm;
           setFitInfo(fit ? { ipdPx: Math.round(fit.ipdPx), angDeg: Number(fit.angDeg.toFixed(1)), fitScale: Number(fit.fitScale.toFixed(2)), warnings: fit.warnings, lensW: Math.round(fit.lensW), lensH: Math.round(fit.lensH), light: Number(light.toFixed(2)), decent: fit.decent ?? null } : null);
@@ -327,7 +326,7 @@ export default function Scanner() {
     })();
     return () => { dead = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preview, tryId, tryOn, metrics, tryOpacity, showOriginal]);
+  }, [preview, tryId, tryOn, metrics, tryOpacity, tryLens, showOriginal]);
 
   function capture() {
     const v = videoRef.current;
@@ -389,7 +388,7 @@ export default function Scanner() {
         full.width = nat.W; full.height = nat.H;
         const fctx = full.getContext("2d");
         fctx.drawImage(img, 0, 0, nat.W, nat.H);
-        drawGlasses(fctx, lm, nat.W, nat.H, nat.W, nat.H, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: 1, light: 0.5 });
+        drawGlasses(fctx, lm, nat.W, nat.H, nat.W, nat.H, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: 1, light: 0.5, tint: t.tint });
         const a = document.createElement("a");
         a.href = full.toDataURL("image/jpeg", 0.95);
         a.download = `glassescanner-HD-${tryId || "montura"}.jpg`;
@@ -518,18 +517,21 @@ export default function Scanner() {
                 </small>
                 {lenses.length > 0 && (
                   <div className="scanner__lentes">
-                    <small><b>Lentes para este rostro + montura:</b></small>
+                    <small><b>Lentes para este rostro + montura (clic para ver el tinte):</b></small>
                     <div className="lentes-tags">
                       {lenses.map((l) => (
-                        <span
+                        <button
                           key={l.tipo}
-                          title={l.motivo}
-                          className={`lente-tag lente--${l.estado}`}
+                          type="button"
+                          title={`${l.motivo} Clic para montar este lente.`}
+                          onClick={() => setTryLens(l.tipo)}
+                          className={`lente-tag lente--${l.estado} ${tryLens === l.tipo ? "lente--active" : ""}`}
                         >
                           {l.estado === "compatible" ? "✓" : l.estado === "parcial" ? "~" : "✕"} {l.tipo} {l.prob}%
-                        </span>
+                        </button>
                       ))}
                     </div>
+                    <small className="scanner__sub">Cristal montado: <b>{tryLens}</b></small>
                   </div>
                 )}
               </div>
@@ -673,9 +675,9 @@ export default function Scanner() {
                       <small>Lentes para tu rostro en esta montura:</small>
                       <div className="lentes-tags">
                         {lenses.map((l) => (
-                          <span key={l.tipo} title={l.motivo} className={`lente-tag lente--${l.estado}`}>
+                          <button key={l.tipo} type="button" title={`${l.motivo} Clic para montar este modelo + lente.`} onClick={() => { setTryId(r.frame_id); setTryLens(l.tipo); setTryOn(true); if (photoCanvasRef.current) photoCanvasRef.current.scrollIntoView({ behavior: "smooth", block: "center" }); }} className={`lente-tag lente--${l.estado}`}>
                             {l.estado === "compatible" ? "✓" : l.estado === "parcial" ? "~" : "✕"} {l.tipo} {l.prob}%
-                          </span>
+                          </button>
                         ))}
                       </div>
                     </div>

@@ -28,12 +28,7 @@ function frameColorHex(name = "") {
   return "#23232a";
 }
 
-function materialStyle(material = "acetato", ipdPx = 100) {
-  const m = String(material).toLowerCase();
-  if (m === "metal") return { edge: Math.max(1.6, ipdPx * 0.016), glass: "rgba(180,210,235,.10)", pads: true };
-  if (m === "mixto") return { edge: Math.max(2.2, ipdPx * 0.024), glass: "rgba(180,210,235,.12)", pads: true };
-  return { edge: Math.max(2.8, ipdPx * 0.034), glass: "rgba(140,180,220,.14)", pads: false }; // acetato grueso
-}
+// Estilo por material: el grosor sale del IPD medido (no fijo).
 
 export function measureGlasses(lm, cw, ch) {
   if (!lm || lm.length < 400) return null;
@@ -88,10 +83,13 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
   const { lc, rc, eyeW, ipdPx, ang } = m;
   const frame = opts.frame || null;
   const metrics = opts.metrics || null;
-  // Color real del modelo elegido. El `color` param queda solo como fallback
-  // legacy (antes cyan/fucsia fijo = vista "de chiste").
   const frameHex = frame?.color ? frameColorHex(frame.color) : (color || "#23232a");
-  const mat = materialStyle(frame?.material, ipdPx);
+  const rimDark = shade(frameHex, -38);
+  const rimLight = shade(frameHex, 42);
+  const matName = String(frame?.material || "acetato").toLowerCase();
+  const isMetal = matName === "metal" || matName === "mixto";
+  const isCarey = /carey|habana|miel|torto/i.test(String(frame?.color || ""));
+  const tint = lensTint(opts.tint, clamp(opts.light ?? 0.5, 0, 1));
 
   // Escala real: ancho_total_marco vs ancho temporal estimado.
   let fitScale = 1;
@@ -107,125 +105,292 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
   const H = W * (ratioHB ??
     (forma === "aviador" ? 0.95 : forma === "redondo" ? 0.92 : forma === "oval" || forma === "rimless" ? 0.72 : forma === "wayfarer" ? 0.85 : forma === "cat-eye" ? 0.78 : 0.68));
 
+  const edge = isRimless ? Math.max(1.4, ipdPx * 0.012) : isMetal ? Math.max(1.7, ipdPx * 0.017) : Math.max(3, ipdPx * 0.036);
+  const alpha = clamp(opts.alpha ?? 1, 0.25, 1);
+
   ctx.save();
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  const edge = isRimless ? Math.max(1.4, ipdPx * 0.012) : mat.edge;
-  // Luz real: en fotos oscuras el cristal se aclara, en fotos muy claras se oscurece.
-  const light = clamp(opts.light ?? 0.5, 0, 1);
-  const glassAlpha = 0.07 + (1 - light) * 0.08;
-  const glassFill = isRimless
-    ? `rgba(180,215,245,${(glassAlpha * 0.7).toFixed(3)})`
-    : `rgba(150,190,225,${glassAlpha.toFixed(3)})`;
-  const alpha = clamp(opts.alpha ?? 1, 0.25, 1);
   ctx.globalAlpha = alpha;
 
-  // Traza el contorno del lente sin pintar (para pasadas sombra/vidrio/marco/brillo).
-  const traceLens = (cx, cy, mirror = 1) => {
-    ctx.beginPath();
-    if (forma === "redondo" || forma === "oval" || forma === "rimless") {
-      ctx.ellipse(cx, cy, W / 2, H / 2, ang, 0, Math.PI * 2);
-    } else if (forma === "aviador") {
-      // gota: más alto interno, curva inferior
-      ctx.ellipse(cx, cy + H * 0.06, W / 2, H / 2, ang + mirror * 0.12, 0, Math.PI * 2);
-    } else if (forma === "cat-eye") {
-      // cat-eye: elevación angular en el extremo exterior superior
-      const w = W / 2, h = H / 2;
-      const m = mirror; // -1 for left eye (cx - w is outer), 1 for right eye (cx + w is outer)
-      const outerX = cx + m * w * 1.05;
-      const innerX = cx - m * w * 0.85;
-      ctx.moveTo(innerX, cy - h * 0.3);
-      ctx.quadraticCurveTo(cx, cy - h * 0.9, outerX, cy - h * 1.15);
-      ctx.quadraticCurveTo(cx + m * w * 0.8, cy + h * 0.6, cx, cy + h * 0.85);
-      ctx.quadraticCurveTo(cx - m * w * 0.7, cy + h * 0.5, innerX, cy - h * 0.3);
-      ctx.closePath();
-    } else if (forma === "wayfarer") {
-      // trapecio: ancho arriba
-      const w = W / 2, h = H / 2;
-      ctx.moveTo(cx - w, cy - h * 0.9);
-      ctx.lineTo(cx + w, cy - h * 0.9);
-      ctx.lineTo(cx + w * 0.82, cy + h);
-      ctx.lineTo(cx - w * 0.82, cy + h);
-      ctx.closePath();
-    } else {
-      // rectangular / cuadrado: esquinas suaves
-      const w = W / 2, h = H / 2, r = Math.min(w, h) * (forma === "cuadrado" ? 0.18 : 0.32);
-      ctx.moveTo(cx - w + r, cy - h);
-      ctx.arcTo(cx + w, cy - h, cx + w, cy + h, r);
-      ctx.arcTo(cx + w, cy + h, cx - w, cy + h, r);
-      ctx.arcTo(cx - w, cy + h, cx - w, cy - h, r);
-      ctx.arcTo(cx - w, cy - h, cx + w, cy - h, r);
-      ctx.closePath();
-    }
-  };
-
   const paintLens = (cx, cy, mirror = 1) => {
-    // 1) Sombra suave (profundidad, no "sticker" plano)
-    traceLens(cx, cy, mirror);
+    const path = buildLensPath(W, H, forma, mirror);
     ctx.save();
-    ctx.translate(1.2, 1.6);
-    ctx.strokeStyle = "rgba(0,0,0,.35)";
+    ctx.translate(cx, cy);
+    ctx.rotate(ang);
+    // 1) Sombra de apoyo (el marco "asienta" sobre la piel, no flota)
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,.45)";
+    ctx.shadowBlur = Math.max(3, edge * 2.2);
+    ctx.shadowOffsetY = Math.max(1.5, edge * 0.7);
+    ctx.strokeStyle = "rgba(0,0,0,.25)";
     ctx.lineWidth = edge;
+    ctx.stroke(path);
+    ctx.restore();
+    // 2) Cristal con degradado + tinte del tipo de lente
+    const g = ctx.createRadialGradient(0, -H * 0.2, Math.min(W, H) * 0.1, 0, 0, Math.max(W, H) * 0.75);
+    g.addColorStop(0, tint.hi);
+    g.addColorStop(0.55, tint.mid);
+    g.addColorStop(1, tint.lo);
+    ctx.fillStyle = g;
+    ctx.fill(path);
+    // 3) Reflejo AR diagonal (banda de luz real, recortada al lente)
+    ctx.save();
+    ctx.clip(path);
+    ctx.rotate(-0.5);
+    const rg = ctx.createLinearGradient(-W, 0, W, 0);
+    rg.addColorStop(0.32, "rgba(255,255,255,0)");
+    rg.addColorStop(0.45, "rgba(255,255,255,.20)");
+    rg.addColorStop(0.55, "rgba(255,255,255,.05)");
+    rg.addColorStop(0.68, "rgba(255,255,255,0)");
+    ctx.fillStyle = rg;
+    ctx.fillRect(-W, -H, W * 2, H * 2);
+    // brillo superior de borde (curvatura del lente)
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255,255,255,.28)";
+    ctx.lineWidth = Math.max(1, edge * 0.22);
+    ctx.moveTo(-W * 0.3, -H * 0.34);
+    ctx.quadraticCurveTo(0, -H * 0.46, W * 0.3, -H * 0.34);
     ctx.stroke();
     ctx.restore();
-    // 2) Cristal del lente (tinte neutro, no fucsia)
-    traceLens(cx, cy, mirror);
-    ctx.fillStyle = glassFill;
-    ctx.fill();
-    // 3) Marco con color real del modelo elegido
-    traceLens(cx, cy, mirror);
-    ctx.strokeStyle = isRimless ? "rgba(200,230,255,.5)" : frameHex;
-    ctx.lineWidth = edge;
-    ctx.stroke();
-    // 4) Brillo superior (reflejo de luz = acabado real)
     if (!isRimless) {
-      ctx.save();
-      traceLens(cx, cy, mirror);
-      ctx.clip();
-      ctx.beginPath();
-      ctx.strokeStyle = "rgba(255,255,255,.30)";
-      ctx.lineWidth = Math.max(1, edge * 0.28);
-      ctx.moveTo(cx - W * 0.32, cy - H * 0.30);
-      ctx.quadraticCurveTo(cx, cy - H * 0.42, cx + W * 0.32, cy - H * 0.30);
-      ctx.stroke();
-      ctx.restore();
+      // 4) Aro exterior (color oscuro = profundidad del acetato/metal)
+      ctx.strokeStyle = isMetal ? metalGradient(ctx, W, rimDark, rimLight) : rimDark;
+      ctx.lineWidth = edge;
+      ctx.stroke(path);
+      // 5) Bisel interior (filete de luz = grosor real del marco)
+      ctx.strokeStyle = isCarey ? "rgba(255,205,130,.5)" : rimLight;
+      ctx.lineWidth = Math.max(1, edge * 0.32);
+      ctx.stroke(path);
+      // 6) Veta carey (acetatos Havana/miel): moteado sobre el aro
+      if (isCarey) {
+        ctx.save();
+        ctx.setLineDash([edge * 1.4, edge * 1.1]);
+        ctx.lineDashOffset = mirror > 0 ? 2 : 7;
+        ctx.strokeStyle = "rgba(46,22,6,.65)";
+        ctx.lineWidth = edge * 0.55;
+        ctx.stroke(path);
+        ctx.restore();
+      }
+      // 7) Detalles por forma
+      if (forma === "wayfarer") {
+        // barra superior gruesa característica + remaches
+        ctx.beginPath();
+        ctx.strokeStyle = rimDark;
+        ctx.lineWidth = edge * 1.15;
+        ctx.moveTo(-W / 2, -H * 0.42);
+        ctx.lineTo(W / 2, -H * 0.42);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,.5)";
+        for (const sx of [-W * 0.34, W * 0.34]) {
+          ctx.beginPath();
+          ctx.arc(sx, -H * 0.1, Math.max(1.2, edge * 0.22), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (forma === "aviador") {
+        // ceja superior metálica (brow bar del aviador)
+        ctx.beginPath();
+        ctx.strokeStyle = isMetal ? metalGradient(ctx, W, rimDark, rimLight) : rimDark;
+        ctx.lineWidth = Math.max(1.4, edge * 0.6);
+        ctx.moveTo(-W / 2, -H * 0.52);
+        ctx.quadraticCurveTo(0, -H * 0.72, W / 2, -H * 0.52);
+        ctx.stroke();
+      } else if (isMetal) {
+        // tornillos laterales en metal
+        ctx.fillStyle = "rgba(240,244,250,.75)";
+        for (const sx of [-W / 2, W / 2]) {
+          ctx.beginPath();
+          ctx.arc(sx, 0, Math.max(1, edge * 0.28), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        // remaches de acetato
+        ctx.fillStyle = "rgba(255,255,255,.4)";
+        for (const sx of [-W / 2 + edge * 0.6, W / 2 - edge * 0.6]) {
+          ctx.beginPath();
+          ctx.arc(sx, -H * 0.18, Math.max(1, edge * 0.18), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else {
+      // rimless: soportes perforados + hilo fantasma
+      ctx.strokeStyle = "rgba(200,230,255,.5)";
+      ctx.lineWidth = edge;
+      ctx.stroke(path);
+      ctx.fillStyle = "rgba(230,240,250,.8)";
+      for (const sx of [-W * 0.3, W * 0.3]) {
+        ctx.beginPath();
+        ctx.arc(sx, -H * 0.05, Math.max(1.2, edge * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
+    ctx.restore();
   };
 
   paintLens(lc.x, lc.y, -1);
   paintLens(rc.x, rc.y, 1);
-  // puente: ancho ajustado por D_mm vs puente nasal estimado, color del marco
+
+  // Puente según forma: wayfarer = ojo de cerradura, metal = fino + plaquetas, acetato = silla gruesa
   const noseX = m.nose.x * cw;
   const noseY = m.nose.y * ch;
   let bridgeLift = 0.28;
   if (frame?.D_mm && metrics?.nose_bridge_mm_est) {
     bridgeLift = clamp(0.28 * (frame.D_mm / metrics.nose_bridge_mm_est), 0.2, 0.38);
   }
-  ctx.strokeStyle = isRimless ? "rgba(200,230,255,.5)" : frameHex;
-  ctx.lineWidth = edge * 0.9;
+  ctx.strokeStyle = isRimless ? "rgba(200,230,255,.55)" : isMetal ? metalGradient(ctx, ipdPx, rimDark, rimLight) : rimDark;
+  ctx.lineWidth = isRimless ? edge : edge * (forma === "wayfarer" ? 1.1 : 0.9);
   ctx.beginPath();
-  ctx.moveTo(lc.x + W / 2, lc.y - H * 0.12);
-  ctx.quadraticCurveTo(
-    noseX, noseY - H * bridgeLift,
-    rc.x - W / 2, rc.y - H * 0.12
-  );
-  ctx.stroke();
-  // plaquetas nasales en metal/mixto (detalle óptico real)
-  if (mat.pads && !isRimless) {
-    ctx.fillStyle = "rgba(220,230,240,.55)";
-    const padW = Math.max(2, ipdPx * 0.03), padH = Math.max(4, ipdPx * 0.055);
-    ctx.beginPath();
-    ctx.ellipse(noseX - padW * 1.6, noseY + padH * 0.4, padW / 2, padH / 2, 0.25, 0, Math.PI * 2);
-    ctx.ellipse(noseX + padW * 1.6, noseY + padH * 0.4, padW / 2, padH / 2, -0.25, 0, Math.PI * 2);
-    ctx.fill();
+  if (forma === "wayfarer") {
+    // ojo de cerradura: doble curva
+    ctx.moveTo(lc.x + W / 2, lc.y - H * 0.3);
+    ctx.quadraticCurveTo(noseX - W * 0.08, noseY - H * bridgeLift, noseX, noseY - H * (bridgeLift - 0.12));
+    ctx.quadraticCurveTo(noseX + W * 0.08, noseY - H * bridgeLift, rc.x - W / 2, rc.y - H * 0.3);
+  } else {
+    ctx.moveTo(lc.x + W / 2, lc.y - H * 0.12);
+    ctx.quadraticCurveTo(noseX, noseY - H * bridgeLift, rc.x - W / 2, rc.y - H * 0.12);
   }
-  // patillas hacia sienes con color del marco
+  ctx.stroke();
+  // filete de luz del puente (volumen)
+  if (!isRimless) {
+    ctx.strokeStyle = rimLight;
+    ctx.lineWidth = Math.max(1, edge * 0.28);
+    ctx.beginPath();
+    ctx.moveTo(lc.x + W / 2, lc.y - H * 0.12 - edge * 0.35);
+    ctx.quadraticCurveTo(noseX, noseY - H * bridgeLift - edge * 0.35, rc.x - W / 2, rc.y - H * 0.12 - edge * 0.35);
+    ctx.stroke();
+  }
+  // plaquetas nasales en metal/mixto
+  if ((isMetal) && !isRimless) {
+    ctx.fillStyle = "rgba(225,233,242,.6)";
+    ctx.strokeStyle = "rgba(120,135,155,.7)";
+    ctx.lineWidth = 1;
+    const padW = Math.max(2.5, ipdPx * 0.032), padH = Math.max(5, ipdPx * 0.06);
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(noseX + s * padW * 1.7, noseY + padH * 0.5, padW / 2, padH / 2, s * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+  // Patillas con bisagra: tramo grueso + punto de bisagra metálico
+  ctx.strokeStyle = isRimless ? "rgba(200,230,255,.55)" : rimDark;
+  ctx.lineWidth = edge * 0.85;
   ctx.beginPath();
   ctx.moveTo(lc.x - W / 2, lc.y - H * 0.1);
   ctx.lineTo(lc.x - W / 2 - ipdPx * 0.45, lc.y - H * 0.18);
   ctx.moveTo(rc.x + W / 2, rc.y - H * 0.1);
   ctx.lineTo(rc.x + W / 2 + ipdPx * 0.45, rc.y - H * 0.18);
   ctx.stroke();
+  ctx.fillStyle = isMetal ? "#dfe6ef" : rimLight;
+  for (const hx of [lc.x - W / 2, rc.x + W / 2]) {
+    ctx.beginPath();
+    ctx.arc(hx, lc.y - H * 0.1, Math.max(1.2, edge * 0.3), 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
   return { ...m, lensW: W, lensH: H, fitScale, forma, frameColor: frameHex, frameId: frame?.id ?? null, decent: pupilDecentration(frame, metrics) };
+}
+
+// ── Geometría sólida del lente (Path2D centrado en 0,0) ──
+function buildLensPath(W, H, forma, mirror = 1) {
+  const p = new Path2D();
+  const w = W / 2, h = H / 2;
+  if (forma === "redondo") {
+    p.ellipse(0, 0, w, h * 0.98, 0, 0, Math.PI * 2);
+  } else if (forma === "oval" || forma === "rimless") {
+    p.ellipse(0, 0, w, h, 0, 0, Math.PI * 2);
+  } else if (forma === "aviador") {
+    // lágrima: estrecha arriba, amplia y redondeada abajo
+    p.moveTo(-w * 0.92, -h * 0.55);
+    p.bezierCurveTo(w * 0.92, -h * 0.55, w * 1.02, h * 0.1, w * 0.72, h * 0.72);
+    p.bezierCurveTo(w * 0.3, h * 1.05, -w * 0.3, h * 1.05, -w * 0.72, h * 0.72);
+    p.bezierCurveTo(-w * 1.02, h * 0.1, -w * 0.92, -h * 0.55, -w * 0.92, -h * 0.55);
+    p.closePath();
+  } else if (forma === "cat-eye") {
+    // ojo de gato: comisura exterior afilada y elevada
+    const m = mirror;
+    const ox = m * w * 1.08, ix = -m * w * 0.82;
+    p.moveTo(ix, -h * 0.25);
+    p.quadraticCurveTo(0, -h * 0.95, ox, -h * 1.18);
+    p.quadraticCurveTo(m * w * 0.95, -h * 0.2, m * w * 0.72, h * 0.55);
+    p.quadraticCurveTo(m * w * 0.3, h * 0.95, 0, h * 0.88);
+    p.quadraticCurveTo(-m * w * 0.75, h * 0.8, ix, h * 0.1);
+    p.quadraticCurveTo(ix - m * w * 0.08, -h * 0.1, ix, -h * 0.25);
+    p.closePath();
+  } else if (forma === "wayfarer") {
+    // trapecio redondeado: frente superior ancha y recta
+    const r = Math.min(w, h) * 0.35;
+    roundedTrap(p, -w, -h * 0.95, w, h, r);
+  } else {
+    // rectangular / cuadrado: radio según forma
+    const r = Math.min(w, h) * (forma === "cuadrado" ? 0.22 : 0.38);
+    roundedRect(p, -w, -h, w * 2, h * 2, r);
+  }
+  return p;
+}
+
+function roundedRect(p, x, y, w, h, r) {
+  p.moveTo(x + r, y);
+  p.arcTo(x + w, y, x + w, y + h, r);
+  p.arcTo(x + w, y + h, x, y + h, r);
+  p.arcTo(x, y + h, x, y, r);
+  p.arcTo(x, y, x + w, y, r);
+  p.closePath();
+}
+
+function roundedTrap(p, xTop, yTop, xBot, yBot, r) {
+  // trapecio wayfarer con esquinas suavizadas
+  const wt = Math.abs(xTop) * 2, wb = Math.abs(xBot) * 2;
+  void wt; void wb;
+  p.moveTo(xTop + r, yTop);
+  p.lineTo(-xTop - r, yTop);
+  p.arcTo(-xTop, yTop, -xBot, yBot, r);
+  p.lineTo(xBot, yBot);
+  p.arcTo(xBot, yBot, xTop, yTop, r);
+  p.closePath();
+}
+
+// ── Color y luz ──
+function hexToRgb(hex) {
+  const h = String(hex).replace("#", "");
+  const v = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(v, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function shade(hex, amt) {
+  try {
+    const { r, g, b } = hexToRgb(hex);
+    const c = (v) => Math.max(0, Math.min(255, Math.round(v + amt)));
+    return `rgb(${c(r)},${c(g)},${c(b)})`;
+  } catch { return hex; }
+}
+
+function metalGradient(ctx, span, dark, light) {
+  const g = ctx.createLinearGradient(-span / 2, 0, span / 2, 0);
+  g.addColorStop(0, dark);
+  g.addColorStop(0.45, light);
+  g.addColorStop(0.55, "#f4f7fb");
+  g.addColorStop(0.65, light);
+  g.addColorStop(1, dark);
+  return g;
+}
+
+// Tinte del cristal según tipo de lente elegido (además de la luz de la foto).
+function lensTint(tint = "monofocal", light = 0.5) {
+  const t = String(tint || "monofocal").toLowerCase();
+  const base = 0.06 + (1 - light) * 0.07;
+  if (t.includes("polarizado") || t.includes("sol")) {
+    return { hi: `rgba(70,85,95,${(base + 0.28).toFixed(3)})`, mid: `rgba(45,60,70,${(base + 0.32).toFixed(3)})`, lo: `rgba(25,35,42,${(base + 0.36).toFixed(3)})` };
+  }
+  if (t.includes("fotocrom")) {
+    return { hi: `rgba(150,155,165,${(base + 0.14).toFixed(3)})`, mid: `rgba(120,125,135,${(base + 0.16).toFixed(3)})`, lo: `rgba(95,100,112,${(base + 0.18).toFixed(3)})` };
+  }
+  if (t.includes("blue")) {
+    return { hi: `rgba(255,236,190,${(base + 0.05).toFixed(3)})`, mid: `rgba(235,220,175,${(base + 0.07).toFixed(3)})`, lo: `rgba(210,195,150,${(base + 0.09).toFixed(3)})` };
+  }
+  if (t.includes("progresivo") || t.includes("bifocal")) {
+    return { hi: `rgba(190,215,240,${(base + 0.04).toFixed(3)})`, mid: `rgba(165,195,225,${(base + 0.06).toFixed(3)})`, lo: `rgba(140,175,205,${(base + 0.08).toFixed(3)})` };
+  }
+  return { hi: `rgba(200,220,240,${base.toFixed(3)})`, mid: `rgba(170,200,228,${(base + 0.02).toFixed(3)})`, lo: `rgba(145,180,210,${(base + 0.04).toFixed(3)})` };
 }

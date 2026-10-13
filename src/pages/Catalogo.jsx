@@ -63,18 +63,16 @@ export default function Catalogo() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState('');
-  const [forma, setForma] = useState('todas');
+  const [forma, setForma] = useState(() => {
+    const f = (searchParams.get("forma") || "").toLowerCase();
+    return f && FORMAS.some((x) => x.id === f) ? f : 'todas';
+  });
   const [genero, setGenero] = useState('todos');
   const [estilo, setEstilo] = useState('todos');
   const [talla, setTalla] = useState('todas');
   const [precio, setPrecio] = useState('todos');
   const [tipoLente, setTipoLente] = useState('todos');
   const [selectedFrame, setSelectedFrame] = useState(null);
-
-  useEffect(() => {
-    const f = (searchParams.get("forma") || "").toLowerCase();
-    if (f && FORMAS.some((x) => x.id === f)) setForma(f);
-  }, [searchParams]);
 
   useEffect(() => {
     let active = true;

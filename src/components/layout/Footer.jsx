@@ -1,9 +1,9 @@
-import { useMemo } from 'react'
 import './Footer.css'
 import logo from '../../assets/logo/logo.png'
 
+const YEAR = new Date().getFullYear();
+
 function Footer() {
-  const currentYear = useMemo(() => new Date().getFullYear(), [])
 
   return (
     <footer className="footer" id="footer">
@@ -21,7 +21,7 @@ function Footer() {
 
         <div className="footer__bottom">
           <p className="footer__copy">
-            &copy; {currentYear} Glassescanner. Todos los derechos reservados.
+            &copy; {YEAR} Glassescanner. Todos los derechos reservados.
           </p>
           <p className="footer__tech text-muted">
             Powered by 3D Mesh &middot; Precision 99.8%

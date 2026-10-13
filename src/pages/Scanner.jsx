@@ -476,6 +476,29 @@ export default function Scanner() {
     a.click();
   }
 
+  function downloadEvidence() {
+    // Fase 0: evidencia tangible (foto + datos) en vez de adivinar el fallo.
+    try {
+      const t = tryRef.current;
+      const ev = {
+        fecha: new Date().toISOString(),
+        modelo: t.frame ? { id: t.frame.id, nombre: t.frame.nombre, forma: t.frame.forma, material: t.frame.material, color: t.frame.color, A_mm: t.frame.A_mm, B_mm: t.frame.B_mm, D_mm: t.frame.D_mm, ancho_total_mm: t.frame.ancho_total_mm } : null,
+        lente_montado: tryLens,
+        opacidad: tryOpacity,
+        modo3D: !!arPhotoRef.current && arOk === true,
+        metricas: metrics ? { face_shape: metrics.face_shape, symmetry_index: metrics.symmetry_index, ipd_mm_est: metrics.ipd_mm_est, temporal_est: metrics.temporal_est, nose_bridge_mm_est: metrics.nose_bridge_mm_est } : null,
+        montaje: fitInfo,
+        top3: recs.slice(0, 3).map((r) => ({ frame_id: r.frame_id, score: r.score, verdict: r.verdict })),
+      };
+      const blob = new Blob([JSON.stringify(ev, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `evidencia-${tryId || "montura"}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    } catch { /* noop */ }
+  }
+
   async function runAnalysis() {
     if (!consent) {
       setError("Debes aceptar el tratamiento de datos biométricos (Ley 1581) para continuar.");

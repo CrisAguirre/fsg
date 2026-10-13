@@ -43,8 +43,9 @@ check("lente F01 ≈0.825", Math.abs(lensW - 0.825) < 0.005, `lensW=${lensW.toFi
 const outerNorm = 0.5 + (lensCX + lensW / 2) * p1.ipd; // borde exterior en coords normalizadas
 const templeR = 0.72;
 check("borde llega a sien", outerNorm >= templeR - 0.03, `borde=${outerNorm.toFixed(3)} sien=${templeR}`);
-const innerL = 0.5 - (lensCX - lensW / 2) * p1.ipd;
-check("lente cubre pupila", innerL < 0.45 - 0.02 && outerNorm > 0.45 + 0.02, `pupila_izq=0.45 dentro de [${(0.5 - (lensCX + lensW / 2) * p1.ipd).toFixed(3)},${outerNorm.toFixed(3)}]`);
+const innerL = 0.5 - (lensCX - lensW / 2) * p1.ipd; // borde interno lente izq
+const outerL = 0.5 - (lensCX + lensW / 2) * p1.ipd; // borde externo lente izq
+check("lente cubre pupila", outerL < 0.4 && 0.4 < innerL, `pupila_izq=0.40 dentro de [${outerL.toFixed(3)},${innerL.toFixed(3)}]`);
 
 console.log(fails === 0 ? "OK: 7/7 verificaciones numéricas" : `FALLOS: ${fails}`);
 process.exit(fails === 0 ? 0 : 1);

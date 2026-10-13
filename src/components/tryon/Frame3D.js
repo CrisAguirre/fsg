@@ -149,7 +149,7 @@ export function buildGlassesGroup(frame, tint = "monofocal", dims = null) {
     }
     // Patilla hacia atrás (oreja): del borde exterior hacia -Z
     const outerX = side * (lensCX + lensW / 2);
-    const templeLen = 1.15;
+    const templeLen = 0.85;
     const temple = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.045, templeLen), rimMat);
     temple.position.set(outerX + side * 0.02, lensH * 0.28, -templeLen / 2);
     temple.rotation.y = side * -0.06;
@@ -213,8 +213,11 @@ export class GlassesAR {
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
     this.renderer.setClearColor(0x000000, 0);
     this.scene = new THREE.Scene();
-    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 20);
-    this.camera.position.set(0, 0, 5);
+    // Cámara lejos con frustum amplio: al girar la cabeza los bordes del
+    // armazón se acercan a la cámara y con near/far justos se recortaban.
+    // En ortográfica la distancia no cambia el tamaño, solo el rango visible.
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 1200);
+    this.camera.position.set(0, 0, 600);
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 1.5));
     const dir = new THREE.DirectionalLight(0xffffff, 1.6);
     dir.position.set(1.5, 2, 4);

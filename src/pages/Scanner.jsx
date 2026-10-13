@@ -681,6 +681,9 @@ export default function Scanner() {
             <button className="btn btn--glass" onClick={downloadMontage} disabled={!fitInfo} title="Descarga en resolución original">
               ⬇ Guardar HD
             </button>
+            <button className="btn btn--glass" onClick={downloadEvidence} disabled={!fitInfo} title="Descarga foto + JSON con pose y medidas para diagnosticar">
+              🧾 Evidencia
+            </button>
             <button className="btn btn--glass" onClick={erasePhoto} disabled={!!loading}>
               🗑 Borrar mi foto
             </button>

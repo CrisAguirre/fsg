@@ -191,7 +191,7 @@ export function buildGlassesGroup(frame, tint = "monofocal", dims = null) {
   return g;
 }
 
-function estimatePose(lm) {
+export function estimatePose(lm) {
   const P = (i) => lm[i];
   const eyeL = { x: (P(IDX.lo).x + P(IDX.li).x) / 2, y: (P(IDX.lo).y + P(IDX.li).y) / 2 };
   const eyeR = { x: (P(IDX.ri).x + P(IDX.ro).x) / 2, y: (P(IDX.ri).y + P(IDX.ro).y) / 2 };

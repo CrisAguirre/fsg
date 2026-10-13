@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 import { listFrames } from '../lib/api';
@@ -58,8 +58,10 @@ const LENTES = [
 
 export default function Catalogo() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [frames, setFrames] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState('');
   const [forma, setForma] = useState('todas');
   const [genero, setGenero] = useState('todos');
@@ -68,6 +70,11 @@ export default function Catalogo() {
   const [precio, setPrecio] = useState('todos');
   const [tipoLente, setTipoLente] = useState('todos');
   const [selectedFrame, setSelectedFrame] = useState(null);
+
+  useEffect(() => {
+    const f = (searchParams.get("forma") || "").toLowerCase();
+    if (f && FORMAS.some((x) => x.id === f)) setForma(f);
+  }, [searchParams]);
 
   useEffect(() => {
     let active = true;
@@ -79,7 +86,7 @@ export default function Catalogo() {
         }
       })
       .catch(() => {
-        if (active) setLoading(false);
+        if (active) { setLoading(false); setLoadError("Sin conexión al catálogo. Revisa el backend."); }
       });
     return () => { active = false; };
   }, []);
@@ -131,7 +138,7 @@ export default function Catalogo() {
         <section className="catalogo-hero">
           <div className="catalogo-hero__badge glass">
             <span className="dot-pulse"></span>
-            Stock Oficial · {frames.length || 64} Modelos Disponibles
+            Stock Oficial · {loading ? "…" : `${frames.length} Modelos Disponibles`}
           </div>
           <h1 className="catalogo-hero__title">
             Catálogo de <span className="text-gradient">Monturas y Lentes</span>
@@ -227,7 +234,15 @@ export default function Catalogo() {
         </section>
 
         {/* ── Grid de Monturas ─────────────────────────────────── */}
-        {loading ? (
+        {loadError && !loading && frames.length === 0 ? (
+          <div className="catalogo-empty glass--heavy">
+            <span className="empty-icon">📡</span>
+            <h3>{loadError}</h3>
+            <button className="btn btn--primary" onClick={() => window.location.reload()}>
+              Reintentar
+            </button>
+          </div>
+        ) : loading ? (
           <div className="catalogo-loading glass">
             <div className="dot-pulse"></div>
             <p>Cargando catálogo oficial de monturas...</p>
@@ -262,7 +277,7 @@ export default function Catalogo() {
                       alt={f.nombre}
                       className="catalogo-card__img"
                       loading="lazy"
-                      onError={(e) => { e.target.src = ''; e.target.alt = '👓'; e.target.className = 'catalogo-card__img-fallback'; }}
+                      onError={(e) => { e.currentTarget.style.display = "none"; }}
                     />
                     <span className="frame-id-tag">{f.id}</span>
                   </div>

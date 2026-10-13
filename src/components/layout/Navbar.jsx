@@ -23,7 +23,7 @@ function Navbar() {
           <li><a href="/#how-it-works">Cómo funciona</a></li>
           <li><a href="/catalogo">Catálogo</a></li>
           <li><a href="/scanner">Escáner</a></li>
-          <li><a href="/piloto">Piloto</a></li>
+          {/* Piloto oculto: módulo experimental, fuera de la presentación inicial */}
           <li><a href="/admin/frames">Admin</a></li>
         </ul>
 

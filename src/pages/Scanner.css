@@ -15,7 +15,24 @@
 .verdict--parcial { border-left: 3px solid #eab308; }
 .verdict--incompatible { border-left: 3px solid #ef4444; }
 .scanner__tabs button, .scanner__row .btn, .scanner select { min-height: 44px; font-size: 1rem; }
-.scanner select { max-width: 100%; border-radius: 10px; padding: .5rem; background: rgba(255,255,255,.06); color: inherit; }
+/* Fix contraste: fondo oscuro sólido + texto claro (antes rgba transparente
+   heredaba blanco sobre blanco nativo en Windows/Chrome). */
+.scanner select { max-width: 100%; border-radius: 10px; padding: .5rem .7rem; background: #0d1225; color: #e8ecf4; border: 1px solid rgba(0,212,255,.25); }
+.scanner select option { background: #0d1225; color: #e8ecf4; }
+.scanner select:focus { outline: none; border-color: #00d4ff; }
+.scanner__select { flex: 1 1 220px; min-width: 0; }
+
+/* Ficha del modelo en el probador */
+.scanner__trydetail { display: grid; gap: .4rem; padding: .7rem .8rem; border-radius: 12px; background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.08); }
+.scanner__trydetail-top { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.scanner__lentes { display: grid; gap: .3rem; }
+
+/* Probador calidad: zoom detalle + opacidad */
+.scanner__zoomwrap { overflow: hidden; border-radius: 12px; }
+.scanner__zoomwrap canvas { cursor: zoom-in; transition: transform .25s ease; width: 100%; }
+.scanner__zoomwrap.zoomed canvas { cursor: zoom-out; transform: scale(1.6); }
+.scanner__opacity { display: flex; gap: .4rem; align-items: center; font-size: .85rem; color: #8892a8; }
+.scanner__opacity input[type="range"] { width: 110px; accent-color: #00d4ff; }
 
 /* ── Metrics Grid ── */
 .scanner__metrics-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
@@ -46,6 +63,10 @@
 .scanner__card-lentes { display: flex; flex-direction: column; gap: .25rem; font-size: .75rem; color: #94a3b8; }
 .lentes-tags { display: flex; flex-wrap: wrap; gap: .3rem; }
 .lente-tag { font-size: .68rem; padding: .15rem .45rem; border-radius: 4px; background: rgba(14, 165, 233, 0.12); color: #38bdf8; }
+/* Estado de compatibilidad lente ↔ rostro+montura */
+.lente--compatible { background: rgba(34,197,94,.14); color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
+.lente--parcial { background: rgba(234,179,8,.14); color: #facc15; border: 1px solid rgba(234,179,8,.3); }
+.lente--incompatible { background: rgba(239,68,68,.12); color: #f87171; border: 1px solid rgba(239,68,68,.3); text-decoration: line-through; }
 .scanner__card-reasons { margin: 0; padding-left: 1.1rem; font-size: .8rem; color: #cbd5e1; display: flex; flex-direction: column; gap: .3rem; }
 .scanner__card-btn { margin-top: auto; width: 100%; }
 

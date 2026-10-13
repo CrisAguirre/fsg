@@ -166,6 +166,18 @@ export default function Scanner() {
   const [tryOn, setTryOn] = useState(true);
   const [tryId, setTryId] = useState(initialFrame || "F01");
   const tryFrame = frames.find((x) => x.id === tryId) ?? frames[0];
+  const tryLensRef = useRef(tryLens);
+  tryLensRef.current = tryLens;
+  // Transparencia según modelo: al cambiar de montura (o al llegar el análisis)
+  // se monta su lente ideal, el de mayor probabilidad para tu rostro.
+  // No depende de tryLens para no pelear con tu elección manual.
+  useEffect(() => {
+    if (!tryFrame) return;
+    const rec = recs.find((r) => r.frame_id === tryFrame.id) ?? null;
+    const lenses = lensCompatibility(tryFrame, rec?.score ?? null);
+    if (lenses.length > 0 && lenses[0].tipo !== tryLensRef.current) setTryLens(lenses[0].tipo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tryId, frames, recs]);
   const tryRef = useRef({ on: true, forma: "rectangular", frame: null, metrics: null, alpha: 0.95, tint: "monofocal", use3D: true });
   tryRef.current = { on: tryOn && !showOriginal, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity, tint: tryLens, use3D };
 

@@ -31,11 +31,12 @@ export function frameColorHex(name = "") {
 
 function glassTintMaterial(tint = "monofocal") {
   const t = String(tint || "monofocal").toLowerCase();
-  let color = 0xcfe0f0, opacity = 0.16;
-  if (t.includes("polarizado")) { color = 0x2c3a44; opacity = 0.55; }
-  else if (t.includes("fotocrom")) { color = 0x6f7480; opacity = 0.38; }
-  else if (t.includes("blue")) { color = 0xe8d9a8; opacity = 0.22; }
-  else if (t.includes("progresivo") || t.includes("bifocal")) { color = 0xa9c8e8; opacity = 0.2; }
+  // Opacidades con salto visible entre tipos (antes 0.16–0.55, imperceptible).
+  let color = 0xcfe0f0, opacity = 0.2;
+  if (t.includes("polarizado")) { color = 0x232f38; opacity = 0.72; }
+  else if (t.includes("fotocrom")) { color = 0x646a76; opacity = 0.55; }
+  else if (t.includes("blue")) { color = 0xd9a93f; opacity = 0.42; }
+  else if (t.includes("progresivo") || t.includes("bifocal")) { color = 0x9dc0e6; opacity = 0.3; }
   return new THREE.MeshPhysicalMaterial({
     color, transparent: true, opacity, roughness: 0.06, metalness: 0,
     clearcoat: 1, clearcoatRoughness: 0.08, side: THREE.DoubleSide,

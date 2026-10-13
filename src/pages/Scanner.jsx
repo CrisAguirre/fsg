@@ -47,6 +47,18 @@ function FeedbackBox({ metrics, top }) {
 // En vez de mostrar todos los tipos existentes, se califica cada tipo del
 // catálogo según la montura elegida (B/D) y el veredicto del rostro.
 const LENTES_ORDEN = ["monofocal", "blue-cut", "fotocromático", "polarizado", "bifocal", "progresivo"];
+const LENTE_SWATCH = {
+  "monofocal": "#cfe0f0",
+  "blue-cut": "#d9a93f",
+  "fotocromático": "#646a76",
+  "polarizado": "#232f38",
+  "bifocal": "#9dc0e6",
+  "progresivo": "#9dc0e6",
+};
+function LenteDot({ tipo }) {
+  const c = LENTE_SWATCH[tipo] || "#cfe0f0";
+  return <span title={`Tinte ${tipo}`} style={{ display: "inline-block", width: ".8em", height: ".8em", borderRadius: "50%", background: c, border: "1px solid rgba(255,255,255,.5)", verticalAlign: "baseline" }} />;
+}
 function lensCompatibility(frame, frameScore = null) {
   if (!frame) return [];
   const B = Number(frame.B_mm ?? 0);
@@ -647,7 +659,7 @@ export default function Scanner() {
                         </button>
                       ))}
                     </div>
-                    <small className="scanner__sub">Cristal montado: <b>{tryLens}</b></small>
+                    <small className="scanner__sub">Cristal montado: <LenteDot tipo={tryLens} /> <b>{tryLens}</b> — cambia con el modelo o un clic arriba</small>
                   </div>
                 )}
               </div>

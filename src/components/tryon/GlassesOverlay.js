@@ -392,20 +392,21 @@ function metalGradient(ctx, span, dark, light) {
 }
 
 // Tinte del cristal según tipo de lente elegido (además de la luz de la foto).
+// Niveles con salto visible: cada tipo debe distinguirse a simple vista.
 function lensTint(tint = "monofocal", light = 0.5) {
   const t = String(tint || "monofocal").toLowerCase();
-  const base = 0.06 + (1 - light) * 0.07;
+  const base = 0.1 + (1 - light) * 0.08;
   if (t.includes("polarizado") || t.includes("sol")) {
-    return { hi: `rgba(70,85,95,${(base + 0.28).toFixed(3)})`, mid: `rgba(45,60,70,${(base + 0.32).toFixed(3)})`, lo: `rgba(25,35,42,${(base + 0.36).toFixed(3)})` };
+    return { hi: `rgba(60,75,86,${(base + 0.45).toFixed(3)})`, mid: `rgba(38,52,62,${(base + 0.5).toFixed(3)})`, lo: `rgba(20,30,38,${(base + 0.55).toFixed(3)})` };
   }
   if (t.includes("fotocrom")) {
-    return { hi: `rgba(150,155,165,${(base + 0.14).toFixed(3)})`, mid: `rgba(120,125,135,${(base + 0.16).toFixed(3)})`, lo: `rgba(95,100,112,${(base + 0.18).toFixed(3)})` };
+    return { hi: `rgba(140,146,158,${(base + 0.3).toFixed(3)})`, mid: `rgba(110,116,128,${(base + 0.34).toFixed(3)})`, lo: `rgba(85,90,102,${(base + 0.38).toFixed(3)})` };
   }
   if (t.includes("blue")) {
-    return { hi: `rgba(255,236,190,${(base + 0.05).toFixed(3)})`, mid: `rgba(235,220,175,${(base + 0.07).toFixed(3)})`, lo: `rgba(210,195,150,${(base + 0.09).toFixed(3)})` };
+    return { hi: `rgba(240,190,90,${(base + 0.2).toFixed(3)})`, mid: `rgba(225,170,70,${(base + 0.24).toFixed(3)})`, lo: `rgba(200,145,50,${(base + 0.28).toFixed(3)})` };
   }
   if (t.includes("progresivo") || t.includes("bifocal")) {
-    return { hi: `rgba(190,215,240,${(base + 0.04).toFixed(3)})`, mid: `rgba(165,195,225,${(base + 0.06).toFixed(3)})`, lo: `rgba(140,175,205,${(base + 0.08).toFixed(3)})` };
+    return { hi: `rgba(175,205,235,${(base + 0.1).toFixed(3)})`, mid: `rgba(150,185,220,${(base + 0.13).toFixed(3)})`, lo: `rgba(125,160,200,${(base + 0.16).toFixed(3)})` };
   }
   return { hi: `rgba(200,220,240,${base.toFixed(3)})`, mid: `rgba(170,200,228,${(base + 0.02).toFixed(3)})`, lo: `rgba(145,180,210,${(base + 0.04).toFixed(3)})` };
 }

@@ -153,6 +153,12 @@ export default function Scanner() {
   const [photoWarn, setPhotoWarn] = useState("");
   const [tryOpacity, setTryOpacity] = useState(0.95); // slider montura
   const [tryLens, setTryLens] = useState("monofocal"); // tinte del cristal
+  const [use3D, setUse3D] = useState(true); // armazón 3D real con fallback 2D
+  const [arOk, setArOk] = useState(null); // null=sin probar, true=3D activo, false=fallback 2D
+  const threeLiveRef = useRef(null);
+  const threePhotoRef = useRef(null);
+  const arLiveRef = useRef(null);
+  const arPhotoRef = useRef(null);
   const [showOriginal, setShowOriginal] = useState(false); // mantener para comparar
   const [zoomed, setZoomed] = useState(false); // detalle HD
   const rafRef = useRef(0);
@@ -160,8 +166,8 @@ export default function Scanner() {
   const [tryOn, setTryOn] = useState(true);
   const [tryId, setTryId] = useState(initialFrame || "F01");
   const tryFrame = frames.find((x) => x.id === tryId) ?? frames[0];
-  const tryRef = useRef({ on: true, forma: "rectangular", frame: null, metrics: null, alpha: 0.95, tint: "monofocal" });
-  tryRef.current = { on: tryOn && !showOriginal, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity, tint: tryLens };
+  const tryRef = useRef({ on: true, forma: "rectangular", frame: null, metrics: null, alpha: 0.95, tint: "monofocal", use3D: true });
+  tryRef.current = { on: tryOn && !showOriginal, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity, tint: tryLens, use3D };
 
   useEffect(() => {
     if (initialFrame) setTryId(initialFrame);
@@ -227,8 +233,25 @@ export default function Scanner() {
             smoothLmRef.current = lm;
             lastLmRef.current = lm;
             const t = tryRef.current;
+            // El 3D vive en su propio canvas; el 2D queda como fallback
             if (t.on) {
-              drawGlasses(ctx, lm, v.videoWidth, v.videoHeight, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light: 0.55, tint: t.tint });
+              let drew3D = false;
+              if (t.use3D && t.frame) {
+                try {
+                  if (!arLiveRef.current && threeLiveRef.current) arLiveRef.current = new GlassesAR(threeLiveRef.current);
+                  const ar = arLiveRef.current;
+                  if (ar) {
+                    ar.setModel(t.frame, t.tint, t.metrics);
+                    const pose = ar.render(lm, cnv.width, cnv.height);
+                    drew3D = !!pose;
+                  }
+                } catch { drew3D = false; }
+              }
+              setArOk((prev) => (prev === drew3D ? prev : drew3D));
+              if (!drew3D) {
+                try { arLiveRef.current?.clear(); } catch { /* noop */ }
+                drawGlasses(ctx, lm, v.videoWidth, v.videoHeight, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light: 0.55, tint: t.tint });
+              }
             } else {
               ctx.fillStyle = "rgba(0,212,255,.8)";
               const sx = cnv.width / v.videoWidth;
@@ -254,6 +277,8 @@ export default function Scanner() {
     landmarkerRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    smoothLmRef.current = null;
+    try { arLiveRef.current?.clear(); } catch { /* noop */ }
   }
 
   // Try-on en foto capturada/subida (IMAGE mode, reutiliza el mismo CDN)
@@ -298,20 +323,52 @@ export default function Scanner() {
         ctx.clearRect(0, 0, cnv.width, cnv.height);
         ctx.drawImage(img, 0, 0, cnv.width, cnv.height);
         const light = sampleBrightness(cnv);
-        if (!tryRef.current.on) { setFitInfo(null); lastPhotoLmRef.current = null; return; }
+        if (!tryRef.current.on) {
+          setFitInfo(null); lastPhotoLmRef.current = null;
+          try { arPhotoRef.current?.clear(); } catch { /* noop */ }
+          return;
+        }
         const res = imgLandmarkerRef.current.detect(img);
         const lm = res?.faceLandmarks?.[0];
         if (!lm) {
           setFitInfo(null);
+          try { arPhotoRef.current?.clear(); } catch { /* noop */ }
           setPhotoWarn("No se detectó rostro en esta foto. Usa foto frontal, con buena luz, sin gafas oscuras.");
           return;
         }
         const t = tryRef.current;
-        const fit = drawGlasses(ctx, lm, W, H, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light, tint: t.tint });
+        // 3D real primero; 2D solo como fallback
+        let drew3D = false, pose3D = null;
+        if (t.use3D && t.frame && threePhotoRef.current) {
+          try {
+            if (!arPhotoRef.current) arPhotoRef.current = new GlassesAR(threePhotoRef.current);
+            arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
+            pose3D = arPhotoRef.current.render(lm, cnv.width, cnv.height);
+            drew3D = !!pose3D;
+          } catch { drew3D = false; }
+        }
+        setArOk((prev) => (prev === drew3D ? prev : drew3D));
+        // Medidas para la ficha (independientes del render)
+        const meas = measureGlasses(lm, cnv.width, cnv.height);
+        let fit = null;
+        if (!drew3D) {
+          try { arPhotoRef.current?.clear(); } catch { /* noop */ }
+          fit = drawGlasses(ctx, lm, W, H, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light, tint: t.tint });
+        }
         if (!dead) {
           lastPhotoLmRef.current = lm;
-          setFitInfo(fit ? { ipdPx: Math.round(fit.ipdPx), angDeg: Number(fit.angDeg.toFixed(1)), fitScale: Number(fit.fitScale.toFixed(2)), warnings: fit.warnings, lensW: Math.round(fit.lensW), lensH: Math.round(fit.lensH), light: Number(light.toFixed(2)), decent: fit.decent ?? null } : null);
-          if (fit?.warnings?.length) setPhotoWarn(fit.warnings.join(" · "));
+          if (drew3D && meas) {
+            const decent = pupilDecentration(t.frame, t.metrics);
+            let fitScale = 1;
+            if (t.frame?.ancho_total_mm && t.metrics?.temporal_est) {
+              fitScale = Math.min(1.25, Math.max(0.85, t.frame.ancho_total_mm / t.metrics.temporal_est));
+            }
+            setFitInfo({ ipdPx: Math.round(meas.ipdPx), angDeg: Number(meas.angDeg.toFixed(1)), fitScale: Number(fitScale.toFixed(2)), warnings: meas.warnings, lensW: null, lensH: null, light: Number(light.toFixed(2)), decent: decent ?? null, mode3D: true, yaw: pose3D ? Number(pose3D.yawDeg.toFixed(0)) : null });
+            if (meas.warnings?.length) setPhotoWarn(meas.warnings.join(" · "));
+          } else {
+            setFitInfo(fit ? { ipdPx: Math.round(fit.ipdPx), angDeg: Number(fit.angDeg.toFixed(1)), fitScale: Number(fit.fitScale.toFixed(2)), warnings: fit.warnings, lensW: Math.round(fit.lensW), lensH: Math.round(fit.lensH), light: Number(light.toFixed(2)), decent: fit.decent ?? null, mode3D: false } : null);
+            if (fit?.warnings?.length) setPhotoWarn(fit.warnings.join(" · "));
+          }
         }
         // Vista 3D fotorrealista si la óptica subió el GLB; si no, queda oculta.
         try {
@@ -367,6 +424,7 @@ export default function Scanner() {
     if (preview) URL.revokeObjectURL(preview);
     setFile(null); setPreview(null); setMetrics(null); setRecs([]); setError(""); setFitInfo(null); setPhotoWarn(""); setZoomed(false); setShowOriginal(false);
     lastPhotoLmRef.current = null; smoothLmRef.current = null;
+    try { arPhotoRef.current?.clear(); } catch { /* noop */ }
     try {
       const r = await fetch(`${API_URL}/analyze/photo`, { method: "DELETE" });
       const j = await r.json().catch(() => ({}));
@@ -377,7 +435,7 @@ export default function Scanner() {
   }
 
   function downloadMontage() {
-    // Descarga HD a resolución natural (no el canvas 960px de pantalla).
+    // Descarga HD a resolución natural: foto + overlay 3D (o 2D si es fallback).
     try {
       const img = photoImgRef.current;
       const lm = lastPhotoLmRef.current;
@@ -388,7 +446,21 @@ export default function Scanner() {
         full.width = nat.W; full.height = nat.H;
         const fctx = full.getContext("2d");
         fctx.drawImage(img, 0, 0, nat.W, nat.H);
-        drawGlasses(fctx, lm, nat.W, nat.H, nat.W, nat.H, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: 1, light: 0.5, tint: t.tint });
+        const overlay = threePhotoRef.current;
+        const is3D = !!(overlay && arPhotoRef.current && overlay.width > 10);
+        if (t.use3D && is3D) {
+          // Re-render 3D a tamaño natural y compone (preserveDrawingBuffer permite drawImage)
+          const prevW = overlay.width, prevH = overlay.height;
+          try {
+            arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
+            arPhotoRef.current.render(lm, nat.W, nat.H);
+            fctx.drawImage(overlay, 0, 0, nat.W, nat.H);
+          } finally {
+            arPhotoRef.current.render(lm, prevW, prevH);
+          }
+        } else {
+          drawGlasses(fctx, lm, nat.W, nat.H, nat.W, nat.H, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: 1, light: 0.5, tint: t.tint });
+        }
         const a = document.createElement("a");
         a.href = full.toDataURL("image/jpeg", 0.95);
         a.download = `glassescanner-HD-${tryId || "montura"}.jpg`;
@@ -458,13 +530,18 @@ export default function Scanner() {
           <div className="scanner__camwrap">
             <video ref={videoRef} playsInline muted className="scanner__video" />
             <canvas ref={overlayRef} className="scanner__overlay" aria-hidden="true" />
+            <canvas ref={threeLiveRef} className="scanner__overlay" aria-hidden="true" />
           </div>
-          <small>{livePts > 0 ? `Rostro en vivo: ${livePts} puntos · centra tu cara en el óvalo` : "Activa la cámara y centra tu rostro de frente."}</small>
+          <small>{livePts > 0 ? `Rostro en vivo: ${livePts} puntos · ${arOk ? "armazón 3D siguiendo tu cabeza" : "probador 2D"} · centra tu cara en el óvalo` : "Activa la cámara y centra tu rostro de frente."}</small>
           <div className="scanner__row">
             <button className="btn btn--glass" onClick={startCamera}>Activar cámara</button>
             <button className="btn btn--primary" onClick={capture}>Capturar</button>
+            <label style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
+              <input type="checkbox" checked={use3D} onChange={(e) => setUse3D(e.target.checked)} />
+              Armazón 3D real
+            </label>
           </div>
-          <small>Requiere HTTPS + permiso. En iPhone usa Safari con gesto Capturar.</small>
+          <small>Requiere HTTPS + permiso. En iPhone usa Safari con gesto Capturar. Mové la cabeza: el 3D te sigue.</small>
         </div>
       ) : (
         <div className="glass scanner__panel">
@@ -479,16 +556,20 @@ export default function Scanner() {
 
       {preview && (
         <div className="glass scanner__panel">
-          <h3>Vista previa + probador</h3>
+          <h3>Vista previa + probador {arOk ? <span className="tag tag--price">3D real</span> : <span className="tag">2D</span>}</h3>
           <img ref={photoImgRef} src={preview} alt="rostro para análisis" className="scanner__preview" style={{ display: "none" }} />
-          <div className={`scanner__zoomwrap ${zoomed ? "zoomed" : ""}`}>
+          <div className={`scanner__zoomwrap ${zoomed ? "zoomed" : ""}`} style={{ position: "relative" }}>
             <canvas ref={photoCanvasRef} className="scanner__preview" onClick={() => setZoomed((z) => !z)} title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"} />
+            <canvas ref={threePhotoRef} className="scanner__overlay" aria-hidden="true" />
           </div>
           <canvas ref={glbCanvasRef} className="scanner__preview" style={{ display: glb3d ? undefined : "none" }} aria-label="Vista 3D fotorrealista" />
           {photoWarn && <p className="scanner__warning">⚠ {photoWarn}</p>}
           {fitInfo && (
             <small className="scanner__sub">
-              Montaje: IPD {fitInfo.ipdPx}px · ángulo {fitInfo.angDeg}° · lente {fitInfo.lensW}×{fitInfo.lensH}px · escala marco {fitInfo.fitScale}×
+              Montaje {fitInfo.mode3D ? "3D" : "2D"}: IPD {fitInfo.ipdPx}px · ángulo {fitInfo.angDeg}°
+              {fitInfo.lensW ? ` · lente ${fitInfo.lensW}×${fitInfo.lensH}px` : ""}
+              {` · escala marco ${fitInfo.fitScale}×`}
+              {fitInfo.yaw != null ? ` · giro ${fitInfo.yaw}°` : ""}
               {metrics ? ` · sien-sien ${metrics.temporal_est}mm` : " · analizá para ajuste milimétrico"}
               {fitInfo.decent && (fitInfo.decent.ok
                 ? ` · pupilas centradas ✓ (A+D ${fitInfo.decent.framePD}mm vs IPD ${metrics?.ipd_mm_est ?? "?"}mm)`

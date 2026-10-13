@@ -558,7 +558,7 @@ export default function Scanner() {
         <div className="glass scanner__panel">
           <h3>Vista previa + probador {arOk ? <span className="tag tag--price">3D real</span> : <span className="tag">2D</span>}</h3>
           <img ref={photoImgRef} src={preview} alt="rostro para análisis" className="scanner__preview" style={{ display: "none" }} />
-          <div className={`scanner__zoomwrap ${zoomed ? "zoomed" : ""}`} style={{ position: "relative" }}>
+          <div className={`scanner__zoomwrap ${zoomed ? "zoomed" : ""}`}>
             <canvas ref={photoCanvasRef} className="scanner__preview" onClick={() => setZoomed((z) => !z)} title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"} />
             <canvas ref={threePhotoRef} className="scanner__overlay" aria-hidden="true" />
           </div>

@@ -99,14 +99,15 @@ function lensShape(forma, w, h, mirror = 1) {
   return s;
 }
 
-export function buildGlassesGroup(frame, tint = "monofocal", fitScale = 1, ratioHB = null) {
+export function buildGlassesGroup(frame, tint = "monofocal", dims = null) {
   const forma = frame?.forma || "rectangular";
   const isRimless = forma === "rimless";
   const isMetal = /metal|mixto/i.test(String(frame?.material || ""));
-  const eyeW = 0.21; // medio ojo en unidades IPD (0.42 de lente base)
-  const lensW = eyeW * 2.1 * fitScale;
-  const ratio = ratioHB ?? (forma === "aviador" ? 0.95 : forma === "redondo" ? 0.92 : forma === "oval" || isRimless ? 0.72 : forma === "wayfarer" ? 0.85 : forma === "cat-eye" ? 0.78 : 0.68);
-  const lensH = lensW * ratio;
+  // Tamaño óptico real: el lente mide A/IPD y B/IPD en unidades de IPD (ojos en ±0.5).
+  // Sin métricas, fallback proporcional clásico.
+  const lensW = dims?.lensW ?? 0.44 * (dims?.fitScale ?? 1);
+  const lensH = dims?.lensH ?? lensW * (forma === "aviador" ? 0.95 : forma === "redondo" ? 0.92 : forma === "oval" || isRimless ? 0.72 : forma === "wayfarer" ? 0.85 : forma === "cat-eye" ? 0.78 : 0.68);
+  const lensCX = dims?.lensCX ?? 0.5; // centro óptico: ±lensCX (0.5 = sobre la pupila)
   const depth = isRimless ? 0.008 : isMetal ? 0.03 : 0.055;
 
   const g = new THREE.Group();
@@ -117,7 +118,7 @@ export function buildGlassesGroup(frame, tint = "monofocal", fitScale = 1, ratio
     const shape = lensShape(forma, lensW, lensH, side);
     // Cristal
     const glass = new THREE.Mesh(new THREE.ShapeGeometry(shape, 24), glassMat);
-    glass.position.set(side * 0.5, 0, depth * 0.4);
+    glass.position.set(side * lensCX, 0, depth * 0.4);
     g.add(glass);
     if (!isRimless) {
       // Aro con volumen real
@@ -126,28 +127,28 @@ export function buildGlassesGroup(frame, tint = "monofocal", fitScale = 1, ratio
       });
       geo.translate(0, 0, -depth / 2);
       const rim = new THREE.Mesh(geo, rimMat);
-      rim.position.set(side * 0.5, 0, 0);
+      rim.position.set(side * lensCX, 0, 0);
       g.add(rim);
       // Barra superior wayfarer / ceja aviador
       if (forma === "wayfarer") {
         const bar = new THREE.Mesh(new THREE.BoxGeometry(lensW * 0.98, depth * 1.6, depth * 1.3), rimMat);
-        bar.position.set(side * 0.5, lensH * 0.48, 0);
+        bar.position.set(side * lensCX, lensH * 0.48, 0);
         g.add(bar);
       }
     } else {
       // Rimless: mini soportes + hilo superior
       const sup = new THREE.Mesh(new THREE.BoxGeometry(lensW * 0.7, 0.012, 0.012), rimMat);
-      sup.position.set(side * 0.5, lensH * 0.42, 0);
+      sup.position.set(side * lensCX, lensH * 0.42, 0);
       g.add(sup);
       const mountMat = new THREE.MeshStandardMaterial({ color: 0xdfe6ef, metalness: 0.9, roughness: 0.3 });
       for (const dx of [-lensW * 0.28, lensW * 0.28]) {
         const dot = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 12), mountMat);
-        dot.position.set(side * 0.5 + dx, -lensH * 0.05, depth * 0.5);
+        dot.position.set(side * lensCX + dx, -lensH * 0.05, depth * 0.5);
         g.add(dot);
       }
     }
     // Patilla hacia atrás (oreja): del borde exterior hacia -Z
-    const outerX = side * (0.5 + lensW / 2);
+    const outerX = side * (lensCX + lensW / 2);
     const templeLen = 1.15;
     const temple = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.045, templeLen), rimMat);
     temple.position.set(outerX + side * 0.02, lensH * 0.28, -templeLen / 2);
@@ -160,7 +161,8 @@ export function buildGlassesGroup(frame, tint = "monofocal", fitScale = 1, ratio
   }
 
   // Puente
-  const innerGap = Math.max(0.1, 1 - lensW);
+  // Puente: ancho real D/IPD; lentes a ±(A+D)/2 del centro nasal
+  const innerGap = dims?.bridgeW ?? Math.max(0.1, 1 - lensW);
   if (forma === "aviador") {
     // doble puente aviador
     const barMat = rimMat;
@@ -225,21 +227,40 @@ export class GlassesAR {
   }
 
   setModel(frame, tint = "monofocal", metrics = null) {
-    const key = `${frame?.id ?? frame?.forma ?? "?"}|${tint}|${frame?.color}|${frame?.material}`;
+    const key = `${frame?.id ?? frame?.forma ?? "?"}|${tint}|${frame?.color}|${frame?.material}|${metrics?.ipd_mm_est ?? "?"}`;
     if (key === this.key) return;
     this.key = key;
     if (this.group) {
       this.scene.remove(this.group);
       this.group.traverse((o) => { o.geometry?.dispose?.(); });
     }
-    let fitScale = 1, ratioHB = null;
-    if (frame?.ancho_total_mm && metrics?.temporal_est) {
-      fitScale = clamp(frame.ancho_total_mm / metrics.temporal_est, 0.85, 1.25);
+    // Dimensiones ópticas reales en unidades IPD (1.0 = tu IPD).
+    // Ej: A52/D18 con IPD63 → lente 0.83, centros ±0.56, puente 0.29.
+    let dims = null;
+    const ipd = Number(metrics?.ipd_mm_est);
+    if (frame?.A_mm && frame?.B_mm && frame?.D_mm && ipd > 0) {
+      const lensW = clamp(frame.A_mm / ipd, 0.55, 1.05);
+      const lensH = clamp(frame.B_mm / ipd, 0.35, 0.9);
+      const lensCX = clamp((frame.A_mm + frame.D_mm) / 2 / ipd, 0.4, 0.7);
+      dims = { lensW, lensH, lensCX, bridgeW: clamp(frame.D_mm / ipd, 0.12, 0.45) };
+    } else {
+      let fitScale = 1, ratioHB = null;
+      if (frame?.ancho_total_mm && metrics?.temporal_est) {
+        fitScale = clamp(frame.ancho_total_mm / metrics.temporal_est, 0.85, 1.25);
+      }
+      if (frame?.A_mm && frame?.B_mm && frame.A_mm > 0) {
+        ratioHB = clamp(frame.B_mm / frame.A_mm, 0.6, 1.0);
+      }
+      const lensW = 0.44 * fitScale;
+      dims = {
+        lensW,
+        lensH: lensW * (ratioHB ?? 0.72),
+        lensCX: 0.5,
+        bridgeW: Math.max(0.1, 1 - lensW),
+        fitScale,
+      };
     }
-    if (frame?.A_mm && frame?.B_mm && frame.A_mm > 0) {
-      ratioHB = clamp(frame.B_mm / frame.A_mm, 0.6, 1.0);
-    }
-    this.group = buildGlassesGroup(frame, tint, fitScale, ratioHB);
+    this.group = buildGlassesGroup(frame, tint, dims);
     this.scene.add(this.group);
   }
 

@@ -91,19 +91,34 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
   const isCarey = /carey|habana|miel|torto/i.test(String(frame?.color || ""));
   const tint = lensTint(opts.tint, clamp(opts.light ?? 0.5, 0, 1));
 
-  // Escala real: ancho_total_marco vs ancho temporal estimado.
-  let fitScale = 1;
-  if (frame?.ancho_total_mm && metrics?.temporal_est) {
-    fitScale = clamp(frame.ancho_total_mm / metrics.temporal_est, 0.85, 1.25);
+  // Tamaño óptico real: el lente mide A/IPD y B/IPD del IPD en px.
+  // Ej: A52 con IPD63 → lente 0.83×IPD. Fallback: 2.1× ancho de ojo.
+  let W, H;
+  const ipdMm = Number(metrics?.ipd_mm_est);
+  if (frame?.A_mm && frame?.B_mm && ipdMm > 0 && ipdPx > 1) {
+    const ratioHB = clamp(frame.B_mm / Math.max(frame.A_mm, 1e-6), 0.5, 1.05);
+    W = (ipdPx * frame.A_mm) / ipdMm;
+    H = W * ratioHB;
+    // Tope anti-absurdos (foto muy lejos/cerca)
+    const maxW = ipdPx * 1.1, minW = ipdPx * 0.5;
+    W = clamp(W, minW, maxW);
+    H = W * ratioHB;
+  } else {
+    // Escala real: ancho_total_marco vs ancho temporal estimado.
+    let fitScale = 1;
+    if (frame?.ancho_total_mm && metrics?.temporal_est) {
+      fitScale = clamp(frame.ancho_total_mm / metrics.temporal_est, 0.85, 1.25);
+    }
+    W = eyeW * 2.1 * fitScale;
+    const isRimless0 = forma === "rimless";
+    let ratioHB0 = null;
+    if (frame?.A_mm && frame?.B_mm && frame.A_mm > 0) {
+      ratioHB0 = clamp(frame.B_mm / frame.A_mm, 0.6, 1.0);
+    }
+    H = W * (ratioHB0 ??
+      (forma === "aviador" ? 0.95 : forma === "redondo" ? 0.92 : forma === "oval" || isRimless0 ? 0.72 : forma === "wayfarer" ? 0.85 : forma === "cat-eye" ? 0.78 : 0.68));
   }
-  const W = eyeW * 2.1 * fitScale;
   const isRimless = forma === "rimless";
-  let ratioHB = null;
-  if (frame?.A_mm && frame?.B_mm && frame.A_mm > 0) {
-    ratioHB = clamp(frame.B_mm / frame.A_mm, 0.6, 1.0);
-  }
-  const H = W * (ratioHB ??
-    (forma === "aviador" ? 0.95 : forma === "redondo" ? 0.92 : forma === "oval" || forma === "rimless" ? 0.72 : forma === "wayfarer" ? 0.85 : forma === "cat-eye" ? 0.78 : 0.68));
 
   const edge = isRimless ? Math.max(1.4, ipdPx * 0.012) : isMetal ? Math.max(1.7, ipdPx * 0.017) : Math.max(3, ipdPx * 0.036);
   const alpha = clamp(opts.alpha ?? 1, 0.25, 1);

@@ -40,6 +40,7 @@ check("giro yaw≠0 con signo", p2.yaw < -0.05, `yaw=${p2.yaw.toFixed(4)}rad`);
 const A = 52, B = 36, D = 18, IPD = 63;
 const lensW = A / IPD, lensH = B / IPD, lensCX = (A + D) / 2 / IPD;
 check("lente F01 ≈0.825", Math.abs(lensW - 0.825) < 0.005, `lensW=${lensW.toFixed(3)}`);
+check("alto F01 ≈0.571", Math.abs(lensH - 0.571) < 0.005, `lensH=${lensH.toFixed(3)}`);
 const outerNorm = 0.5 + (lensCX + lensW / 2) * p1.ipd; // borde exterior en coords normalizadas
 const templeR = 0.72;
 check("borde llega a sien", outerNorm >= templeR - 0.03, `borde=${outerNorm.toFixed(3)} sien=${templeR}`);

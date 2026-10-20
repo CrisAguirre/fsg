@@ -52,7 +52,7 @@ export default function AdminFrames() {
       <div className="glass admin__form" style={{ padding: ".8rem 1rem" }}>
         <label>Clave admin<input type="password" value={adminKey} onChange={(e) => saveKey(e.target.value)} placeholder="X-Admin-Key (solo sesión, no se guarda en disco)" autoComplete="off" /></label>
       </div>
-      {stats && <p className="glass admin__stats">Feedback: {stats.n} respuestas · ayuda {stats.avg_helpful ?? "—"}/5 · parcial {Math.round((stats.parcial_rate ?? 0) * 100)}% · <i>{stats.sugerencia}</i></p>}
+      {stats && <p className="glass admin__stats">Feedback: {stats.n} respuestas · ayuda {stats.avg_helpful ?? "—"}/5 · parcial {Math.round((stats.parcial_rate ?? 0) * 100)}%{stats.fit_rate != null ? ` · ajuste real ${Math.round(stats.fit_rate * 100)}% (${stats.fit_n})` : ""}{stats.shape_accuracy != null ? ` · forma ${Math.round(stats.shape_accuracy * 100)}% (${stats.shape_n})` : ""} · <i>{stats.sugerencia}</i></p>}
       {msg && <p>{msg}</p>}
       <form className="glass admin__form" onSubmit={guardar}>
         <h3>{editando ? `Editando ${form.id}` : "Nuevo marco"}</h3>

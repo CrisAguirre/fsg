@@ -6,6 +6,8 @@ import { renderGLB } from "../components/tryon/GlassesGLB.js";
 import { GlassesAR } from "../components/tryon/Frame3D.js";
 import "./Scanner.css";
 
+const FORMAS = ["oval", "redondo", "cuadrado", "corazon", "diamante", "oblongo", "triangular"];
+
 function sampleBrightness(canvas) {
   try {
     const sw = 48, sh = 48;
@@ -143,6 +145,7 @@ export default function Scanner() {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [metrics, setMetrics] = useState(null);
+  const [detectedShape, setDetectedShape] = useState("");
   const [recs, setRecs] = useState([]);
   const [frames, setFrames] = useState([]);
   const [loading, setLoading] = useState("");
@@ -447,6 +450,8 @@ export default function Scanner() {
   async function erasePhoto() {
     if (preview) URL.revokeObjectURL(preview);
     setFile(null); setPreview(null); setMetrics(null); setRecs([]); setError(""); setFitInfo(null); setPhotoWarn(""); setZoomed(false); setShowOriginal(false);
+    setDetectedShape("");
+    try { sessionStorage.removeItem("gs_last_scan"); } catch { /* noop */ }
     lastPhotoLmRef.current = null; smoothLmRef.current = null;
     try { arPhotoRef.current?.clear(); } catch { /* noop */ }
     try {
@@ -523,6 +528,45 @@ export default function Scanner() {
     } catch { /* noop */ }
   }
 
+  function saveLastScan(m, sorted, detected = detectedShape) {
+    try {
+      const top = sorted?.[0];
+      sessionStorage.setItem("gs_last_scan", JSON.stringify({
+        face_shape: m.face_shape,
+        face_shape_detected: detected || m.face_shape,
+        frame_id: top?.frame_id ?? null,
+        verdict: top?.verdict ?? null,
+        score: top?.score ?? null,
+        metrics: {
+          temporal_est: m.temporal_est,
+          ipd_mm_est: m.ipd_mm_est,
+          nose_bridge_mm_est: m.nose_bridge_mm_est,
+        },
+        at: new Date().toISOString(),
+      }));
+    } catch { /* sessionStorage puede fallar en modo privado */ }
+  }
+
+  async function changeShape(shape) {
+    if (!metrics || shape === metrics.face_shape) return;
+    const m = { ...metrics, face_shape: shape };
+    const prev = metrics;
+    setMetrics(m);
+    setError("");
+    setLoading("Recalculando con la forma corregida…");
+    try {
+      const r = await recommend(m, null);
+      const sorted = r.sort((a, b) => b.score - a.score);
+      setRecs(sorted);
+      saveLastScan(m, sorted);
+    } catch {
+      setMetrics(prev);
+      setError("No se pudo recalcular con la forma corregida. Revisa la conexión.");
+    } finally {
+      setLoading("");
+    }
+  }
+
   async function runAnalysis() {
     if (!consent) {
       setError("Debes aceptar el tratamiento de datos biométricos (Ley 1581) para continuar.");
@@ -542,9 +586,12 @@ export default function Scanner() {
         throw new Error(m?.warnings?.[0] || "No se detectó un rostro frontal claro. Asegúrate de mirar de frente y tener buena luz.");
       }
       setMetrics(m);
+      setDetectedShape(m.face_shape);
       setLoading("Calculando compatibilidades con el stock…");
       const r = await recommend(m, null);
-      setRecs(r.sort((a, b) => b.score - a.score));
+      const sorted = r.sort((a, b) => b.score - a.score);
+      setRecs(sorted);
+      saveLastScan(m, sorted, m.face_shape);
     } catch (e) {
       const msg = e.name === "AbortError"
         ? "El servidor tardó en responder. Por favor intenta de nuevo."
@@ -722,8 +769,21 @@ export default function Scanner() {
         <div className="glass scanner__panel scanner__metrics">
           <div className="scanner__metrics-header">
             <h3>🔬 Análisis Morfométrico Facial</h3>
-            <span className="badge badge--cyan">Forma: {metrics.face_shape.toUpperCase()}</span>
+            <label className="scanner__shape-edit" title="Si el óptico no coincide con la forma detectada, corrígela aquí y se recalculan las recomendaciones.">
+              Forma:
+              <select
+                value={metrics.face_shape}
+                onChange={(e) => changeShape(e.target.value)}
+                disabled={!!loading}
+              >
+                {FORMAS.map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </label>
           </div>
+          <p className="scanner__sub">
+            Forma estimada automáticamente. Si el óptico no coincide, corrígela:
+            el sistema recalcula el contraste y las recomendaciones.
+          </p>
           <div className="scanner__metrics-grid">
             <div className="metric-chip">
               <span className="metric-label">Simetría Facial</span>
@@ -757,8 +817,13 @@ export default function Scanner() {
       {recs.length > 0 && (
         <>
         <div className="scanner__recs-header">
-          <h2>Monturas <span className="text-gradient">Recomendadas</span> ({recs.length})</h2>
-          <p className="scanner__sub">Compatibilidad evaluada por el motor experto según proporción facial, contraste geométrico y apoyo nasal.</p>
+          <div>
+            <h2>Monturas <span className="text-gradient">Recomendadas</span> ({recs.length})</h2>
+            <p className="scanner__sub">Compatibilidad evaluada por el motor experto según proporción facial, centrado óptico, contraste geométrico y apoyo nasal.</p>
+          </div>
+          <a className="btn btn--glass" href="/piloto" title="Lleva la forma y el top-1 de este análisis al registro del piloto">
+            📋 Registrar en piloto →
+          </a>
         </div>
         <div className="scanner__grid">
           {recs.slice(0, 12).map((r) => {

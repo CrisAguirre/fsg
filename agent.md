@@ -139,6 +139,12 @@ Front: `VITE_API_URL`. Back: `CORS_ORIGINS` (localhost + front prod), `MAX_PHOTO
     *   **Escáner enriquecido:** `Scanner.jsx` renderiza desglose anatómico completo, badges y detalles de monturas en tarjetas de recomendación y soporte de preselección vía `?frameId=...`. Build de producción de Vite 100% OK.
 8.  **Auditoría y actualización de contexto (2026-10-20):** verificación inicial 9/9 tests (luego 12/12) + build OK, recálculo de hallazgos del piloto (30/30 detectados, 30/30 `compatible`), corrección de datos obsoletos en este doc (12→64 marcos, debug 400 ya revertido) y detección de rebranding Grupo Prisma Visión sin aplicar.
 9.  **Auditoría geometría + scoring + feedback (2026-10-20):** fix del sesgo por aspecto de imagen; scoring 35/25/20/10/10 con umbrales 80/60, IPD real (PD≈A+D) y topes por puente/pupila; `/recommend` ordenado; corrección manual de forma en `/scanner`; feedback ampliado (`face_shape_detected`, `recommended_frame_id`, `marco_lleva`, `va_bien`) y stats con `fit_rate`/`shape_accuracy`; anotador de ground truth y `INFORME_PILOTO.md`.
+10. **Clasificador ML + anotador mejorado (2026-10-21):**
+    *   **Clasificador ML (Random Forest + SVM ensemble):** `app/models/face_classifier.joblib` entrenado con 26 casos (proxy `casos_sugerido.csv`, excl. baja confianza). Features: `largo_ancho`, `frente_pomulo`, `mandibula_frente`, `symmetry_index`. Accuracy sobre datos de entrenamiento: **96% ML vs 19% reglas** (LOO cross-val: 23%, esperado con n=26). `geometry.py` carga el modelo al iniciar; `classify_face_ml()` es primario con fallback a `classify_face()` (reglas).
+    *   **Anotador mejorado:** `piloto-rostros/anotador.html` v2 con panel de métricas por caso (L/A, F/P, M/F, simetría), badges comparativos (🤖 sistema vs 💡 sugerida IA), resumen de distribución, accuracy en vivo, migración automática de datos v1.
+    *   **Script de accuracy actualizado:** `scripts/piloto_accuracy.py` ahora compara reglas vs ML vs ground truth con detalle por caso, distribuciones y criterios PILOTO_30.md.
+    *   **Script de entrenamiento:** `scripts/train_classifier.py` con data augmentation (jitter ×8), LOO cross-validation, matriz de confusión y comparación reglas vs ML.
+    *   **Tests:** 12/12 PASS. Test de aspect invariance actualizado para aceptar la forma que produzca el ML (la invariancia a==b sigue intacta).
 
 ## Deuda técnica resuelta
 *   ✓ `temporal_est` dinámico derivado de landmarks en backend y frontend.
@@ -150,14 +156,17 @@ Front: `VITE_API_URL`. Back: `CORS_ORIGINS` (localhost + front prod), `MAX_PHOTO
 *   ✓ Fix del sesgo de forma por aspecto de imagen (distancias en píxeles + test de regresión).
 *   ✓ Scoring con centrado óptico real (IPD) y contraste en 3 niveles; umbrales 80/60.
 *   ✓ Feedback por caso con forma real vs. detectada, marco puesto y `va_bien`.
+*   ✓ Clasificador ML de 7 formas integrado (RF+SVM, joblib) con fallback a reglas.
+*   ✓ Anotador v2 con métricas, badges comparativos y accuracy en vivo.
+*   ✓ Script de accuracy con comparación ML vs reglas vs ground truth.
 
 ## Próximos Pasos (Hoja de Ruta)
 1.  **Definir alcance del rebranding** Grupo Prisma Visión (empresa vs. producto) y, si aplica, unificar nombre/colores/dominio en front, metadatos y consentimiento. *Pendiente por decisión del usuario.*
-2.  **Validar `forma_real` con ojo óptico:** abrir `piloto-rostros/anotador.html`, confirmar/corregir y exportar `casos.csv`; luego correr `scripts/piloto_batch.py` para accuracy real. `va_bien` no aplica a este lote de stock (sin gafas); para eso hace falta el piloto real.
+2.  **Validar `forma_real` con ojo óptico:** abrir `piloto-rostros/anotador.html`, confirmar/corregir los 30 casos y exportar `casos.csv`; luego re-entrenar el clasificador ML con `scripts/train_classifier.py` (sin `--proxy`) para usar ground truth real. `va_bien` no aplica a este lote de stock (sin gafas).
 3.  **Scoring:** recalibrado 2026-10-20 (provisional). Revisar con `RECALIBRACION.md` cuando haya `n≥30` de feedback; no mover pesos con la muestra actual.
 4.  **Feedback:** circuito listo (`/scanner` → `/piloto` → `/feedback/stats`), pendiente recolectar casos reales y revisar `fit_rate` / `shape_accuracy`.
 5.  Piloto real en óptica según `PILOTO_30.md`.
 6.  Carga de modelos GLB 3D fotorrealistas por montura en `public/glasses/` para ópticas asociadas.
 7.  Higiene de repo: commitear `src/assets/data/` (o ignorarlo), usar mensajes de commit descriptivos y añadir code-splitting al bundle >500 kB.
-8.  **Clasificador de 7 formas:** si se necesita precisión real, entrenar un clasificador con etiquetas de óptico (v2 ML); no seguir ajustando umbrales 2D a ojo.
+8.  **Reentrenar clasificador ML:** cuando el óptico confirme las 30 formas y haya datos del piloto real (n≥60), re-entrenar con `train_classifier.py` sin `--proxy` para subir el LOO accuracy. Considerar features adicionales (eyebrow_in_frame_zone, temporal_est normalizado).
 

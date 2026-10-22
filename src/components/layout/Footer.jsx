@@ -1,19 +1,22 @@
-import './Footer.css'
-import logo from '../../assets/logo/logo.png'
+import { useTheme } from '../../context/ThemeContext';
+import './Footer.css';
 
 const YEAR = new Date().getFullYear();
 
 function Footer() {
+  const { logo } = useTheme();
 
   return (
     <footer className="footer" id="footer">
       <div className="footer__glow" aria-hidden="true"></div>
       <div className="footer__inner container">
         <div className="footer__brand">
-          <img src={logo} alt="Glassescanner" className="footer__logo" width="32" height="32" />
+          <div className="footer__logo-box">
+            <img src={logo} alt="Grupo Prisma Visión" className="footer__logo" />
+          </div>
           <div>
-            <span className="footer__name text-gradient">Glassescanner</span>
-            <p className="footer__tagline">Precisión 3D para tu visión perfecta</p>
+            <span className="footer__name text-gradient">Grupo Prisma Visión</span>
+            <p className="footer__tagline">Tecnología de escaneo facial 3D y asesoría óptica de alta precisión</p>
           </div>
         </div>
 
@@ -21,15 +24,15 @@ function Footer() {
 
         <div className="footer__bottom">
           <p className="footer__copy">
-            &copy; {YEAR} Glassescanner. Todos los derechos reservados.
+            &copy; {YEAR} Grupo Prisma Visión. Todos los derechos reservados.
           </p>
           <p className="footer__tech text-muted">
-            Powered by 3D Mesh &middot; Precision 99.8%
+            Glassescanner 3D &middot; Precisión biométrica &middot; Ajuste de monturas
           </p>
         </div>
       </div>
     </footer>
-  )
+  );
 }
 
-export default Footer
+export default Footer;

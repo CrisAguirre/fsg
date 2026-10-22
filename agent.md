@@ -1,36 +1,35 @@
-# Glassescanner - Contexto del Proyecto (MVP + fix prod + piloto batch)
-> Actualizado 2026-10-20 (auditoría de geometría + scoring + feedback). Estado: MVP desplegado, backend 12/12 tests PASS, frontend build OK. Se corrigió un bug crítico de aspecto que sesgaba la forma facial y se recalibró el scoring (proporción 35 · contraste 25 · IPD 20 · puente 10 · cejas 10; umbrales 80/60). Pendiente: validación de `forma_real` por óptico con `piloto-rostros/anotador.html` + piloto real; rebranding a Grupo Prisma Visión al final (ver sección Rebranding).
+# Grupo Prisma Visión — Glassescanner 3D · Contexto del Proyecto
+> Actualizado 2026-10-21: Rebranding e imagen corporativa de Grupo Prisma Visión implementados con paleta oficial (blanco, negro, gris claro, gris oscuro), logotipos dinámicos (`logowhite.png` para vista nocturna, `logoblack.png` para vista diurna) y sistema completo de Vista Diurna / Vista Nocturna persistido en `localStorage` con toggle interactivo en el Navbar. Frontend build OK (Vite 8.3.2) y backend 12/12 tests PASS.
 
 Este documento proporciona el contexto actual del proyecto para que otras inteligencias artificiales puedan continuar con el desarrollo.
 
 ## Información General
-*   **Nombre del Proyecto:** Glassescanner (anteriormente conocido como FSG - Facial Scanner for Glasses).
-*   **Propósito:** Aplicación web de escaneo facial y recomendación de monturas con veredicto Compatible/Parcial/Incompatible explicado + probador virtual.
-*   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GLB opcional con fallback procedural). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + MongoDB Motor).
-*   **Despliegue:** Front `https://glassescanner.vercel.app/` (Vercel) · Back `https://glassescanner-backend.onrender.com` (Render, Docker `python:3.11-slim` + sysdeps `libgl1 libglib2.0-0 libsm6 libxext6 libxrender1` para OpenCV) · Mongo Atlas (`glassescanner`, seed local de 64 marcos).
-*   **Estado Actual:** MVP funcional extremo a extremo: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto`. Verificado 2026-10-20: backend **12/12 tests PASS**, frontend `npm run build` OK (Vite 8.3.2), catálogo seed de 64 marcos. `/analyze` en prod fue reparado el 2026-10-12. Se corrigió el sesgo de forma por aspecto de imagen y se recalibró el scoring; el clasificador de 7 formas sigue siendo provisional (ver Hallazgos). Desarrollo de features cerrado hasta piloto real en óptica; rebranding a Grupo Prisma Visión detectado pero **no aplicado** (ver sección Rebranding).
+*   **Organización / Marca:** Grupo Prisma Visión (GPV).
+*   **Nombre del Producto:** Glassescanner 3D (Escáner Facial y Asesoría Biométrica para Monturas).
+*   **Propósito:** Aplicación web de escaneo facial y recomendación de monturas con veredicto Compatible/Parcial/Incompatible explicado + probador virtual 2D/3D.
+*   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GLB opcional con fallback procedural), Context API para temas (`ThemeContext`). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + Random Forest ML + MongoDB Motor).
+*   **Despliegue:** Front `https://glassescanner.vercel.app/` (Vercel) · Back `https://glassescanner-backend.onrender.com` (Render, Docker `python:3.11-slim` + sysdeps para OpenCV) · Mongo Atlas (`glassescanner`, seed local de 64 marcos).
+*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto`. Verificado 2026-10-21: backend **12/12 tests PASS**, frontend `npm run build` OK (Vite 8.3.2).
 
 ## Identidad Corporativa y Diseño (Design System)
-El diseño se basa fuertemente en el estilo **Aeroglass / Glassmorphism** (efectos de cristal translúcido, desenfoques, bordes luminosos) y una temática "tech-futurista".
+El diseño combina **Minimalismo Corporativo Prémium** con **Aeroglass / Glassmorphism** de alta gama óptica.
 
-*   **Paleta de Colores (definida en `src/index.css`):**
-    *   Fondo Principal (Deep Navy): `#070b18`
-    *   Superficies: `#0d1225` / `#111a35`
-    *   Acento Primario (Cyan Neon): `#00d4ff` (con variantes de glow y soft)
-    *   Acento Secundario (Magenta): `#c839ff` (con variantes de glow y soft)
-    *   Textos: `#e8ecf4` (principal), `#8892a8` (secundario), `#f0f4ff` (títulos)
-*   **Tipografía:** `Outfit` (títulos/display), `Inter` (cuerpo de texto). Importadas en `index.html`.
-*   **Glassmorphism:** Uso intensivo de fondos `rgba(255, 255, 255, 0.04)` combinados con `backdrop-filter: blur()`. Existen clases de utilidad `.glass` y `.glass--heavy` en `index.css`.
-*   **Responsive:** CSS móvil ≤640px (targets 44px, video 300px, grid 1 col) en Scanner/Admin.
-
-## Rebranding en curso — Grupo Prisma Visión (NO aplicado aún)
-Detectado el 2026-10-20 en material **sin commitear** (`fsg/src/assets/data/`, fechado 2026-10-14):
-*   **Marca objetivo:** GRUPO PRISMA VISIÓN.
-*   **Identidad:** colores corporativos negro con blanco (contrasta con el deep navy/cyan/magenta actual).
-*   **Dominio objetivo:** `grupoprismavision.vercel.app`.
-*   **Evidencia:** `planeación.md` + 4 capturas de WhatsApp (referencias de marca/producto) en la misma carpeta.
-*   **Estado del código:** sigue 100% con marca "Glassescanner" (`index.html`, landing, Navbar, logo, metadatos). No existe ninguna referencia a "Prisma" en `src/`.
-*   **Decisión pendiente:** ¿rebranding total (empresa = producto) o Prisma Visión como empresa y Glassescanner como producto? Definir antes de tocar diseño, dominio y textos legales del piloto.
+*   **Colores Corporativos Oficiales (definidos en `src/index.css`):**
+    *   **Blanco:** `#ffffff`
+    *   **Negro:** `#0a0b0e` / `#000000`
+    *   **Gris Claro:** `#f8fafc`, `#f1f5f9`, `#e2e8f0`, `#cbd5e1`
+    *   **Gris Oscuro:** `#121316`, `#181a20`, `#1e2128`, `#2b2f38`, `#374151`
+*   **Soporte de Vista Diurna y Nocturna:**
+    *   Gestionado por `ThemeContext.jsx` (`ThemeProvider`, `useTheme()`).
+    *   Selector interactivo en `Navbar.jsx` con iconos Sol (☀️) / Luna (🌙) y feedback accesible.
+    *   Persistencia en `localStorage` (`fsg_theme`) y sincronización con `meta[name="theme-color"]`.
+    *   **Vista Nocturna (`data-theme="dark"`):** fondos negros/grises oscuros, texto blanco/gris claro, acentos plata, logo corporativo blanco `logowhite.png`.
+    *   **Vista Diurna (`data-theme="light"`):** fondos blancos/grises muy claros, texto negro/carbón, acentos grafito, logo corporativo negro `logoblack.png`.
+*   **Logotipos Oficiales:**
+    *   `src/assets/logowhite.png`: Logotipo con gafas y texto "GRUPO PRISMA VISION" en blanco.
+    *   `src/assets/logoblack.png`: Logotipo con gafas y texto "GRUPO PRISMA VISION" en negro sólido.
+*   **Tipografía:** `Outfit` (títulos/display), `Inter` (cuerpo de texto).
+*   **Glassmorphism:** Uso de variables `var(--bg-glass)`, `var(--border-glass)`, `var(--border-accent)`, `var(--shadow-sm/md/lg)` que conmutan automáticamente entre modos.
 
 ## Estructura del Proyecto
 

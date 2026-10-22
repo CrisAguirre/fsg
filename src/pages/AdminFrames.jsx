@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import Navbar from "../components/layout/Navbar.jsx";
+import Footer from "../components/layout/Footer.jsx";
 import { API_URL } from "../lib/api.js";
 import "./AdminFrames.css";
 
@@ -46,9 +48,11 @@ export default function AdminFrames() {
   }
 
   return (
-    <div className="container admin">
-      <h1>Catálogo <span className="text-gradient">por óptica</span></h1>
-      <p className="scanner__sub">Cada óptica filtra por <code>optica_id</code>. Las mutaciones exigen clave admin (header <code>X-Admin-Key</code>).</p>
+    <>
+      <Navbar />
+      <div className="container admin">
+        <h1>Administración · <span className="text-gradient">Grupo Prisma Visión</span></h1>
+        <p className="scanner__sub">Gestión de inventario óptico por <code>optica_id</code>. Las mutaciones exigen clave admin (header <code>X-Admin-Key</code>).</p>
       <div className="glass admin__form" style={{ padding: ".8rem 1rem" }}>
         <label>Clave admin<input type="password" value={adminKey} onChange={(e) => saveKey(e.target.value)} placeholder="X-Admin-Key (solo sesión, no se guarda en disco)" autoComplete="off" /></label>
       </div>
@@ -86,6 +90,8 @@ export default function AdminFrames() {
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+      <Footer />
+    </>
   );
 }

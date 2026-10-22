@@ -7,6 +7,7 @@
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--border-glass);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   transition:
     transform var(--transition-normal),
     border-color var(--transition-normal),
@@ -18,6 +19,7 @@
   transform: translateY(-4px);
   background: var(--bg-glass-hover);
   border-color: var(--border-accent);
+  box-shadow: var(--shadow-md);
 }
 
 /* Shine / light streak effect */
@@ -30,7 +32,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.04),
+    var(--accent-soft),
     transparent
   );
   transform: skewX(-20deg);
@@ -49,28 +51,23 @@
 }
 
 /* ── Variants ───────────────────────────────────────────────── */
-
-/* Accent — cyan border glow */
 .glass-card--accent {
   border-color: var(--border-accent);
 }
 
 .glass-card--accent:hover {
   border-color: var(--border-glow);
-  box-shadow: var(--shadow-glow-cyan);
+  box-shadow: var(--shadow-glow);
 }
 
-/* Glow — stronger glow effect */
 .glass-card--glow {
-  border-color: rgba(0, 212, 255, 0.15);
-  box-shadow: 0 0 12px rgba(0, 212, 255, 0.08);
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-sm);
 }
 
 .glass-card--glow:hover {
   border-color: var(--border-glow);
-  box-shadow:
-    0 0 24px var(--cyan-glow),
-    0 0 64px rgba(0, 212, 255, 0.08);
+  box-shadow: var(--shadow-glow), var(--shadow-md);
 }
 
 /* ── Card Icon ──────────────────────────────────────────────── */
@@ -82,6 +79,7 @@
   height: 48px;
   border-radius: var(--radius-md);
   background: var(--gradient-brand-soft);
+  border: 1px solid var(--border-glass);
   margin-bottom: var(--space-md);
   font-size: 1.25rem;
 }

@@ -1,10 +1,17 @@
-.admin { padding: 6rem 1rem 3rem; display: grid; gap: 1rem; }
-.admin__stats { padding: .8rem 1rem; }
-.admin__form { padding: 1rem; display: grid; gap: .8rem; }
-.admin__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; }
-.admin__grid label { display: grid; gap: .3rem; font-size: .85rem; }
-.admin__grid input, .admin__grid select { min-height: 40px; border-radius: 8px; padding: .4rem .6rem; background: rgba(255,255,255,.06); color: inherit; border: 1px solid rgba(255,255,255,.12); }
-.admin__tablewrap { overflow-x: auto; padding: .5rem; }
+.admin { padding: 6.5rem 1rem 3rem; display: grid; gap: 1.25rem; }
+.admin__stats { padding: .8rem 1.2rem; background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: var(--radius-md); color: var(--text-secondary); }
+.admin__stats b { color: var(--text-heading); }
+.admin__form { padding: 1.5rem; display: grid; gap: 1rem; background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); }
+.admin__form h3 { color: var(--text-heading); font-size: 1.15rem; }
+.admin__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .85rem; }
+.admin__grid label { display: grid; gap: .35rem; font-size: .85rem; color: var(--text-secondary); }
+.admin__grid input, .admin__grid select { min-height: 42px; border-radius: 8px; padding: .4rem .7rem; background: var(--input-bg); color: var(--input-color); border: 1px solid var(--input-border); font-family: inherit; font-size: .9rem; transition: border-color 0.2s ease; }
+.admin__grid input:focus, .admin__grid select:focus { outline: none; border-color: var(--border-accent); }
+.admin__tablewrap { overflow-x: auto; padding: .75rem; background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); }
 .admin__table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-.admin__table th, .admin__table td { padding: .5rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,.08); white-space: nowrap; }
-@media (max-width: 640px) { .admin { padding-top: 5rem; } }
+.admin__table th { padding: .75rem .6rem; text-align: left; border-bottom: 2px solid var(--border-accent); color: var(--text-heading); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+.admin__table td { padding: .65rem .6rem; text-align: left; border-bottom: 1px solid var(--border-glass); white-space: nowrap; color: var(--text-primary); }
+.admin__table tr:hover td { background: var(--bg-glass-hover); }
+.admin__table button { padding: .3rem .6rem; border-radius: 6px; border: 1px solid var(--border-glass); background: var(--bg-glass); color: var(--text-primary); cursor: pointer; font-family: inherit; font-size: .8rem; margin-right: .3rem; transition: all .2s ease; }
+.admin__table button:hover { background: var(--bg-glass-hover); border-color: var(--border-accent); color: var(--text-heading); }
+@media (max-width: 640px) { .admin { padding-top: 5.5rem; } }

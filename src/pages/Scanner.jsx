@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import Navbar from "../components/layout/Navbar.jsx";
+import Footer from "../components/layout/Footer.jsx";
 import { analyzePhoto, recommend, listFrames, API_URL } from "../lib/api.js";
 import { drawGlasses, smoothLandmarks, measureGlasses, pupilDecentration } from "../components/tryon/GlassesOverlay.js";
 import { renderGLB } from "../components/tryon/GlassesGLB.js";
@@ -603,11 +605,13 @@ export default function Scanner() {
   }
 
   return (
-    <div className="container scanner">
-      <h1>Escáner <span className="text-gradient">Glassescanner</span></h1>
-      <p className="scanner__sub">
-        Backend: <code>{API_URL}</code> · {backendOk === null ? "…" : backendOk ? "en línea ✓" : "sin conexión ✕"}
-      </p>
+    <>
+      <Navbar />
+      <div className="container scanner">
+        <h1>Escáner Facial · <span className="text-gradient">Grupo Prisma Visión</span></h1>
+        <p className="scanner__sub">
+          Tecnología biométrica 3D · Backend: <code>{API_URL}</code> · {backendOk === null ? "…" : backendOk ? "en línea ✓" : "sin conexión ✕"}
+        </p>
 
       <label className="glass scanner__consent">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
@@ -904,7 +908,9 @@ export default function Scanner() {
         </>
       )}
 
-      <p className="scanner__sub">Probador procedural v2 (8 formas + ajuste por A/B/D y temporal_est). v1.1: modelos GLB fotorrealistas en <code>public/glasses/*.glb</code> con Three.js sobre este mismo veredicto.</p>
+      <p className="scanner__sub">Probador biométrico procedural v2 · Grupo Prisma Visión (8 formas + ajuste por A/B/D y temporal_est). Modelos GLB fotorrealistas en <code>public/glasses/*.glb</code> con Three.js.</p>
     </div>
+    <Footer />
+    </>
   );
 }

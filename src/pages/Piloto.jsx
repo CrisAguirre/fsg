@@ -1,4 +1,6 @@
 import { useState } from "react";
+import Navbar from "../components/layout/Navbar.jsx";
+import Footer from "../components/layout/Footer.jsx";
 import { API_URL } from "../lib/api.js";
 import "./AdminFrames.css";
 
@@ -52,9 +54,11 @@ export default function Piloto() {
   }
 
   return (
-    <div className="container admin">
-      <h1>Modo <span className="text-gradient">Piloto en óptica</span></h1>
-      <p className="scanner__sub">Flujo 5 min por persona (ver <code>PILOTO_30.md</code>). 1) Escanea en <a href="/scanner">/scanner</a> 2) registra aquí el caso.</p>
+    <>
+      <Navbar />
+      <div className="container admin">
+        <h1>Modo Piloto Óptica · <span className="text-gradient">Grupo Prisma Visión</span></h1>
+        <p className="scanner__sub">Flujo de validación en óptica (5 min por persona). 1) Escanea en <a href="/scanner">/scanner</a> 2) registra aquí el caso clínico.</p>
       {scan ? (
         <p className="glass admin__stats">
           Precargado del último escaneo: forma <b>{scan.face_shape}</b>
@@ -93,6 +97,8 @@ export default function Piloto() {
         </label>
         <button className="btn btn--primary" type="submit">Guardar caso</button>
       </form>
-    </div>
+      </div>
+      <Footer />
+    </>
   );
 }

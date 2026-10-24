@@ -8,7 +8,7 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 // Color real del catálogo (nombres en español) → hex para render fotorrealista.
 // Sin esto todo se veía fucsia/cyan "de juguete".
-function frameColorHex(name = "") {
+export function frameColorHex(name = "") {
   const n = String(name).toLowerCase();
   if (n.includes("dorado rosa")) return "#d8a08a";
   if (n.includes("dorado-verde") || n.includes("dorado verde")) return "#a89a4a";

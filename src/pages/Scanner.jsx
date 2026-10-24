@@ -4,7 +4,7 @@ import Navbar from "../components/layout/Navbar.jsx";
 import Footer from "../components/layout/Footer.jsx";
 import { analyzePhoto, recommend, listFrames, API_URL } from "../lib/api.js";
 import { drawGlasses, smoothLandmarks, measureGlasses, pupilDecentration } from "../components/tryon/GlassesOverlay.js";
-import { renderGLB } from "../components/tryon/GlassesGLB.js";
+import { drawPhotoTryOn } from "../components/tryon/PhotoTryOn.js";
 import { GlassesAR } from "../components/tryon/Frame3D.js";
 import "./Scanner.css";
 
@@ -166,9 +166,7 @@ export default function Scanner() {
   const photoNatRef = useRef(null); // tamaño natural para descarga HD
   const photoCanvasRef = useRef(null);
   const photoImgRef = useRef(null);
-  const glbCanvasRef = useRef(null);
-  const [glb3d, setGlb3d] = useState(null); // null=probando, true=GLB, false=procedural
-  const [fitInfo, setFitInfo] = useState(null); // {ipdPx, angDeg, fitScale, warnings[]}
+  const [fitInfo, setFitInfo] = useState(null); // {ipdPx, angDeg, fitScale, warnings[], modePhoto}
   const [photoWarn, setPhotoWarn] = useState("");
   const [tryOpacity, setTryOpacity] = useState(0.95); // slider montura
   const [tryLens, setTryLens] = useState("monofocal"); // tinte del cristal
@@ -428,9 +426,19 @@ export default function Scanner() {
           return;
         }
         const t = tryRef.current;
-        // 3D real primero; 2D solo como fallback
+        // Prioridad en foto: recorte 2D real. Si la montura no tiene asset,
+        // se conserva el 3D procedural o el dibujo vectorial como aproximación.
+        const meas = measureGlasses(lm, cnv.width, cnv.height);
         let drew3D = false, pose3D = null;
-        if (t.use3D && t.frame && arCanvas) {
+        let drewPhoto = false;
+        let fit = null;
+        try {
+          fit = await drawPhotoTryOn(ctx, lm, cnv.width, cnv.height, t.frame, t.metrics, {
+            alpha: t.alpha, tint: t.tint, light,
+          });
+          drewPhoto = !!fit;
+        } catch { drewPhoto = false; }
+        if (!drewPhoto && t.use3D && t.frame && arCanvas) {
           try {
             if (!arPhotoRef.current) arPhotoRef.current = new GlassesAR(arCanvas);
             arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
@@ -439,37 +447,42 @@ export default function Scanner() {
           } catch { drew3D = false; }
         }
         setArOk((prev) => (prev === drew3D ? prev : drew3D));
-        // Medidas para la ficha (independientes del render)
-        const meas = measureGlasses(lm, cnv.width, cnv.height);
-        let fit = null;
-        if (!drew3D) {
+        if (drewPhoto) {
+          try { arPhotoRef.current?.clear(); } catch { /* noop */ }
+        } else if (!drew3D) {
           try { arPhotoRef.current?.clear(); } catch { /* noop */ }
           fit = drawGlasses(ctx, lm, W, H, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light, tint: t.tint });
         }
         if (!dead) {
           lastPhotoLmRef.current = lm;
-          if (drew3D && meas) {
+          if (drewPhoto && fit) {
+            setFitInfo({
+              ipdPx: Math.round(fit.ipdPx),
+              angDeg: Number(fit.angDeg.toFixed(1)),
+              fitScale: 1,
+              warnings: fit.warnings,
+              lensW: Math.round(fit.frameW),
+              lensH: Math.round(fit.frameH),
+              light: Number(light.toFixed(2)),
+              decent: fit.decent ?? null,
+              mode3D: false,
+              modePhoto: true,
+              assetKey: fit.assetKey,
+            });
+            if (fit.warnings?.length) setPhotoWarn(fit.warnings.join(" · "));
+          } else if (drew3D && meas) {
             const decent = pupilDecentration(t.frame, t.metrics);
             let fitScale = 1;
             if (t.frame?.ancho_total_mm && t.metrics?.temporal_est) {
               fitScale = Math.min(1.25, Math.max(0.85, t.frame.ancho_total_mm / t.metrics.temporal_est));
             }
-            setFitInfo({ ipdPx: Math.round(meas.ipdPx), angDeg: Number(meas.angDeg.toFixed(1)), fitScale: Number(fitScale.toFixed(2)), warnings: meas.warnings, lensW: null, lensH: null, light: Number(light.toFixed(2)), decent: decent ?? null, mode3D: true, yaw: pose3D ? Number(pose3D.yawDeg.toFixed(0)) : null });
+            setFitInfo({ ipdPx: Math.round(meas.ipdPx), angDeg: Number(meas.angDeg.toFixed(1)), fitScale: Number(fitScale.toFixed(2)), warnings: meas.warnings, lensW: null, lensH: null, light: Number(light.toFixed(2)), decent: decent ?? null, mode3D: true, modePhoto: false, yaw: pose3D ? Number(pose3D.yawDeg.toFixed(0)) : null });
             if (meas.warnings?.length) setPhotoWarn(meas.warnings.join(" · "));
           } else {
-            setFitInfo(fit ? { ipdPx: Math.round(fit.ipdPx), angDeg: Number(fit.angDeg.toFixed(1)), fitScale: Number(fit.fitScale.toFixed(2)), warnings: fit.warnings, lensW: Math.round(fit.lensW), lensH: Math.round(fit.lensH), light: Number(light.toFixed(2)), decent: fit.decent ?? null, mode3D: false } : null);
+            setFitInfo(fit ? { ipdPx: Math.round(fit.ipdPx), angDeg: Number(fit.angDeg.toFixed(1)), fitScale: Number(fit.fitScale.toFixed(2)), warnings: fit.warnings, lensW: Math.round(fit.lensW), lensH: Math.round(fit.lensH), light: Number(light.toFixed(2)), decent: fit.decent ?? null, mode3D: false, modePhoto: false } : null);
             if (fit?.warnings?.length) setPhotoWarn(fit.warnings.join(" · "));
           }
         }
-        // Vista 3D fotorrealista si la óptica subió el GLB; si no, queda oculta.
-        try {
-          const g = glbCanvasRef.current;
-          if (g) {
-            const ipdPx = fit?.ipdPx ?? 100;
-            const ok = await renderGLB(g, { forma: t.forma, ipdPx }).catch(() => false);
-            if (!dead) setGlb3d(ok ? true : false);
-          }
-        } catch { if (!dead) setGlb3d(false); }
       } catch { /* foto sin try-on sigue permitiendo análisis */ }
     })();
     return () => { dead = true; };

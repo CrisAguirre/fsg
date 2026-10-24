@@ -1,0 +1,36 @@
+{
+  "rectangular": {
+    "frame": "/tryon/rectangular-frame.webp",
+    "lens": "/tryon/rectangular-lens.webp",
+    "width": 920,
+    "height": 310,
+    "lensCenters": [
+      [
+        0.25668,
+        0.48767
+      ],
+      [
+        0.74194,
+        0.48877
+      ]
+    ],
+    "ipdRatio": 0.48526
+  },
+  "rimless": {
+    "frame": "/tryon/rimless-frame.webp",
+    "lens": "/tryon/rimless-lens.webp",
+    "width": 720,
+    "height": 280,
+    "lensCenters": [
+      [
+        0.25256,
+        0.46485
+      ],
+      [
+        0.74388,
+        0.47169
+      ]
+    ],
+    "ipdRatio": 0.49132
+  }
+}

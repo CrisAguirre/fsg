@@ -1,15 +1,15 @@
 # Grupo Prisma Visión — Glassescanner 3D · Contexto del Proyecto
-> Actualizado 2026-10-21: Rebranding e imagen corporativa de Grupo Prisma Visión implementados con paleta oficial (blanco, negro, gris claro, gris oscuro), logotipos dinámicos (`logowhite.png` para vista nocturna, `logoblack.png` para vista diurna) y sistema completo de Vista Diurna / Vista Nocturna persistido en `localStorage` con toggle interactivo en el Navbar. Frontend build OK (Vite 8.3.2) y backend 12/12 tests PASS.
+> Actualizado 2026-10-24: Probador 2D fotorrealista para modo foto completado con cadena de prioridad estricta (1. Recorte 2D real `PhotoTryOn` → 2. Armazón 3D procedural `GlassesAR` → 3. Dibujo vectorial 2D `drawGlasses`), 8 formas con assets WebP transparentes (`public/tryon/`), orificios limpios en ambos lentes y centros ópticos calibrados simétricamente en `manifest.json`. Frontend `npm run build` OK (Vite 8.3.2 en ~534ms) y backend 15/15 tests PASS.
 
 Este documento proporciona el contexto actual del proyecto para que otras inteligencias artificiales puedan continuar con el desarrollo.
 
 ## Información General
 *   **Organización / Marca:** Grupo Prisma Visión (GPV).
 *   **Nombre del Producto:** Glassescanner 3D (Escáner Facial y Asesoría Biométrica para Monturas).
-*   **Propósito:** Aplicación web de escaneo facial y recomendación de monturas con veredicto Compatible/Parcial/Incompatible explicado + probador virtual 2D/3D.
-*   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GLB opcional con fallback procedural), Context API para temas (`ThemeContext`). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + Random Forest ML + MongoDB Motor).
+*   **Propósito:** Aplicación web de escaneo facial y recomendación de monturas con veredicto Compatible/Parcial/Incompatible explicado + probador virtual fotorrealista híbrido (2D foto / 3D procedural / 2D vectorial).
+*   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GlassesAR 3D procedural y GLB opcional), Canvas 2D (PhotoTryOn con recortes transparentes y GlassesOverlay procedural), Context API para temas (`ThemeContext`). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + Random Forest + SVM ML + MongoDB Motor).
 *   **Despliegue:** Front `https://glassescanner.vercel.app/` (Vercel) · Back `https://glassescanner-backend.onrender.com` (Render, Docker `python:3.11-slim` + sysdeps para OpenCV) · Mongo Atlas (`glassescanner`, seed local de 64 marcos).
-*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto`. Verificado 2026-10-21: backend **12/12 tests PASS**, frontend `npm run build` OK (Vite 8.3.2).
+*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto`. Verificado 2026-10-24: backend **15/15 tests PASS**, frontend `npm run build` OK (Vite 8.3.2 en ~534 ms).
 
 ## Identidad Corporativa y Diseño (Design System)
 El diseño combina **Minimalismo Corporativo Prémium** con **Aeroglass / Glassmorphism** de alta gama óptica.
@@ -38,23 +38,30 @@ fsg/
 ├── vercel.json                    # rewrite SPA → /index.html (fix 404 /scanner)
 ├── .env (local, ignorado por git) / .env.example  # VITE_API_URL (Render en prod)
 ├── src/
-│   ├── assets/logo/logo.png
-│   ├── assets/data/               # ⚠️ SIN COMMITEAR (2026-10-14): planeación.md + 4 refs WhatsApp — rebranding Prisma Visión
+│   ├── assets/logo/logo.png, logowhite.png, logoblack.png
+│   ├── assets/data/               # planeación.md + 4 refs WhatsApp — rebranding Prisma Visión
 │   ├── components/
-│   │   ├── layout/ (Navbar con links Escáner/Catálogo/Piloto, Footer)
+│   │   ├── layout/ (Navbar con links Escáner/Catálogo/Piloto/Admin + selector de tema, Footer)
 │   │   ├── ui/GlassCard.jsx
 │   │   └── tryon/
-│   │       ├── GlassesOverlay.js  # procedural 8 formas sobre landmarks
-│   │       └── GlassesGLB.js      # GLB fotorrealista + fallback
+│   │       ├── PhotoTryOn.js      # try-on 2D fotorrealista (recortes webp) para modo foto
+│   │       ├── Frame3D.js         # armazón 3D procedural Three.js (GlassesAR)
+│   │       ├── GlassesOverlay.js  # probador 2D vectorial procedural 8 formas
+│   │       └── GlassesGLB.js      # carga de modelos GLB opcionales por óptica
 │   ├── lib/api.js                 # health, analyze (timeout 12s), recommend, frames, feedback, CRUD
 │   ├── pages/
-│   │   ├── Scanner.jsx/.css       # consentimiento Ley 1581, cámara/upload, veredicto, feedback ★, borrado
+│   │   ├── Scanner.jsx/.css       # consentimiento Ley 1581, cámara/upload, veredicto, feedback ★, borrado, descarga HD
 │   │   ├── Catalogo.jsx/.css      # catálogo público con filtros por forma/género/estilo/talla/precio/lente
 │   │   ├── AdminFrames.jsx/.css   # CRUD por optica_id con X-Admin-Key + stats feedback
 │   │   └── Piloto.jsx             # registro guiado por caso (optica_id, caso_n)
 │   ├── App.jsx / App.css / AppRoutes.jsx (carga diferida de rutas) / main.jsx
 │   └── index.css
-├── public/glasses/README.md       # cómo aporta sus GLB cada óptica
+├── public/
+│   ├── frames/                    # fotos base de catálogo (aviador.jpg, cat-eye.jpg, etc.)
+│   ├── tryon/                     # recortes transparentes (*-frame.webp, *-lens.webp, manifest.json)
+│   └── glasses/README.md          # cómo aporta sus GLB cada óptica
+├── scripts/
+│   └── build_tryon_assets.py      # pipeline rembg + OpenCV para extraer marcos y cristales simétricos
 ├── SCANNER_SPEC.md
 └── agent.md (este archivo)
 
@@ -109,12 +116,13 @@ Front: `VITE_API_URL` (en `.env` local ignorado; configurar en Vercel). Back: `E
 *   **Limitación de ground truth:** las 30 fotos son retratos de stock **sin gafas** → `marco_lleva=ninguno`, `va_bien=no_aplica`; solo se puede validar `forma_real`, no el ajuste real. `caso-02` es collage; `08/19/30` son 3/4 de perfil.
 *   **Herramientas nuevas:** `piloto-rostros/anotador.html`, `casos_sugerido.csv`, `scripts/piloto_metrics.py`, `scripts/scoring_sim.py` y `INFORME_PILOTO.md`.
 
-## Verificación técnica 2026-10-20
-*   Backend: `python -m pytest -q` → **12 passed** (warning de deprecación Starlette/httpx, no bloqueante). Los tests locales usan fallback Haar; la geometría MediaPipe se validó aparte con la función real sobre los 30 casos.
-*   Frontend: `npm run build` → OK en 1.09s; bundle principal 978.58 kB (Vite advierte >500 kB, candidato a code-splitting).
-*   Catálogo: `frames_seed.json` → **64 marcos** cargados.
-*   Git: último commit `fsg` `df9179a` y backend `17815cf`, ambos 2026-10-13; mensajes de commit no descriptivos ("465465", "5466446").
-*   Sin commitear: `fsg/src/assets/data/` (planeación + 4 imágenes, 2026-10-14) y los cambios de la auditoría 2026-10-20 en backend (geometry/rules/feedback/frames/schemas/tests) y frontend (Scanner/Piloto/Admin/CSS/agent.md). No se hizo commit ni push.
+## Verificación técnica 2026-10-24
+*   Backend: `python -m pytest -q` → **15 passed** (100% de tests unitarios y de integración verdes, incluyendo aspect invariance y reglas biométricas).
+*   Frontend: `npm run build` → OK en 534 ms (Vite 8.3.2).
+*   Probador 2D Fotorrealista: 8 formatos WebP transparentes verificados (`rectangular`, `rimless`, `aviador`, `cat-eye`, `cuadrado`, `oval`, `redondo`, `wayfarer`) con orificios transparentes en ambos cristales y reflejos en ambas caras.
+*   Manifest Try-On: `public/tryon/manifest.json` con centros ópticos calibrados simétricamente (`lc_x ≈ 0.251`, `rc_x ≈ 0.749`, nivelados al eje pupilar horizontal `y0 == y1`) y ratio IPD verificado (`~0.49 - 0.50`).
+*   Catálogo: `frames_seed.json` → **64 marcos** cargados (8 por cada una de las 8 formas).
+*   Git: commits `157e892` ("cici") y actualizaciones de pipeline de assets.
 
 ## Cambios Recientes (historial de la sesión)
 1.  **Maquetación base + rebranding** a Glassescanner (landing, hero logo flotante).

@@ -5,14 +5,8 @@
     "width": 920,
     "height": 310,
     "lensCenters": [
-      [
-        0.25668,
-        0.48767
-      ],
-      [
-        0.74194,
-        0.48877
-      ]
+      [0.25668, 0.48767],
+      [0.74194, 0.48877]
     ],
     "ipdRatio": 0.48526
   },
@@ -22,15 +16,75 @@
     "width": 720,
     "height": 280,
     "lensCenters": [
-      [
-        0.25256,
-        0.46485
-      ],
-      [
-        0.74388,
-        0.47169
-      ]
+      [0.25256, 0.46485],
+      [0.74388, 0.47169]
     ],
     "ipdRatio": 0.49132
+  },
+  "aviador": {
+    "frame": "/tryon/aviador-frame.jpg",
+    "lens": null,
+    "width": 1344,
+    "height": 768,
+    "lensCenters": [
+      [0.2800, 0.5200],
+      [0.7200, 0.5200]
+    ],
+    "ipdRatio": 0.4400
+  },
+  "cat-eye": {
+    "frame": "/tryon/cat-eye-frame.jpg",
+    "lens": null,
+    "width": 1344,
+    "height": 768,
+    "lensCenters": [
+      [0.2900, 0.5000],
+      [0.7100, 0.5000]
+    ],
+    "ipdRatio": 0.4200
+  },
+  "cuadrado": {
+    "frame": "/tryon/cuadrado-frame.jpg",
+    "lens": null,
+    "width": 1344,
+    "height": 768,
+    "lensCenters": [
+      [0.2850, 0.5000],
+      [0.7150, 0.5000]
+    ],
+    "ipdRatio": 0.4300
+  },
+  "oval": {
+    "frame": "/tryon/oval-frame.jpg",
+    "lens": null,
+    "width": 1344,
+    "height": 768,
+    "lensCenters": [
+      [0.2700, 0.4800],
+      [0.7300, 0.4800]
+    ],
+    "ipdRatio": 0.4600
+  },
+  "redondo": {
+    "frame": "/frames/redondo.jpg",
+    "lens": null,
+    "width": 800,
+    "height": 800,
+    "lensCenters": [
+      [0.2700, 0.4500],
+      [0.7300, 0.4500]
+    ],
+    "ipdRatio": 0.4600
+  },
+  "wayfarer": {
+    "frame": "/frames/wayfarer.jpg",
+    "lens": null,
+    "width": 800,
+    "height": 800,
+    "lensCenters": [
+      [0.2800, 0.4200],
+      [0.7200, 0.4200]
+    ],
+    "ipdRatio": 0.4400
   }
 }

@@ -16,7 +16,7 @@ function Footer() {
           </div>
           <div>
             <span className="footer__name text-gradient">Grupo Prisma Visión</span>
-            <p className="footer__tagline">Tecnología de escaneo facial 3D y asesoría óptica de alta precisión</p>
+            <p className="footer__tagline">Análisis facial y asesoría óptica asistida para elegir mejor tu montura</p>
           </div>
         </div>
 
@@ -27,7 +27,7 @@ function Footer() {
             &copy; {YEAR} Grupo Prisma Visión. Todos los derechos reservados.
           </p>
           <p className="footer__tech text-muted">
-            Glassescanner 3D &middot; Precisión biométrica &middot; Ajuste de monturas
+            Glassescanner 3D &middot; Análisis facial orientativo &middot; Ajuste de monturas
           </p>
         </div>
       </div>

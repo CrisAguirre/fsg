@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import Navbar from './components/layout/Navbar'
 import Footer from './components/layout/Footer'
 import GlassCard from './components/ui/GlassCard'
@@ -5,7 +7,17 @@ import { useTheme } from './context/ThemeContext'
 import './App.css'
 
 function App() {
-  const { logo, isDark } = useTheme();
+  const { logo } = useTheme();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.hash) {
+      const el = document.getElementById(location.hash.slice(1));
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo(0, 0);
+    }
+  }, [location.pathname, location.hash]);
 
   return (
     <>
@@ -21,7 +33,7 @@ function App() {
           <div className="hero__content animate-fade-in-up">
             <span className="hero__badge glass">
               <span className="hero__badge-dot"></span>
-              Grupo Prisma Visión · Biometría 3D · Precisión 99.8%
+              Grupo Prisma Visión · Análisis facial · Beta
             </span>
 
             <h1 className="hero__title">
@@ -30,20 +42,21 @@ function App() {
             </h1>
 
             <p className="hero__subtitle">
-              Tecnología óptica de vanguardia y mapeo biométrico tridimensional
-              para encontrar la montura perfecta adaptada exactamente a tu fisonomía.
+              Visión por computador y modelos 3D aproximados para encontrar
+              monturas compatibles con tu fisonomía, con una recomendación clara
+              y orientativa.
             </p>
 
             <div className="hero__actions">
-              <a href="/scanner" className="btn btn--primary">
+              <Link to="/scanner" className="btn btn--primary">
                 Comenzar Escaneo
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M3 8h10m0 0L9 4m4 4L9 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-              </a>
-              <a href="/catalogo" className="btn btn--glass">
+              </Link>
+              <Link to="/catalogo" className="btn btn--glass">
                 Explorar Catálogo
-              </a>
+              </Link>
             </div>
           </div>
 
@@ -75,62 +88,63 @@ function App() {
         <div className="container">
           <div className="section-header">
             <span className="section-label text-gradient">Funciones Corporativas</span>
-            <h2>Tecnología Óptica de <span className="text-gradient">Vanguardia</span></h2>
-            <p>Ecosistema integral para la selección y calibración exacta de monturas</p>
+            <h2>Tecnología Óptica <span className="text-gradient">Asistida</span></h2>
+            <p>Herramientas para una selección de monturas más informada</p>
           </div>
 
           <div className="features__grid">
             <GlassCard variant="glow">
               <div className="glass-card__icon">🔬</div>
-              <h3 className="glass-card__title">Escaneo 3D</h3>
+              <h3 className="glass-card__title">Análisis Facial</h3>
               <p className="glass-card__description">
-                Mapeo facial tridimensional con malla de puntos anatómica
-                para mediciones submilimétricas de máxima exactitud.
+                Detección de puntos faciales y estimación de proporciones para
+                recomendaciones orientativas. No es un escaneo médico ni una
+                medición milimétrica.
               </p>
             </GlassCard>
 
             <GlassCard variant="glow">
               <div className="glass-card__icon">👓</div>
-              <h3 className="glass-card__title">Ajuste de Precisión</h3>
+              <h3 className="glass-card__title">Ajuste Asistido</h3>
               <p className="glass-card__description">
-                Algoritmos ópticos y ML que analizan la morfología facial para
-                recomendar monturas proporcionales y estéticas.
+                Reglas ópticas y un modelo de ML en fase beta que analizan la
+                morfología facial para proponer monturas proporcionales.
               </p>
             </GlassCard>
 
             <GlassCard variant="glow">
               <div className="glass-card__icon">⚡</div>
-              <h3 className="glass-card__title">Tiempo Real</h3>
+              <h3 className="glass-card__title">Procesamiento Ágil</h3>
               <p className="glass-card__description">
-                Procesamiento instantáneo en navegador con retroalimentación
-                inmediata en menos de 2 segundos.
+                Parte del análisis ocurre en tu navegador y el resto en el
+                servidor; el tiempo depende del dispositivo y de la conexión.
               </p>
             </GlassCard>
 
             <GlassCard variant="glow">
               <div className="glass-card__icon">📐</div>
-              <h3 className="glass-card__title">Mediciones Ópticas</h3>
+              <h3 className="glass-card__title">Medidas Estimadas</h3>
               <p className="glass-card__description">
-                Distancia pupilar (DIP), ancho nasal, largo de patilla
-                y parámetros geométricos clave para optometría.
+                Distancia pupilar, ancho facial y puente nasal aproximados,
+                útiles como referencia antes de una medición en óptica.
               </p>
             </GlassCard>
 
             <GlassCard variant="glow">
               <div className="glass-card__icon">🛡️</div>
-              <h3 className="glass-card__title">Privacidad Estricta</h3>
+              <h3 className="glass-card__title">Privacidad por Defecto</h3>
               <p className="glass-card__description">
-                Tratamiento seguro de imagen biométrica conforme a la normativa
-                de protección de datos y consentimiento explícito.
+                La foto se usa solo para el análisis solicitado y no se almacena
+                en el servidor. El consentimiento se solicita antes de continuar.
               </p>
             </GlassCard>
 
             <GlassCard variant="glow">
               <div className="glass-card__icon">🎯</div>
-              <h3 className="glass-card__title">Probador Virtual AR</h3>
+              <h3 className="glass-card__title">Probador Virtual</h3>
               <p className="glass-card__description">
-                Superposición 3D interactiva en vivo con iluminación calibrada
-                y seguimiento de cabeza en tiempo real.
+                Superposición 3D aproximada en vivo, con seguimiento de cabeza
+                y un modo 2D de respaldo cuando el dispositivo lo requiere.
               </p>
             </GlassCard>
           </div>
@@ -143,7 +157,7 @@ function App() {
           <div className="section-header">
             <span className="section-label text-gradient">Proceso Óptico</span>
             <h2>Cómo <span className="text-gradient">Funciona</span></h2>
-            <p>Tres pasos intuitivos hacia tu elección visual perfecta</p>
+            <p>Tres pasos para una elección más informada</p>
           </div>
 
           <div className="steps">
@@ -164,8 +178,8 @@ function App() {
               <div className="step__number text-gradient">02</div>
               <h3 className="step__title">Escanea</h3>
               <p className="step__description">
-                La malla facial analiza proporciones de pómulos, mandíbula
-                y frente para clasificar tu morfología.
+                El análisis estima proporciones de pómulos, mandíbula y frente
+                para clasificar tu morfología de forma orientativa.
               </p>
             </div>
 
@@ -192,18 +206,18 @@ function App() {
             <div className="precision__glow" aria-hidden="true"></div>
             <div className="precision__content">
               <h2>
-                <span className="precision__number text-gradient">99.8%</span>
+                <span className="precision__number text-gradient">BETA</span>
                 <br />
-                Precisión y Confort
+                Compatibilidad orientativa
               </h2>
               <p>
-                El motor de análisis biométrico de Grupo Prisma Visión garantiza
-                que cada recomendación se alinee armónicamente con tus facciones
-                y necesidades visuales.
+                El motor combina proporciones faciales y reglas ópticas para
+                ordenar las monturas. Los resultados son una guía y no sustituyen
+                la valoración de un óptico.
               </p>
-              <a href="/scanner" className="btn btn--primary">
+              <Link to="/scanner" className="btn btn--primary">
                 Iniciar Escaneo Facial
-              </a>
+              </Link>
             </div>
           </div>
         </div>

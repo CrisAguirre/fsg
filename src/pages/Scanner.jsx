@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import Navbar from "../components/layout/Navbar.jsx";
 import Footer from "../components/layout/Footer.jsx";
 import { analyzePhoto, recommend, listFrames, API_URL } from "../lib/api.js";
@@ -142,7 +142,7 @@ async function normalizeImageFile(file) {
 export default function Scanner() {
   const [searchParams] = useSearchParams();
   const initialFrame = searchParams.get("frameId");
-  const [consent, setConsent] = useState(true);
+  const [consent, setConsent] = useState(false);
   const [tab, setTab] = useState("camara"); // camara | subir
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -158,6 +158,8 @@ export default function Scanner() {
   const streamRef = useRef(null);
   const landmarkerRef = useRef(null);
   const imgLandmarkerRef = useRef(null);
+  const liveSessionRef = useRef(0);
+  const cameraSessionRef = useRef(0);
   const lastLmRef = useRef(null);
   const smoothLmRef = useRef(null); // anti-temblor en vivo
   const lastPhotoLmRef = useRef(null); // landmarks foto para descarga HD
@@ -208,31 +210,60 @@ export default function Scanner() {
     return () => stopCamera();
   }, []);
 
+  // Liberar los object URL al cambiar de foto o desmontar el escáner.
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  // El canvas 3D de la foto se desmonta con la página: liberar su contexto WebGL.
+  useEffect(() => {
+    return () => {
+      try { arPhotoRef.current?.dispose?.(); } catch { /* noop */ }
+      arPhotoRef.current = null;
+      try { imgLandmarkerRef.current?.close?.(); } catch { /* noop */ }
+      imgLandmarkerRef.current = null;
+    };
+  }, []);
+
   async function startCamera() {
     setError("");
+    stopCamera();
+    const session = cameraSessionRef.current;
     try {
       const s = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 1280 } },
         audio: false,
       });
+      // Si mientras se pedía permiso se cambió de pestaña o se reintentó,
+      // detener este stream huérfano.
+      if (session !== cameraSessionRef.current) {
+        s.getTracks().forEach((t) => t.stop());
+        return;
+      }
       streamRef.current = s;
       if (videoRef.current) {
         videoRef.current.srcObject = s;
         await videoRef.current.play().catch(() => {});
       }
+      if (session !== cameraSessionRef.current) return;
       // Overlay landmarks en vivo (progresivo, no bloquea si falla la red/CDN)
       startLiveLandmarks().catch(() => {});
     } catch {
+      if (session !== cameraSessionRef.current) return;
       setError("No se pudo abrir la cámara (permiso, HTTPS o sin cámara). Usa la pestaña Subir foto.");
     }
   }
 
   async function startLiveLandmarks() {
+    const session = liveSessionRef.current + 1;
+    liveSessionRef.current = session;
     const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
     const fileset = await FilesetResolver.forVisionTasks(
       "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
     );
-    landmarkerRef.current = await FaceLandmarker.createFromOptions(fileset, {
+    const landmarker = await FaceLandmarker.createFromOptions(fileset, {
       baseOptions: {
         modelAssetPath:
           "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
@@ -242,16 +273,24 @@ export default function Scanner() {
       runningMode: "VIDEO",
       numFaces: 1,
     });
+    // Si se detuvo la cámara o se inició otra sesión mientras cargaba el CDN,
+    // cerrar este modelo y no arrancar un loop huérfano.
+    if (session !== liveSessionRef.current || !streamRef.current) {
+      landmarker.close?.();
+      return;
+    }
+    landmarkerRef.current = landmarker;
     const loop = async () => {
+      if (session !== liveSessionRef.current) return;
       const v = videoRef.current;
       const cnv = overlayRef.current;
-      if (v && cnv && v.videoWidth && landmarkerRef.current) {
+      if (v && cnv && v.videoWidth) {
         // Usar resolución real del video (no clientWidth) para no deformar el montaje.
         // El CSS (.scanner__overlay 100%) se encarga del escalado visual.
         cnv.width = v.videoWidth;
         cnv.height = v.videoHeight;
         try {
-          const res = landmarkerRef.current.detectForVideo(v, performance.now());
+          const res = landmarker.detectForVideo(v, performance.now());
           const pts = res?.faceLandmarks?.[0]?.length ?? 0;
           setLivePts(pts);
           const ctx = cnv.getContext("2d");
@@ -267,6 +306,11 @@ export default function Scanner() {
               let drew3D = false;
               if (t.use3D && t.frame) {
                 try {
+                  // Si React recreó el canvas, el renderer anterior queda obsoleto.
+                  if (arLiveRef.current && arLiveRef.current.canvas !== threeLiveRef.current) {
+                    arLiveRef.current.dispose?.();
+                    arLiveRef.current = null;
+                  }
                   if (!arLiveRef.current && threeLiveRef.current) arLiveRef.current = new GlassesAR(threeLiveRef.current);
                   const ar = arLiveRef.current;
                   if (ar) {
@@ -282,6 +326,8 @@ export default function Scanner() {
                 drawGlasses(ctx, lm, v.videoWidth, v.videoHeight, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light: 0.55, tint: t.tint });
               }
             } else {
+              // Sin probador: limpiar también el canvas 3D para no dejar un armazón fantasma.
+              try { arLiveRef.current?.clear(); } catch { /* noop */ }
               ctx.fillStyle = "rgba(0,212,255,.8)";
               const sx = cnv.width / v.videoWidth;
               const sy = cnv.height / v.videoHeight;
@@ -291,23 +337,34 @@ export default function Scanner() {
                 ctx.fill();
               }
             }
+          } else {
+            try { arLiveRef.current?.clear(); } catch { /* noop */ }
           }
         } catch { /* un frame fallido no rompe el loop */ }
       }
-      rafRef.current = requestAnimationFrame(loop);
+      if (session === liveSessionRef.current) {
+        rafRef.current = requestAnimationFrame(loop);
+      }
     };
     cancelAnimationFrame(rafRef.current);
     loop();
   }
 
   function stopCamera() {
+    cameraSessionRef.current += 1;
+    liveSessionRef.current += 1;
     cancelAnimationFrame(rafRef.current);
     landmarkerRef.current?.close?.();
     landmarkerRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     smoothLmRef.current = null;
-    try { arLiveRef.current?.clear(); } catch { /* noop */ }
+    lastLmRef.current = null;
+    try {
+      arLiveRef.current?.clear();
+      arLiveRef.current?.dispose?.();
+    } catch { /* noop */ }
+    arLiveRef.current = null;
   }
 
   // Try-on en foto capturada/subida (IMAGE mode, reutiliza el mismo CDN)
@@ -336,6 +393,11 @@ export default function Scanner() {
         const img = photoImgRef.current;
         const cnv = photoCanvasRef.current;
         if (!img || !cnv) return;
+        const arCanvas = threePhotoRef.current;
+        if (arPhotoRef.current && arCanvas && arPhotoRef.current.canvas !== arCanvas) {
+          try { arPhotoRef.current.dispose?.(); } catch { /* noop */ }
+          arPhotoRef.current = null;
+        }
         await new Promise((r) => {
           if (img.complete && img.naturalWidth) return r();
           img.onload = () => r();
@@ -368,9 +430,9 @@ export default function Scanner() {
         const t = tryRef.current;
         // 3D real primero; 2D solo como fallback
         let drew3D = false, pose3D = null;
-        if (t.use3D && t.frame && threePhotoRef.current) {
+        if (t.use3D && t.frame && arCanvas) {
           try {
-            if (!arPhotoRef.current) arPhotoRef.current = new GlassesAR(threePhotoRef.current);
+            if (!arPhotoRef.current) arPhotoRef.current = new GlassesAR(arCanvas);
             arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
             pose3D = arPhotoRef.current.render(lm, cnv.width, cnv.height);
             drew3D = !!pose3D;
@@ -412,7 +474,7 @@ export default function Scanner() {
     })();
     return () => { dead = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preview, tryId, tryOn, metrics, tryOpacity, tryLens, showOriginal]);
+  }, [preview, tryId, tryOn, metrics, tryOpacity, tryLens, showOriginal, frames]);
 
   function capture() {
     const v = videoRef.current;
@@ -455,7 +517,11 @@ export default function Scanner() {
     setDetectedShape("");
     try { sessionStorage.removeItem("gs_last_scan"); } catch { /* noop */ }
     lastPhotoLmRef.current = null; smoothLmRef.current = null;
-    try { arPhotoRef.current?.clear(); } catch { /* noop */ }
+    try {
+      arPhotoRef.current?.clear();
+      arPhotoRef.current?.dispose?.();
+    } catch { /* noop */ }
+    arPhotoRef.current = null;
     try {
       const r = await fetch(`${API_URL}/analyze/photo`, { method: "DELETE" });
       const j = await r.json().catch(() => ({}));
@@ -579,7 +645,7 @@ export default function Scanner() {
       return;
     }
     setError("");
-    setLoading("Analizando geometría facial con IA…");
+    setLoading("Analizando proporciones faciales…");
     setMetrics(null);
     setRecs([]);
     try {
@@ -610,12 +676,12 @@ export default function Scanner() {
       <div className="container scanner">
         <h1>Escáner Facial · <span className="text-gradient">Grupo Prisma Visión</span></h1>
         <p className="scanner__sub">
-          Tecnología biométrica 3D · Backend: <code>{API_URL}</code> · {backendOk === null ? "…" : backendOk ? "en línea ✓" : "sin conexión ✕"}
+          Análisis facial · estimaciones orientativas · Backend: <code>{API_URL}</code> · {backendOk === null ? "…" : backendOk ? "en línea ✓" : "sin conexión ✕"}
         </p>
 
       <label className="glass scanner__consent">
-        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-        Acepto el tratamiento de mi imagen para análisis facial (dato sensible, Ley 1581/2012). Puedo pedir el borrado en cualquier momento.
+        <input type="checkbox" required checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+        Acepto el tratamiento de mi imagen para el análisis facial (dato sensible, Ley 1581/2012). La foto se procesa para este análisis y no se almacena en el servidor; el resultado es orientativo.
       </label>
 
       <div className="scanner__tabs glass">
@@ -660,7 +726,7 @@ export default function Scanner() {
             <canvas ref={photoCanvasRef} className="scanner__preview" onClick={() => setZoomed((z) => !z)} title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"} />
             <canvas ref={threePhotoRef} className="scanner__overlay" aria-hidden="true" />
           </div>
-          <canvas ref={glbCanvasRef} className="scanner__preview" style={{ display: glb3d ? undefined : "none" }} aria-label="Vista 3D fotorrealista" />
+          <canvas ref={glbCanvasRef} className="scanner__preview" style={{ display: glb3d ? undefined : "none" }} aria-label="Vista 3D aproximada" />
           {photoWarn && <p className="scanner__warning">⚠ {photoWarn}</p>}
           {fitInfo && (
             <small className="scanner__sub">
@@ -668,7 +734,7 @@ export default function Scanner() {
               {fitInfo.lensW ? ` · lente ${fitInfo.lensW}×${fitInfo.lensH}px` : ""}
               {` · escala marco ${fitInfo.fitScale}×`}
               {fitInfo.yaw != null ? ` · giro ${fitInfo.yaw}°` : ""}
-              {metrics ? ` · sien-sien ${metrics.temporal_est}mm` : " · analizá para ajuste milimétrico"}
+              {metrics ? ` · sien-sien ${Number(metrics.temporal_est ?? 0).toFixed(1)}mm (est.)` : " · analizá para ver medidas estimadas"}
               {fitInfo.decent && (fitInfo.decent.ok
                 ? ` · pupilas centradas ✓ (A+D ${fitInfo.decent.framePD}mm vs IPD ${metrics?.ipd_mm_est ?? "?"}mm)`
                 : ` · ⚠ pupila descentrada ${fitInfo.decent.perEye}mm por ojo`)}
@@ -750,20 +816,19 @@ export default function Scanner() {
                 </option>
               ))}
             </select>
-            <button className="btn btn--primary" onClick={runAnalysis} disabled={!!loading}>
+            <button className="btn btn--primary" onClick={runAnalysis} disabled={!!loading || !consent} title={!consent ? "Acepta el consentimiento para analizar la foto" : undefined}>
               {loading || "Analizar compatibilidad"}
             </button>
             <button className="btn btn--glass" onClick={downloadMontage} disabled={!fitInfo} title="Descarga en resolución original">
               ⬇ Guardar HD
             </button>
-            <button className="btn btn--glass" onClick={downloadEvidence} disabled={!fitInfo} title="Descarga foto + JSON con pose y medidas para diagnosticar">
+            <button className="btn btn--glass" onClick={downloadEvidence} disabled={!fitInfo} title="Descarga foto + JSON con pose y medidas estimadas para diagnosticar">
               🧾 Evidencia
             </button>
             <button className="btn btn--glass" onClick={erasePhoto} disabled={!!loading}>
               🗑 Borrar mi foto
             </button>
           </div>
-          {error && <p className="scanner__error" style={{ margin: ".3rem 0 0" }}>{error}</p>}
         </div>
       )}
 
@@ -772,7 +837,7 @@ export default function Scanner() {
       {metrics && (
         <div className="glass scanner__panel scanner__metrics">
           <div className="scanner__metrics-header">
-            <h3>🔬 Análisis Morfométrico Facial</h3>
+            <h3>🔬 Análisis Morfométrico Facial <span className="tag">orientativo</span></h3>
             <label className="scanner__shape-edit" title="Si el óptico no coincide con la forma detectada, corrígela aquí y se recalculan las recomendaciones.">
               Forma:
               <select
@@ -790,30 +855,31 @@ export default function Scanner() {
           </p>
           <div className="scanner__metrics-grid">
             <div className="metric-chip">
-              <span className="metric-label">Simetría Facial</span>
+              <span className="metric-label">Índice de Simetría</span>
               <span className="metric-val">{metrics.symmetry_index}%</span>
             </div>
             <div className="metric-chip">
-              <span className="metric-label">Distancia Pupilar (IPD)</span>
-              <span className="metric-val">{metrics.ipd_mm_est} mm</span>
+              <span className="metric-label">IPD estimada</span>
+              <span className="metric-val">≈ {Number(metrics.ipd_mm_est ?? 0).toFixed(1)} mm</span>
             </div>
             <div className="metric-chip">
-              <span className="metric-label">Ancho Facial Sien-Sien</span>
-              <span className="metric-val">{metrics.temporal_est ?? 138} mm</span>
+              <span className="metric-label">Ancho Facial Estimado</span>
+              <span className="metric-val">≈ {Number(metrics.temporal_est ?? 0).toFixed(1)} mm</span>
             </div>
             <div className="metric-chip">
-              <span className="metric-label">Puente Nasal Anatómico</span>
-              <span className="metric-val">{metrics.nose_bridge_mm_est ?? 18} mm</span>
+              <span className="metric-label">Puente Nasal Estimado</span>
+              <span className="metric-val">≈ {Number(metrics.nose_bridge_mm_est ?? 0).toFixed(1)} mm</span>
             </div>
             <div className="metric-chip">
               <span className="metric-label">Proporción Largo/Ancho</span>
-              <span className="metric-val">{metrics.ratios?.largo_ancho ?? 1.3}</span>
+              <span className="metric-val">{Number(metrics.ratios?.largo_ancho ?? 1.3).toFixed(2)}</span>
             </div>
             <div className="metric-chip">
               <span className="metric-label">Zona de Cejas</span>
               <span className="metric-val">{metrics.eyebrow_in_frame_zone ? "Despejada ✓" : "Atención"}</span>
             </div>
           </div>
+          <p className="scanner__sub">Valores estimados a partir de una foto 2D. No sustituyen una medición presencial en óptica.</p>
           {metrics.warnings?.map((w) => <p key={w} className="scanner__warning">⚠ {w}</p>)}
         </div>
       )}
@@ -825,9 +891,9 @@ export default function Scanner() {
             <h2>Monturas <span className="text-gradient">Recomendadas</span> ({recs.length})</h2>
             <p className="scanner__sub">Compatibilidad evaluada por el motor experto según proporción facial, centrado óptico, contraste geométrico y apoyo nasal.</p>
           </div>
-          <a className="btn btn--glass" href="/piloto" title="Lleva la forma y el top-1 de este análisis al registro del piloto">
+          <Link className="btn btn--glass" to="/piloto" title="Lleva la forma y el top-1 de este análisis al registro del piloto">
             📋 Registrar en piloto →
-          </a>
+          </Link>
         </div>
         <div className="scanner__grid">
           {recs.slice(0, 12).map((r) => {
@@ -908,7 +974,7 @@ export default function Scanner() {
         </>
       )}
 
-      <p className="scanner__sub">Probador biométrico procedural v2 · Grupo Prisma Visión (8 formas + ajuste por A/B/D y temporal_est). Modelos GLB fotorrealistas en <code>public/glasses/*.glb</code> con Three.js.</p>
+      <p className="scanner__sub">Probador virtual procedural v2 · Grupo Prisma Visión (formas + ajuste por A/B/D y temporal_est). Usa modelos GLB si están disponibles en <code>public/glasses/*.glb</code>; si no, dibuja un armazón aproximado con Three.js.</p>
     </div>
     <Footer />
     </>

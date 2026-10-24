@@ -1,13 +1,14 @@
+import { Link } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import './Navbar.css';
 
 function Navbar() {
-  const { theme, toggleTheme, isDark, logo } = useTheme();
+  const { toggleTheme, isDark, logo } = useTheme();
 
   return (
     <nav className="navbar" id="navbar">
       <div className="navbar__inner container">
-        <a href="/" className="navbar__brand" aria-label="Grupo Prisma Visión — Glassescanner">
+        <Link to="/" className="navbar__brand" aria-label="Grupo Prisma Visión — Glassescanner">
           <div className="navbar__logo-box">
             <img
               src={logo}
@@ -19,14 +20,14 @@ function Navbar() {
             <span className="navbar__corp-name">GRUPO PRISMA VISIÓN</span>
             <span className="navbar__product-name text-gradient">Glassescanner 3D</span>
           </div>
-        </a>
+        </Link>
 
         <ul className="navbar__links">
-          <li><a href="/#features">Funciones</a></li>
-          <li><a href="/#how-it-works">Cómo Funciona</a></li>
-          <li><a href="/catalogo">Catálogo</a></li>
-          <li><a href="/scanner">Escáner Facial</a></li>
-          <li><a href="/admin/frames">Admin</a></li>
+          <li><Link to="/#features">Funciones</Link></li>
+          <li><Link to="/#how-it-works">Cómo Funciona</Link></li>
+          <li><Link to="/catalogo">Catálogo</Link></li>
+          <li><Link to="/scanner">Escáner Facial</Link></li>
+          <li><Link to="/admin/frames">Admin</Link></li>
         </ul>
 
         <div className="navbar__actions">
@@ -63,9 +64,9 @@ function Navbar() {
             )}
           </button>
 
-          <a href="/scanner" className="btn btn--primary btn--sm">
+          <Link to="/scanner" className="btn btn--primary btn--sm">
             Iniciar Escaneo
-          </a>
+          </Link>
         </div>
       </div>
     </nav>

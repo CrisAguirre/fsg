@@ -94,6 +94,12 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
   // Tamaño óptico real: el lente mide A/IPD y B/IPD del IPD en px.
   // Ej: A52 con IPD63 → lente 0.83×IPD. Fallback: 2.1× ancho de ojo.
   let W, H;
+  // fitScale debe vivir en el scope de la función: se devuelve al final y
+  // también se usa en la rama de respaldo cuando no hay medidas ópticas.
+  let fitScale = 1;
+  if (frame?.ancho_total_mm && metrics?.temporal_est) {
+    fitScale = clamp(frame.ancho_total_mm / metrics.temporal_est, 0.85, 1.25);
+  }
   const ipdMm = Number(metrics?.ipd_mm_est);
   if (frame?.A_mm && frame?.B_mm && ipdMm > 0 && ipdPx > 1) {
     const ratioHB = clamp(frame.B_mm / Math.max(frame.A_mm, 1e-6), 0.5, 1.05);
@@ -105,10 +111,6 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
     H = W * ratioHB;
   } else {
     // Escala real: ancho_total_marco vs ancho temporal estimado.
-    let fitScale = 1;
-    if (frame?.ancho_total_mm && metrics?.temporal_est) {
-      fitScale = clamp(frame.ancho_total_mm / metrics.temporal_est, 0.85, 1.25);
-    }
     W = eyeW * 2.1 * fitScale;
     const isRimless0 = forma === "rimless";
     let ratioHB0 = null;

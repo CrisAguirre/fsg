@@ -236,7 +236,11 @@ export class GlassesAR {
     this.key = key;
     if (this.group) {
       this.scene.remove(this.group);
-      this.group.traverse((o) => { o.geometry?.dispose?.(); });
+      this.group.traverse((o) => {
+        o.geometry?.dispose?.();
+        const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+        mats.forEach((m) => m.dispose?.());
+      });
     }
     // Dimensiones ópticas reales en unidades IPD (1.0 = tu IPD).
     // Ej: A52/D18 con IPD63 → lente 0.83, centros ±0.56, puente 0.29.
@@ -269,6 +273,7 @@ export class GlassesAR {
   }
 
   render(lm, cw, ch) {
+    if (!this.renderer || !this.scene || !this.camera) return null;
     if (!lm || lm.length < 400 || !this.group) return null;
     if (this.canvas.width !== Math.round(cw) || this.canvas.height !== Math.round(ch)) {
       this.canvas.width = Math.round(cw);
@@ -291,7 +296,30 @@ export class GlassesAR {
   }
 
   clear() {
-    const ctx = this.canvas.getContext("2d");
-    if (ctx) ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (!this.renderer) return;
+    // El canvas ya tiene contexto WebGL: getContext("2d") devuelve null.
+    // Para limpiarlo hay que usar el renderer y mantener el fondo transparente.
+    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.clear();
+  }
+
+  dispose() {
+    if (this.group) {
+      this.scene?.remove(this.group);
+      this.group.traverse((o) => {
+        o.geometry?.dispose?.();
+        const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+        mats.forEach((m) => m.dispose?.());
+      });
+      this.group = null;
+    }
+    try {
+      this.renderer?.dispose?.();
+      this.renderer?.forceContextLoss?.();
+    } catch { /* noop */ }
+    this.renderer = null;
+    this.scene = null;
+    this.camera = null;
+    this.key = "";
   }
 }

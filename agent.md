@@ -36,7 +36,7 @@ El diseño combina **Minimalismo Corporativo Prémium** con **Aeroglass / Glassm
 ```text
 fsg/
 ├── vercel.json                    # rewrite SPA → /index.html (fix 404 /scanner)
-├── .env / .env.example            # VITE_API_URL (Render en prod)
+├── .env (local, ignorado por git) / .env.example  # VITE_API_URL (Render en prod)
 ├── src/
 │   ├── assets/logo/logo.png
 │   ├── assets/data/               # ⚠️ SIN COMMITEAR (2026-10-14): planeación.md + 4 refs WhatsApp — rebranding Prisma Visión
@@ -52,7 +52,7 @@ fsg/
 │   │   ├── Catalogo.jsx/.css      # catálogo público con filtros por forma/género/estilo/talla/precio/lente
 │   │   ├── AdminFrames.jsx/.css   # CRUD por optica_id con X-Admin-Key + stats feedback
 │   │   └── Piloto.jsx             # registro guiado por caso (optica_id, caso_n)
-│   ├── App.jsx / App.css / main.jsx (Router: / /scanner /catalogo /admin/frames /piloto)
+│   ├── App.jsx / App.css / AppRoutes.jsx (carga diferida de rutas) / main.jsx
 │   └── index.css
 ├── public/glasses/README.md       # cómo aporta sus GLB cada óptica
 ├── SCANNER_SPEC.md
@@ -61,7 +61,7 @@ fsg/
 ../Glassescanner-backend/
 ├── Dockerfile (python:3.11-slim + apt sysdeps libgl1/libglib2.0-0/libsm6/libxext6/libxrender1 — SIN esto `import cv2` falla en Render porque mediapipe arrastra opencv-contrib full)
 ├── requirements.txt (añadido `pillow==10.4.0` para decode sin cv2)
-├── app/main.py (v0.2.0), config.py (CORS, ADMIN_KEY, Mongo), db.py (Motor), auth.py (X-Admin-Key)
+├── app/main.py (v0.2.1, CORS restringido + rate limit básico), config.py (CORS, ADMIN_KEY, Mongo), db.py (Motor), auth.py (X-Admin-Key con compare_digest)
 ├── app/routers/analyze.py (POST /analyze: decode PIL-primero sin cv2 + respaldo cv2.imdecode; 400 limpio "No se pudo decodificar la imagen")
 ├── app/routers/frames.py (GET filtrado optica_id, CRUD protegido, POST /recommend, POST /frames/seed)
 ├── app/routers/feedback.py (POST /feedback, GET /feedback/stats con sugerencia)
@@ -95,7 +95,7 @@ fsg/
 *   `POST /feedback {face_shape, frame_id, verdict, helpful 1-5, optica_id?, caso_n?, comment?}` + `GET /feedback/stats`.
 
 ## Env vars (Render + Vercel, no commitear reales)
-Front: `VITE_API_URL`. Back: `CORS_ORIGINS` (localhost + front prod), `MAX_PHOTO_MB=5`, `STORE_PHOTOS=false`, `ADMIN_KEY` (larga aleatoria), `MONGODB_URI`, `MONGODB_DB=glassescanner`.
+Front: `VITE_API_URL` (en `.env` local ignorado; configurar en Vercel). Back: `ENVIRONMENT` (`production` obliga a clave fuerte), `CORS_ORIGINS` (localhost + front prod), `CORS_ORIGIN_REGEX` (opcional para previews), `MAX_PHOTO_MB=5`, `RATE_LIMIT_PER_MINUTE=60`, `STORE_PHOTOS=false`, `ADMIN_KEY` (larga aleatoria; vacía deshabilita el CRUD), `MONGODB_URI`, `MONGODB_DB=glassescanner`.
 
 ## Hallazgos del Piloto Batch (2026-10-12; auditoría 2026-10-20)
 `resultados.csv`: 30/30 rostros detectados.

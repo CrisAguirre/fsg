@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import Navbar from "../components/layout/Navbar.jsx";
 import Footer from "../components/layout/Footer.jsx";
 import { API_URL } from "../lib/api.js";
@@ -58,7 +59,7 @@ export default function Piloto() {
       <Navbar />
       <div className="container admin">
         <h1>Modo Piloto Óptica · <span className="text-gradient">Grupo Prisma Visión</span></h1>
-        <p className="scanner__sub">Flujo de validación en óptica (5 min por persona). 1) Escanea en <a href="/scanner">/scanner</a> 2) registra aquí el caso clínico.</p>
+        <p className="scanner__sub">Flujo de validación en óptica (5 min por persona). 1) Escanea en <Link to="/scanner">/scanner</Link> 2) registra aquí el caso clínico.</p>
       {scan ? (
         <p className="glass admin__stats">
           Precargado del último escaneo: forma <b>{scan.face_shape}</b>
@@ -69,7 +70,7 @@ export default function Piloto() {
       ) : (
         <p className="glass admin__stats">
           No hay un escaneo reciente en esta sesión. Puedes llenar el caso a mano o
-          volver al <a href="/scanner">escáner</a> para precargar forma y top-1.
+          volver al <Link to="/scanner">escáner</Link> para precargar forma y top-1.
         </p>
       )}
       {msg && <p>{msg}</p>}

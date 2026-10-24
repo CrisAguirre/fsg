@@ -739,7 +739,6 @@ export default function Scanner() {
             <canvas ref={photoCanvasRef} className="scanner__preview" onClick={() => setZoomed((z) => !z)} title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"} />
             <canvas ref={threePhotoRef} className="scanner__overlay" aria-hidden="true" />
           </div>
-          <canvas ref={glbCanvasRef} className="scanner__preview" style={{ display: glb3d ? undefined : "none" }} aria-label="Vista 3D aproximada" />
           {photoWarn && <p className="scanner__warning">⚠ {photoWarn}</p>}
           {fitInfo && (
             <small className="scanner__sub">

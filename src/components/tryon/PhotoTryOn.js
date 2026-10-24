@@ -99,7 +99,12 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
   const manifest = await loadManifest();
   const keys = [];
   if (frame.tryon_key) keys.push(String(frame.tryon_key));
-  if (frame.forma) keys.push(String(frame.forma));
+  if (frame.forma) {
+    const f = String(frame.forma).toLowerCase().trim();
+    keys.push(f);
+    if (f.includes("-")) keys.push(f.replace(/-/g, ""));
+    if (f.includes("_")) keys.push(f.replace(/_/g, "-"));
+  }
   let asset = null;
   for (const key of keys) {
     const meta = manifest[key];
@@ -188,8 +193,20 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
 export async function preloadPhotoTryOn(frame) {
   if (!frame) return false;
   const manifest = await loadManifest();
-  const meta = manifest[frame.tryon_key] || manifest[frame.forma];
-  if (!meta?.frame) return false;
-  const [a] = await Promise.all([loadImage(meta.frame), meta.lens ? loadImage(meta.lens) : null]);
-  return !!a;
+  const keys = [];
+  if (frame.tryon_key) keys.push(String(frame.tryon_key));
+  if (frame.forma) {
+    const f = String(frame.forma).toLowerCase().trim();
+    keys.push(f);
+    if (f.includes("-")) keys.push(f.replace(/-/g, ""));
+    if (f.includes("_")) keys.push(f.replace(/_/g, "-"));
+  }
+  for (const key of keys) {
+    const meta = manifest[key];
+    if (meta?.frame) {
+      const [a] = await Promise.all([loadImage(meta.frame), meta.lens ? loadImage(meta.lens) : null]);
+      if (a) return true;
+    }
+  }
+  return false;
 }

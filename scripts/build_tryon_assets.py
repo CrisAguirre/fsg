@@ -11,11 +11,12 @@ Salida:   public/tryon/<forma>-frame.webp
 
 El script separa el aro (opaco) del cristal (translúcido) para que la cara
 se vea a través del lente. No requiere que las fotos originales tengan alfa.
-Para una montura nueva, agregue su forma a SHAPES y ajuste CROPS si hace falta.
+Para una montura nueva, agregue su forma a CROPS.
 """
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import cv2
@@ -29,10 +30,16 @@ OUT = ROOT / "public" / "tryon"
 
 # Recorte (x, y, ancho, alto) sobre la imagen de 1200x896.
 # Se recorta al frente de la montura para que las patillas no se dibujen
-# atravesando la cara. Ajustar solo si cambia la foto de origen.
+# atravesando la cara.
 CROPS = {
     "rectangular": (140, 345, 920, 310),
     "rimless": (240, 290, 720, 280),
+    "aviador": (140, 280, 920, 350),
+    "cat-eye": (155, 275, 885, 390),
+    "cuadrado": (140, 290, 925, 370),
+    "oval": (175, 300, 870, 295),
+    "redondo": (145, 240, 920, 475),
+    "wayfarer": (145, 240, 890, 430),
 }
 
 
@@ -41,6 +48,7 @@ def build_shape(shape: str) -> dict:
     if not src.exists():
         raise FileNotFoundError(src)
 
+    print(f"[{shape}] Procesando imagen...", flush=True)
     img = Image.open(src).convert("RGB")
     rgba = np.array(remove(img))
     rgb = rgba[:, :, :3].astype(np.uint8)
@@ -52,24 +60,25 @@ def build_shape(shape: str) -> dict:
     b = rgb[:, :, 2].astype(np.int16)
 
     # El interior del lente es azul/cian; el aro suele ser neutro u oscuro.
-    blue = ((b - r) > 15) & ((g - r) > 4) & (b > 28) & (alpha > 8)
+    blue = ((b - r) > 10) & ((g - r) > 2) & (b > 25) & (alpha > 8)
     blue_u8 = blue.astype(np.uint8) * 255
 
-    # Cerrar pequeños reflejos y quedarse con los dos lentes.
+    # Cerrar pequeños reflejos y quedarse con los lentes.
     lens = cv2.morphologyEx(
         blue_u8, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     )
-    n, labels, stats, _ = cv2.connectedComponentsWithStats(lens, 8)
+    n, labels, stats, cents = cv2.connectedComponentsWithStats(lens, 8)
+    min_area = w * h * 0.008
     lens2 = np.zeros_like(lens)
     for i in range(1, n):
-        if stats[i, cv2.CC_STAT_AREA] > w * h * 0.012:
+        if stats[i, cv2.CC_STAT_AREA] > min_area:
             lens2[labels == i] = 255
 
     # Rellenar las patillas plegadas/reflejos que quedan dentro del lente.
     contours, _ = cv2.findContours(lens2, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     filled = np.zeros_like(lens2)
     for c in contours:
-        if cv2.contourArea(c) > w * h * 0.012:
+        if cv2.contourArea(c) > min_area:
             cv2.drawContours(filled, [c], -1, 255, cv2.FILLED)
 
     # Aro: al quitar el lente se conserva el borde. Se erosiona un poco para
@@ -93,8 +102,8 @@ def build_shape(shape: str) -> dict:
     n, labels, stats, cents = cv2.connectedComponentsWithStats(filled, 8)
     parts = []
     for i in range(1, n):
-        if stats[i, cv2.CC_STAT_AREA] > w * h * 0.012:
-            parts.append((float(cents[i][0]), float(cents[i][1])))
+        if stats[i, cv2.CC_STAT_AREA] > min_area:
+            parts.append((stats[i, cv2.CC_STAT_AREA], float(cents[i][0]), float(cents[i][1])))
     if not parts:
         raise RuntimeError(f"{shape}: no se detectaron lentes")
     if len(parts) == 1:
@@ -104,13 +113,17 @@ def build_shape(shape: str) -> dict:
         mid = (x0 + x1) / 2
         ys, xs = np.where(filled > 0)
         left = xs < mid
-        parts = [
+        lens_centers = [
             (float(xs[left].mean()), float(ys[left].mean())),
             (float(xs[~left].mean()), float(ys[~left].mean())),
         ]
-    parts.sort(key=lambda p: p[0])
-    if len(parts) < 2:
-        raise RuntimeError(f"{shape}: se esperaban 2 lentes, hay {len(parts)}")
+    else:
+        # Tomar los 2 componentes de mayor área (los dos cristales)
+        parts.sort(key=lambda p: p[0], reverse=True)
+        lens_centers = [(p[1], p[2]) for p in parts[:2]]
+
+    # Ordenar de izquierda a derecha
+    lens_centers.sort(key=lambda p: p[0])
 
     x, y, cw, ch = CROPS.get(shape, (0, 0, w, h))
     x = max(0, x)
@@ -130,7 +143,7 @@ def build_shape(shape: str) -> dict:
     )
 
     centers = [
-        [round((px - x) / cw, 5), round((py - y) / ch, 5)] for px, py in parts[:2]
+        [round((px - x) / cw, 5), round((py - y) / ch, 5)] for px, py in lens_centers[:2]
     ]
     return {
         "frame": f"/tryon/{shape}-frame.webp",
@@ -146,12 +159,12 @@ def main() -> None:
     manifest = {}
     for shape in CROPS:
         manifest[shape] = build_shape(shape)
-        print(f"{shape}: {manifest[shape]['width']}x{manifest[shape]['height']} "
-              f"ipdRatio={manifest[shape]['ipdRatio']}")
+        print(f"[OK] {shape}: {manifest[shape]['width']}x{manifest[shape]['height']} "
+              f"ipdRatio={manifest[shape]['ipdRatio']} centers={manifest[shape]['lensCenters']}", flush=True)
     (OUT / "manifest.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    print(f"Manifest: {OUT / 'manifest.json'}")
+    print(f"Manifest generado exitosamente: {OUT / 'manifest.json'}", flush=True)
 
 
 if __name__ == "__main__":

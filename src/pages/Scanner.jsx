@@ -544,8 +544,11 @@ export default function Scanner() {
     }
   }
 
-  function downloadMontage() {
-    // Descarga HD a resolución natural: foto + overlay 3D (o 2D si es fallback).
+  async function downloadMontage() {
+    // Descarga HD a resolución natural con la misma prioridad:
+    // 1. Recorte 2D real (PhotoTryOn).
+    // 2. Armazón 3D procedural si está habilitado.
+    // 3. Dibujo vectorial 2D como aproximación final.
     try {
       const img = photoImgRef.current;
       const lm = lastPhotoLmRef.current;
@@ -556,20 +559,31 @@ export default function Scanner() {
         full.width = nat.W; full.height = nat.H;
         const fctx = full.getContext("2d");
         fctx.drawImage(img, 0, 0, nat.W, nat.H);
-        const overlay = threePhotoRef.current;
-        const is3D = !!(overlay && arPhotoRef.current && overlay.width > 10);
-        if (t.use3D && is3D) {
-          // Re-render 3D a tamaño natural y compone (preserveDrawingBuffer permite drawImage)
-          const prevW = overlay.width, prevH = overlay.height;
-          try {
-            arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
-            arPhotoRef.current.render(lm, nat.W, nat.H);
-            fctx.drawImage(overlay, 0, 0, nat.W, nat.H);
-          } finally {
-            arPhotoRef.current.render(lm, prevW, prevH);
+
+        let drewPhoto = false;
+        try {
+          const fitPhoto = await drawPhotoTryOn(fctx, lm, nat.W, nat.H, t.frame, t.metrics, {
+            alpha: 1, tint: t.tint, light: 0.5,
+          });
+          drewPhoto = !!fitPhoto;
+        } catch { drewPhoto = false; }
+
+        if (!drewPhoto) {
+          const overlay = threePhotoRef.current;
+          const is3D = !!(overlay && arPhotoRef.current && overlay.width > 10);
+          if (t.use3D && is3D) {
+            // Re-render 3D a tamaño natural y compone (preserveDrawingBuffer permite drawImage)
+            const prevW = overlay.width, prevH = overlay.height;
+            try {
+              arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
+              arPhotoRef.current.render(lm, nat.W, nat.H);
+              fctx.drawImage(overlay, 0, 0, nat.W, nat.H);
+            } finally {
+              arPhotoRef.current.render(lm, prevW, prevH);
+            }
+          } else {
+            drawGlasses(fctx, lm, nat.W, nat.H, nat.W, nat.H, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: 1, light: 0.5, tint: t.tint });
           }
-        } else {
-          drawGlasses(fctx, lm, nat.W, nat.H, nat.W, nat.H, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: 1, light: 0.5, tint: t.tint });
         }
         const a = document.createElement("a");
         a.href = full.toDataURL("image/jpeg", 0.95);

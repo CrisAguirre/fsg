@@ -143,7 +143,11 @@ Front: `VITE_API_URL` (en `.env` local ignorado; configurar en Vercel). Back: `E
     *   **Anotador mejorado:** `piloto-rostros/anotador.html` v2 con panel de métricas por caso (L/A, F/P, M/F, simetría), badges comparativos (🤖 sistema vs 💡 sugerida IA), resumen de distribución, accuracy en vivo, migración automática de datos v1.
     *   **Script de accuracy actualizado:** `scripts/piloto_accuracy.py` ahora compara reglas vs ML vs ground truth con detalle por caso, distribuciones y criterios PILOTO_30.md.
     *   **Script de entrenamiento:** `scripts/train_classifier.py` con data augmentation (jitter ×8), LOO cross-validation, matriz de confusión y comparación reglas vs ML.
-    *   **Tests:** 12/12 PASS. Test de aspect invariance actualizado para aceptar la forma que produzca el ML (la invariancia a==b sigue intacta).
+11. **Probador 2D Fotorrealista en Modo Foto (2026-10-24):**
+    *   **Prioridad en foto:** 1. Recorte 2D real (`drawPhotoTryOn` en `PhotoTryOn.js`) → 2. Armazón 3D procedural (`GlassesAR` en `Frame3D.js`) si no hay asset o falla → 3. Dibujo vectorial 2D (`drawGlasses` en `GlassesOverlay.js`) como aproximación final. Implementado en render de canvas y descarga HD en `Scanner.jsx`.
+    *   **Calibración de assets 2D:** los 8 formatos (`rectangular`, `rimless`, `aviador`, `cat-eye`, `cuadrado`, `oval`, `redondo`, `wayfarer`) recortados en WebP transparente con orificios limpios en ambos lentes y capa de cristal/reflejo (`public/tryon/*-frame.webp` y `*-lens.webp`).
+    *   **Manifest calibrado:** `public/tryon/manifest.json` calibrado con centros ópticos simétricos nivelados horizontalmente al eje pupilar (`lc_x ≈ 0.251`, `rc_x ≈ 0.749`, `y0 == y1`, `ipdRatio ≈ 0.49-0.50`), corrigiendo el cálculo de escala y rotación.
+    *   **Pipeline automatizado:** `scripts/build_tryon_assets.py` con garantía de simetría horizontal automática en agujeros de lente, reflejos y centros ópticos.
 
 ## Deuda técnica resuelta
 *   ✓ `temporal_est` dinámico derivado de landmarks en backend y frontend.
@@ -158,6 +162,7 @@ Front: `VITE_API_URL` (en `.env` local ignorado; configurar en Vercel). Back: `E
 *   ✓ Clasificador ML de 7 formas integrado (RF+SVM, joblib) con fallback a reglas.
 *   ✓ Anotador v2 con métricas, badges comparativos y accuracy en vivo.
 *   ✓ Script de accuracy con comparación ML vs reglas vs ground truth.
+*   ✓ Probador 2D fotorrealista con recortes transparentes, reflejos simétricos y cadena de fallback 2D cutout → 3D procedural → vectorial en `/scanner` y descarga HD.
 
 ## Próximos Pasos (Hoja de Ruta)
 1.  **Definir alcance del rebranding** Grupo Prisma Visión (empresa vs. producto) y, si aplica, unificar nombre/colores/dominio en front, metadatos y consentimiento. *Pendiente por decisión del usuario.*

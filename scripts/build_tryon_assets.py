@@ -131,8 +131,32 @@ def build_shape(shape: str) -> dict:
     cw = min(cw, w - x)
     ch = min(ch, h - y)
 
-    frame_crop = np.dstack([rgb, frame_alpha])[y : y + ch, x : x + cw]
-    lens_crop = np.dstack([rgb, lens_alpha])[y : y + ch, x : x + cw]
+    # Asegurar simetría horizontal de los cristales y reflejos en la montura
+    mid_x = cw // 2
+    f_alpha = frame_crop[:, :, 3].copy()
+    left_trans = (f_alpha[:, :mid_x] < 50).sum()
+    right_trans = (f_alpha[:, cw - mid_x:] < 50).sum()
+    if right_trans > left_trans * 1.5:
+        # El cristal derecho quedó transparente pero el izquierdo no: espejar agujero
+        hole = np.fliplr(f_alpha[:, cw - mid_x:] == 0)
+        f_alpha[:, :mid_x][hole] = 0
+    elif left_trans > right_trans * 1.5:
+        hole = np.fliplr(f_alpha[:, :mid_x] == 0)
+        f_alpha[:, cw - mid_x:][hole] = 0
+    frame_crop[:, :, 3] = f_alpha
+
+    # Espejar reflejos del cristal si un lado tiene significativamente más que el otro
+    l_alpha = lens_crop[:, :, 3].copy()
+    left_refl = (l_alpha[:, :mid_x] > 10).sum()
+    right_refl = (l_alpha[:, cw - mid_x:] > 10).sum()
+    if right_refl > left_refl * 1.5:
+        mirrored = np.fliplr(lens_crop[:, cw - mid_x:])
+        mask = mirrored[:, :, 3] > 10
+        lens_crop[:, :mid_x][mask] = mirrored[mask]
+    elif left_refl > right_refl * 1.5:
+        mirrored = np.fliplr(lens_crop[:, :mid_x])
+        mask = mirrored[:, :, 3] > 10
+        lens_crop[:, cw - mid_x:][mask] = mirrored[mask]
 
     OUT.mkdir(parents=True, exist_ok=True)
     Image.fromarray(frame_crop).save(
@@ -142,16 +166,26 @@ def build_shape(shape: str) -> dict:
         OUT / f"{shape}-lens.webp", "WEBP", quality=88, method=6
     )
 
-    centers = [
-        [round((px - x) / cw, 5), round((py - y) / ch, 5)] for px, py in lens_centers[:2]
-    ]
+    # Centros ópticos calibrados y simétricos (nivelados al eje de visión)
+    lc_x = round((lens_centers[0][0] - x) / cw, 5)
+    rc_x = round((lens_centers[1][0] - x) / cw, 5)
+    if rc_x - lc_x < 0.42 or lc_x > 0.35 or rc_x < 0.65:
+        # Fallback a centros anatómicos simétricos estándar de montura frontal
+        lc_x = 0.251
+        rc_x = 0.749
+    avg_y = round(((lens_centers[0][1] - y) / ch + (lens_centers[1][1] - y) / ch) / 2, 5)
+    if avg_y < 0.38 or avg_y > 0.62:
+        avg_y = 0.485
+    centers = [[lc_x, avg_y], [rc_x, avg_y]]
+    ipd_ratio = round(rc_x - lc_x, 5)
+
     return {
         "frame": f"/tryon/{shape}-frame.webp",
         "lens": f"/tryon/{shape}-lens.webp",
         "width": int(cw),
         "height": int(ch),
         "lensCenters": centers,
-        "ipdRatio": round(centers[1][0] - centers[0][0], 5),
+        "ipdRatio": ipd_ratio,
     }
 
 

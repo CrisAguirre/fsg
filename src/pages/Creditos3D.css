@@ -1,0 +1,82 @@
+.credits {
+  padding: 6.5rem 1rem 3rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.credits__header {
+  max-width: 860px;
+}
+
+.credits__header h1 {
+  margin-bottom: 0.75rem;
+}
+
+.credits__header p {
+  color: var(--text-secondary);
+  margin-bottom: 0.6rem;
+}
+
+.credits__header a,
+.credits__source a,
+.credits__author a {
+  color: var(--text-heading);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.credits__note {
+  font-size: 0.875rem;
+  color: var(--text-muted) !important;
+}
+
+.credits__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.credits__card {
+  padding: 1.1rem;
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+}
+
+.credits__card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  text-transform: capitalize;
+}
+
+.credits__card h2 {
+  font-size: 1.05rem;
+  margin: 0;
+  color: var(--text-heading);
+}
+
+.credits__author,
+.credits__source,
+.credits__changes,
+.credits__file {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.credits__changes b {
+  color: var(--text-primary);
+}
+
+.credits__file code {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.credits__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}

@@ -476,7 +476,7 @@ export default function Scanner() {
             if (t.frame?.ancho_total_mm && t.metrics?.temporal_est) {
               fitScale = Math.min(1.25, Math.max(0.85, t.frame.ancho_total_mm / t.metrics.temporal_est));
             }
-            setFitInfo({ ipdPx: Math.round(meas.ipdPx), angDeg: Number(meas.angDeg.toFixed(1)), fitScale: Number(fitScale.toFixed(2)), warnings: meas.warnings, lensW: null, lensH: null, light: Number(light.toFixed(2)), decent: decent ?? null, mode3D: true, modePhoto: false, yaw: pose3D ? Number(pose3D.yawDeg.toFixed(0)) : null });
+            setFitInfo({ ipdPx: Math.round(meas.ipdPx), angDeg: Number(meas.angDeg.toFixed(1)), fitScale: Number(fitScale.toFixed(2)), warnings: meas.warnings, lensW: null, lensH: null, light: Number(light.toFixed(2)), decent: decent ?? null, mode3D: true, modeGlb: !!pose3D?.glb, modePhoto: false, yaw: pose3D ? Number(pose3D.yawDeg.toFixed(0)) : null });
             if (meas.warnings?.length) setPhotoWarn(meas.warnings.join(" · "));
           } else {
             setFitInfo(fit ? { ipdPx: Math.round(fit.ipdPx), angDeg: Number(fit.angDeg.toFixed(1)), fitScale: Number(fit.fitScale.toFixed(2)), warnings: fit.warnings, lensW: Math.round(fit.lensW), lensH: Math.round(fit.lensH), light: Number(light.toFixed(2)), decent: fit.decent ?? null, mode3D: false, modePhoto: false } : null);
@@ -754,9 +754,12 @@ export default function Scanner() {
             <canvas ref={threePhotoRef} className="scanner__overlay" aria-hidden="true" />
           </div>
           {photoWarn && <p className="scanner__warning">⚠ {photoWarn}</p>}
+          <small className="scanner__sub">
+            Modelos 3D con licencia CC BY 4.0 · <Link to="/creditos-3d">autores y atribuciones</Link>
+          </small>
           {fitInfo && (
             <small className="scanner__sub">
-              Montaje {fitInfo.mode3D ? "3D" : "2D"}: IPD {fitInfo.ipdPx}px · ángulo {fitInfo.angDeg}°
+              Montaje {fitInfo.mode3D ? (fitInfo.modeGlb ? "3D GLB" : "3D") : "2D"}: IPD {fitInfo.ipdPx}px · ángulo {fitInfo.angDeg}°
               {fitInfo.lensW ? ` · lente ${fitInfo.lensW}×${fitInfo.lensH}px` : ""}
               {` · escala marco ${fitInfo.fitScale}×`}
               {fitInfo.yaw != null ? ` · giro ${fitInfo.yaw}°` : ""}
@@ -1000,7 +1003,7 @@ export default function Scanner() {
         </>
       )}
 
-      <p className="scanner__sub">Probador virtual procedural v2 · Grupo Prisma Visión (formas + ajuste por A/B/D y temporal_est). Usa modelos GLB si están disponibles en <code>public/glasses/*.glb</code>; si no, dibuja un armazón aproximado con Three.js.</p>
+      <p className="scanner__sub">Probador virtual 3D · Grupo Prisma Visión (formas + ajuste por A/B/D y temporal_est). Usa los GLB de <code>/glasses/manifest.json</code> y, si no cargan, dibuja un armazón procedural con Three.js.</p>
     </div>
     <Footer />
     </>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Preview GlassesAR + GLB</title>
+<style>
+  html, body { margin: 0; background: #dfe6f2; font-family: system-ui, sans-serif; }
+  #grid { display: grid; grid-template-columns: repeat(4, 400px); }
+  .cell { position: relative; width: 400px; height: 330px; border-right: 1px solid #b9c4d8; border-bottom: 1px solid #b9c4d8; overflow: hidden; }
+  .face { position: absolute; inset: 0; background: #f7f9fd; }
+  .head { position: absolute; left: 90px; top: 25px; width: 220px; height: 270px; border-radius: 48% 48% 42% 42%; background: #e8c3a4; }
+  .hair { position: absolute; left: 86px; top: 10px; width: 228px; height: 110px; border-radius: 50% 50% 30% 30%; background: #3b2a22; }
+  .eye { position: absolute; top: 131px; width: 18px; height: 7px; border-radius: 50%; background: #3c2b24; }
+  .eye.l { left: 155px; }
+  .eye.r { left: 227px; }
+  .nose { position: absolute; left: 196px; top: 140px; width: 8px; height: 34px; border-radius: 40%; background: #d5a98a; }
+  .mouth { position: absolute; left: 180px; top: 205px; width: 40px; height: 8px; border-radius: 50%; background: #b56b62; }
+  canvas { position: absolute; inset: 0; width: 400px; height: 300px; }
+  .cap { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; padding: 0 8px; font-size: 11px; color: #1a2438; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.82); }
+  .cap .n { flex: 1; }
+  .cap .m { color: #2c6b3f; }
+  .err { color: #b00020; font-size: 11px; padding: 4px 8px; }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<script type="module">
+import { GlassesAR } from "/src/components/tryon/Frame3D.js";
+import { loadGlb } from "/src/components/tryon/GlassesGLB.js";
+
+const FORMAS = ["rectangular", "cuadrado", "redondo", "oval", "aviador", "wayfarer", "cat-eye", "rimless"];
+
+function syntheticLandmarks() {
+  const lm = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+  // Ojos y puntos de pose que usa estimatePose (índices MediaPipe).
+  lm[33] = { x: 0.38, y: 0.45, z: 0 };
+  lm[133] = { x: 0.44, y: 0.45, z: 0 };
+  lm[362] = { x: 0.56, y: 0.45, z: 0 };
+  lm[263] = { x: 0.62, y: 0.45, z: 0 };
+  lm[168] = { x: 0.5, y: 0.50, z: 0 };
+  lm[10] = { x: 0.5, y: 0.30, z: 0 };
+  lm[152] = { x: 0.5, y: 0.72, z: 0 };
+  return lm;
+}
+
+const lm = syntheticLandmarks();
+const metrics = { ipd_mm_est: 63, temporal_est: 140 };
+const grid = document.getElementById("grid");
+
+for (const forma of FORMAS) {
+  const cell = document.createElement("div");
+  cell.className = "cell";
+  cell.innerHTML = `
+    <div class="face">
+      <div class="head"></div>
+      <div class="hair"></div>
+      <div class="eye l"></div>
+      <div class="eye r"></div>
+      <div class="nose"></div>
+      <div class="mouth"></div>
+    </div>
+    <canvas></canvas>
+    <div class="cap"><span class="n">${forma}</span><span class="m">cargando…</span></div>`;
+  grid.appendChild(cell);
+
+  const canvas = cell.querySelector("canvas");
+  const cap = cell.querySelector(".cap .m");
+  try {
+    await loadGlb(forma); // calienta la caché para que el swap sea inmediato
+    const ar = new GlassesAR(canvas);
+    ar.setModel({
+      id: `test-${forma}`,
+      forma,
+      color: "negro",
+      material: "acetato",
+      A_mm: 52,
+      B_mm: 42,
+      D_mm: 18,
+      ancho_total_mm: 138,
+    }, "monofocal", metrics);
+    // _loadGlb resuelve en microtask si la caché está caliente.
+    await new Promise((r) => setTimeout(r, 120));
+    const pose = ar.render(lm, 400, 300);
+    cap.textContent = ar.usingGlb ? "GLB ✓" : "procedural";
+    cap.style.color = ar.usingGlb ? "#2c6b3f" : "#a05a00";
+    cell.dataset.pose = JSON.stringify(pose);
+  } catch (err) {
+    cap.textContent = "ERROR";
+    const e = document.createElement("div");
+    e.className = "err";
+    e.textContent = String(err?.message || err);
+    cell.appendChild(e);
+  }
+}
+document.body.dataset.ready = "1";
+</script>
+</body>
+</html>

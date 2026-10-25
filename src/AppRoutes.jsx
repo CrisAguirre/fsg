@@ -7,6 +7,7 @@ const Scanner = lazy(() => import('./pages/Scanner.jsx'))
 const Catalogo = lazy(() => import('./pages/Catalogo.jsx'))
 const AdminFrames = lazy(() => import('./pages/AdminFrames.jsx'))
 const Piloto = lazy(() => import('./pages/Piloto.jsx'))
+const Creditos3D = lazy(() => import('./pages/Creditos3D.jsx'))
 
 export default function AppRoutes() {
   return (
@@ -17,6 +18,7 @@ export default function AppRoutes() {
         <Route path="/catalogo" element={<Catalogo />} />
         <Route path="/admin/frames" element={<AdminFrames />} />
         <Route path="/piloto" element={<Piloto />} />
+        <Route path="/creditos-3d" element={<Creditos3D />} />
       </Routes>
     </Suspense>
   )

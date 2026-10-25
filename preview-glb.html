@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Preview GLB — normalización del probador</title>
+<style>
+  html, body { margin: 0; background: #e9edf5; font-family: system-ui, sans-serif; }
+  #grid { display: grid; grid-template-columns: repeat(4, 400px); }
+  .cell { width: 400px; height: 330px; border-right: 1px solid #c8d0e0; border-bottom: 1px solid #c8d0e0; background: #f7f9fd; }
+  .cell canvas { display: block; width: 400px; height: 300px; }
+  .cap { height: 30px; padding: 0 8px; font-size: 11px; color: #1a2438; display: flex; align-items: center; gap: 8px; }
+  .cap .n { flex: 1; }
+  .cap .m { color: #5b6478; }
+  .err { color: #b00020; font-size: 12px; padding: 8px; }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<script type="module">
+import * as THREE from "three";
+import { buildGlbGroup, loadGlb } from "/src/components/tryon/GlassesGLB.js";
+
+const FORMAS = ["rectangular", "cuadrado", "redondo", "oval", "aviador", "wayfarer", "cat-eye", "rimless"];
+const grid = document.getElementById("grid");
+
+async function renderCell(forma) {
+  const cell = document.createElement("div");
+  cell.className = "cell";
+  const canvas = document.createElement("canvas");
+  const cap = document.createElement("div");
+  cap.className = "cap";
+  cell.appendChild(canvas);
+  cell.appendChild(cap);
+  grid.appendChild(cell);
+  try {
+    const loaded = await loadGlb(forma);
+    if (!loaded) throw new Error("sin GLB en manifest");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setPixelRatio(1);
+    renderer.setSize(400, 300, false);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf7f9fd);
+    const cam = new THREE.OrthographicCamera(-1.7, 1.7, 1.275, -1.275, 0.1, 100);
+    cam.position.set(0, 0, 10);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8a93a8, 2.2));
+    const d1 = new THREE.DirectionalLight(0xffffff, 2.2); d1.position.set(2, 3, 5); scene.add(d1);
+    const d2 = new THREE.DirectionalLight(0xffffff, 1.0); d2.position.set(-3, 1, 2); scene.add(d2);
+    const d3 = new THREE.DirectionalLight(0xcfe0ff, 0.8); d3.position.set(0, -2, -3); scene.add(d3);
+    const g = buildGlbGroup(loaded.gltf.scene, { targetWidth: 2.1, entry: loaded.entry, tint: "monofocal" });
+    scene.add(g);
+    renderer.render(scene, cam);
+    cap.innerHTML = `<span class="n">${forma}</span><span class="m">${loaded.entry.author}</span>`;
+    document.body.dataset[forma] = "ok";
+  } catch (err) {
+    cap.innerHTML = `<span class="n">${forma}</span>`;
+    const e = document.createElement("div");
+    e.className = "err";
+    e.textContent = "ERROR: " + (err?.message || err);
+    cell.appendChild(e);
+  }
+}
+
+for (const forma of FORMAS) await renderCell(forma);
+document.body.dataset.ready = "1";
+</script>
+</body>
+</html>

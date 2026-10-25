@@ -1,9 +1,10 @@
-// Armazón 3D real para probador (Three.js, sin GLB externos).
-// Construye 8 monturas procedurales con volumen (aro extruido, puente, patillas,
-// plaquetas) y las ancla a la pose de la cabeza estimada de los 478 landmarks.
+// Armazón 3D para probador (Three.js). Carga el GLB de la forma desde
+// /glasses/manifest.json y lo ancla a la pose de los 478 landmarks; mientras
+// carga o si falla, dibuja una montura procedural equivalente.
 // Uso:
 //   const ar = new GlassesAR(canvas); ar.setModel(frame, tint); ar.render(lm, cw, ch, metrics)
 import * as THREE from "three";
+import { buildGlbGroup, loadGlb } from "./GlassesGLB.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -192,6 +193,18 @@ export function buildGlassesGroup(frame, tint = "monofocal", dims = null) {
   return g;
 }
 
+// Ancho real de la montura en unidades IPD (1.0 = distancia interpupilar).
+function glbTargetWidth(frame, metrics) {
+  const ipd = Number(metrics?.ipd_mm_est);
+  let width = 2.1;
+  if (ipd > 0 && Number(frame?.ancho_total_mm) > 0) {
+    width = Number(frame.ancho_total_mm) / ipd;
+  } else if (ipd > 0 && Number(frame?.A_mm) > 0 && Number(frame?.D_mm) > 0) {
+    width = (2 * Number(frame.A_mm) + Number(frame.D_mm)) / ipd;
+  }
+  return clamp(width, 1.7, 2.6);
+}
+
 export function estimatePose(lm) {
   const P = (i) => lm[i];
   const eyeL = { x: (P(IDX.lo).x + P(IDX.li).x) / 2, y: (P(IDX.lo).y + P(IDX.li).y) / 2 };
@@ -228,20 +241,18 @@ export class GlassesAR {
     this.scene.add(fill);
     this.group = null;
     this.key = "";
+    this.glbGroups = new Map();
+    this.glbToken = 0;
+    this.pendingGlbForma = "";
+    this.usingGlb = false;
   }
 
   setModel(frame, tint = "monofocal", metrics = null) {
-    const key = `${frame?.id ?? frame?.forma ?? "?"}|${tint}|${frame?.color}|${frame?.material}|${metrics?.ipd_mm_est ?? "?"}`;
+    const key = `${frame?.id ?? frame?.forma ?? "?"}|${tint}|${frame?.color}|${frame?.material}|${metrics?.ipd_mm_est ?? "?"}|${frame?.ancho_total_mm ?? "?"}`;
     if (key === this.key) return;
     this.key = key;
-    if (this.group) {
-      this.scene.remove(this.group);
-      this.group.traverse((o) => {
-        o.geometry?.dispose?.();
-        const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-        mats.forEach((m) => m.dispose?.());
-      });
-    }
+    if (this.group) this._removeGroup(this.group);
+    this.group = null;
     // Dimensiones ópticas reales en unidades IPD (1.0 = tu IPD).
     // Ej: A52/D18 con IPD63 → lente 0.83, centros ±0.56, puente 0.29.
     let dims = null;
@@ -268,8 +279,59 @@ export class GlassesAR {
         fitScale,
       };
     }
+
+    const forma = frame?.forma || "rectangular";
+    const targetWidth = glbTargetWidth(frame, metrics);
+    const glbKey = `${forma}|${targetWidth.toFixed(3)}|${tint}`;
+    const cachedGlb = this.glbGroups.get(glbKey);
+    if (cachedGlb) {
+      // El GLB ya está normalizado y cacheado: se reutiliza sin parpadeo.
+      this.group = cachedGlb;
+      this.usingGlb = true;
+      this.scene.add(cachedGlb);
+      return;
+    }
+
+    // Mientras el GLB carga se muestra el armazón procedural; si falla, se queda.
     this.group = buildGlassesGroup(frame, tint, dims);
+    this.usingGlb = false;
     this.scene.add(this.group);
+    this._loadGlb(frame, tint, targetWidth);
+  }
+
+  _loadGlb(frame, tint, targetWidth) {
+    const forma = frame?.forma || "rectangular";
+    const token = ++this.glbToken;
+    this.pendingGlbForma = forma;
+    loadGlb(forma).then((loaded) => {
+      if (!loaded || token !== this.glbToken || this.pendingGlbForma !== forma) return;
+      const width = Number(loaded.entry?.targetWidth) || targetWidth;
+      const key = `${forma}|${width.toFixed(3)}|${tint}`;
+      let group = this.glbGroups.get(key);
+      if (!group) {
+        group = buildGlbGroup(loaded.gltf.scene, { targetWidth: width, entry: loaded.entry, tint });
+        this.glbGroups.set(key, group);
+      }
+      if (token !== this.glbToken || this.pendingGlbForma !== forma) return;
+      const previous = this.group;
+      this.group = group;
+      this.usingGlb = true;
+      this.scene.add(group);
+      if (previous && previous !== group) this._removeGroup(previous);
+    }).catch(() => {
+      // Sin GLB válido se conserva el procedural; no se rompe el try-on.
+    });
+  }
+
+  _removeGroup(group) {
+    if (!group) return;
+    this.scene?.remove(group);
+    group.traverse((o) => {
+      if (o.userData?.sharedGlb) return;
+      o.geometry?.dispose?.();
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      mats.forEach((m) => m.dispose?.());
+    });
   }
 
   render(lm, cw, ch) {
@@ -292,7 +354,7 @@ export class GlassesAR {
     // Orden YXZ: guiño (yaw) + cabeceo (pitch) + giro (roll)
     this.group.rotation.set(pose.pitch, pose.yaw, -pose.roll, "YXZ");
     this.renderer.render(this.scene, this.camera);
-    return { yawDeg: pose.yaw * 57.3, pitchDeg: pose.pitch * 57.3, rollDeg: pose.roll * 57.3, ipdPx: pose.ipd * cw };
+    return { yawDeg: pose.yaw * 57.3, pitchDeg: pose.pitch * 57.3, rollDeg: pose.roll * 57.3, ipdPx: pose.ipd * cw, glb: this.usingGlb };
   }
 
   clear() {
@@ -304,15 +366,20 @@ export class GlassesAR {
   }
 
   dispose() {
+    const seen = new Set();
     if (this.group) {
-      this.scene?.remove(this.group);
-      this.group.traverse((o) => {
-        o.geometry?.dispose?.();
-        const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-        mats.forEach((m) => m.dispose?.());
-      });
+      this._removeGroup(this.group);
+      seen.add(this.group);
       this.group = null;
     }
+    for (const group of this.glbGroups.values()) {
+      if (!seen.has(group)) this._removeGroup(group);
+      seen.add(group);
+    }
+    this.glbGroups.clear();
+    this.glbToken += 1;
+    this.pendingGlbForma = "";
+    this.usingGlb = false;
     try {
       this.renderer?.dispose?.();
       this.renderer?.forceContextLoss?.();

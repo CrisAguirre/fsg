@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import './Footer.css';
 
@@ -28,6 +29,8 @@ function Footer() {
           </p>
           <p className="footer__tech text-muted">
             Glassescanner 3D &middot; Análisis facial orientativo &middot; Ajuste de monturas
+            {' · '}
+            <Link to="/creditos-3d">Créditos 3D (CC BY 4.0)</Link>
           </p>
         </div>
       </div>

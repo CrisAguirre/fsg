@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme } from '../../context/useTheme';
 import './Footer.css';
 
 const YEAR = new Date().getFullYear();

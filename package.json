@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "validate:glb": "node scripts/validate_glb_manifest.mjs",
     "test:pose": "node scripts/verify_pose.mjs",
     "preview": "vite preview"
   },

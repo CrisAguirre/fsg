@@ -1,8 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import logoWhite from '../assets/logowhite.png';
 import logoBlack from '../assets/logoblack.png';
-
-const ThemeContext = createContext(null);
+import { ThemeContext } from './themeContextValue.js';
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
@@ -58,12 +57,4 @@ export function ThemeProvider({ children }) {
       {children}
     </ThemeContext.Provider>
   );
-}
-
-export function useTheme() {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return ctx;
 }

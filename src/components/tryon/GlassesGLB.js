@@ -4,6 +4,7 @@
 // El grupo devuelto tiene transform identidad en la raíz para que GlassesAR
 // pueda aplicarle la pose de la cabeza sin perder la normalización interna.
 import * as THREE from "three";
+import { lensKind, LENS_KIND } from "./frameStyle.js";
 
 const MANIFEST_URL = "/glasses/manifest.json";
 const DEFAULT_WIDTH = 2.1; // ancho total de montura en unidades IPD
@@ -93,12 +94,13 @@ export async function loadGlb(forma) {
 }
 
 function lensTint(tint, baseOpacity) {
-  const t = String(tint || "monofocal").toLowerCase();
-  if (t.includes("polarizado") || t.includes("sol")) return { color: 0x22303c, opacity: 0.62 };
-  if (t.includes("fotocrom")) return { color: 0x6b7280, opacity: 0.5 };
-  if (t.includes("blue")) return { color: 0xd9a93f, opacity: 0.28 };
-  if (t.includes("progresivo") || t.includes("bifocal")) return { color: 0x9dc0e6, opacity: 0.22 };
-  return { color: 0xf2f6ff, opacity: baseOpacity };
+  switch (lensKind(tint)) {
+    case LENS_KIND.SUN: return { color: 0x22303c, opacity: 0.62 };
+    case LENS_KIND.PHOTOCHROMIC: return { color: 0x6b7280, opacity: 0.5 };
+    case LENS_KIND.BLUE: return { color: 0xd9a93f, opacity: 0.28 };
+    case LENS_KIND.PROGRESSIVE: return { color: 0x9dc0e6, opacity: 0.22 };
+    default: return { color: 0xf2f6ff, opacity: baseOpacity };
+  }
 }
 
 function applyLensTint(root, entry, tint) {

@@ -2,7 +2,8 @@
 // Usa recortes transparentes por montura (public/tryon/<forma>-frame.webp)
 // y un segundo recorte para el cristal. Si no hay asset, devuelve null y el
 // Scanner conserva el fallback procedural.
-import { measureGlasses, pupilDecentration, frameColorHex } from "./GlassesOverlay.js";
+import { measureGlasses, pupilDecentration } from "./GlassesOverlay.js";
+import { frameColorHex } from "./frameStyle.js";
 
 const ASSET_BASE = "/tryon";
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));

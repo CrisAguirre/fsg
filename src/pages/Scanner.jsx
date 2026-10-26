@@ -3,141 +3,15 @@ import { Link, useSearchParams } from "react-router-dom";
 import Navbar from "../components/layout/Navbar.jsx";
 import Footer from "../components/layout/Footer.jsx";
 import { analyzePhoto, recommend, listFrames, API_URL } from "../lib/api.js";
-import { drawGlasses, smoothLandmarks, measureGlasses, pupilDecentration } from "../components/tryon/GlassesOverlay.js";
-import { drawPhotoTryOn } from "../components/tryon/PhotoTryOn.js";
-import { GlassesAR } from "../components/tryon/Frame3D.js";
+import { normalizeImageFile } from "../lib/imageUtils.js";
+import { lensCompatibility } from "../lib/lensCompatibility.js";
+import FeedbackBox from "../components/scanner/FeedbackBox.jsx";
+import ScannerMetrics from "../components/scanner/ScannerMetrics.jsx";
+import TryOnDetail from "../components/scanner/TryOnDetail.jsx";
+import RecommendationCard from "../components/scanner/RecommendationCard.jsx";
+import { useLiveCameraTryOn } from "../hooks/useLiveCameraTryOn.js";
+import { usePhotoTryOn } from "../hooks/usePhotoTryOn.js";
 import "./Scanner.css";
-
-const FORMAS = ["oval", "redondo", "cuadrado", "corazon", "diamante", "oblongo", "triangular"];
-
-function sampleBrightness(canvas) {
-  try {
-    const sw = 48, sh = 48;
-    const tmp = document.createElement("canvas");
-    tmp.width = sw; tmp.height = sh;
-    tmp.getContext("2d").drawImage(canvas, 0, 0, sw, sh);
-    const d = tmp.getContext("2d").getImageData(0, 0, sw, sh).data;
-    let sum = 0;
-    for (let i = 0; i < d.length; i += 4) sum += (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255;
-    return sum / (d.length / 4);
-  } catch { return 0.5; }
-}
-
-function FeedbackBox({ metrics, top }) {
-  const [v, setV] = useState(0);
-  const [done, setDone] = useState(false);
-  if (done) return <p className="glass scanner__panel">¡Gracias! Tu voto ayuda a calibrar el sistema. ✓</p>;
-  return (
-    <div className="glass scanner__panel">
-      <b>¿La explicación te ayudó a decidir? </b>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button key={n} className="btn btn--glass" style={{ margin: ".2rem", opacity: v === n ? 1 : 0.6 }} onClick={() => setV(n)}>{n}★</button>
-      ))}
-      <button
-        className="btn btn--primary" disabled={!v}
-        onClick={async () => {
-          await fetch(`${API_URL}/feedback`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ face_shape: metrics?.face_shape ?? "oval", frame_id: top?.frame_id ?? "F01", verdict: top?.verdict ?? "compatible", helpful: v }),
-          }).catch(() => {});
-          setDone(true);
-        }}
-      >Enviar</button>
-    </div>
-  );
-}
-
-// Compatibilidad lente ↔ montura ↔ rostro (óptica real, no lista genérica).
-// En vez de mostrar todos los tipos existentes, se califica cada tipo del
-// catálogo según la montura elegida (B/D) y el veredicto del rostro.
-const LENTES_ORDEN = ["monofocal", "blue-cut", "fotocromático", "polarizado", "bifocal", "progresivo"];
-const LENTE_SWATCH = {
-  "monofocal": "#cfe0f0",
-  "blue-cut": "#d9a93f",
-  "fotocromático": "#646a76",
-  "polarizado": "#232f38",
-  "bifocal": "#9dc0e6",
-  "progresivo": "#9dc0e6",
-};
-function LenteDot({ tipo }) {
-  const c = LENTE_SWATCH[tipo] || "#cfe0f0";
-  return <span title={`Tinte ${tipo}`} style={{ display: "inline-block", width: ".8em", height: ".8em", borderRadius: "50%", background: c, border: "1px solid rgba(255,255,255,.5)", verticalAlign: "baseline" }} />;
-}
-function lensCompatibility(frame, frameScore = null) {
-  if (!frame) return [];
-  const B = Number(frame.B_mm ?? 0);
-  const offered = new Set(frame.tipo_lente || []);
-  const base = frameScore ?? 80;
-  const rows = [];
-  for (const tipo of LENTES_ORDEN) {
-    if (!offered.has(tipo)) continue; // la montura no lo ofrece: no se muestra
-    let estado = "compatible", motivo = "Compatible con esta montura.", pen = 0;
-    if (tipo === "progresivo") {
-      if (B < 28) { estado = "incompatible"; motivo = `Requiere altura B≥28mm (esta: ${B}mm).`; pen = 45; }
-      else if (B < 30) { estado = "parcial"; motivo = `B=${B}mm justo para progresivo (ideal ≥30mm).`; pen = 12; }
-      else { motivo = `B=${B}mm permite corredor progresivo amplio.`; }
-    } else if (tipo === "bifocal") {
-      if (B < 26) { estado = "incompatible"; motivo = `Requiere altura B≥26mm (esta: ${B}mm).`; pen = 40; }
-      else { motivo = `B=${B}mm admite segmento bifocal.`; }
-    } else if (tipo === "fotocromático" && frame.forma === "rimless") {
-      estado = "parcial"; motivo = "En rimless exige perforado especial."; pen = 12;
-    } else if (tipo === "polarizado" && frame.forma === "rimless") {
-      estado = "parcial"; motivo = "En rimless, fijación delicada para polarizado."; pen = 10;
-    } else if (tipo === "blue-cut") {
-      motivo = "Filtro luz azul sin exigencia geométrica.";
-    } else if (tipo === "monofocal") {
-      motivo = "Se adapta a cualquier geometría.";
-    } else if (tipo === "polarizado") {
-      motivo = "Ideal sol/conducción en esta montura.";
-    }
-    rows.push({ tipo, estado, motivo, prob: Math.max(5, Math.min(99, Math.round(base - pen))) });
-  }
-  return rows.sort((a, b) => b.prob - a.prob);
-}
-
-async function normalizeImageFile(file) {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const maxDim = 1280;
-      let w = img.naturalWidth || img.width || 640;
-      let h = img.naturalHeight || img.height || 480;
-      if (w > maxDim || h > maxDim) {
-        if (w > h) {
-          h = Math.round((h * maxDim) / w);
-          w = maxDim;
-        } else {
-          w = Math.round((w * maxDim) / h);
-          h = maxDim;
-        }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, w, h);
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            const normalizedFile = new File([blob], "rostro.jpg", { type: "image/jpeg" });
-            resolve({ file: normalizedFile, previewUrl: URL.createObjectURL(blob) });
-          } else {
-            resolve({ file, previewUrl: URL.createObjectURL(file) });
-          }
-        },
-        "image/jpeg",
-        0.88
-      );
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve({ file, previewUrl: URL.createObjectURL(file) });
-    };
-    img.src = url;
-  });
-}
 
 export default function Scanner() {
   const [searchParams] = useSearchParams();
@@ -153,33 +27,11 @@ export default function Scanner() {
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
   const [backendOk, setBackendOk] = useState(null);
-  const videoRef = useRef(null);
-  const overlayRef = useRef(null);
-  const streamRef = useRef(null);
-  const landmarkerRef = useRef(null);
-  const imgLandmarkerRef = useRef(null);
-  const liveSessionRef = useRef(0);
-  const cameraSessionRef = useRef(0);
-  const lastLmRef = useRef(null);
-  const smoothLmRef = useRef(null); // anti-temblor en vivo
-  const lastPhotoLmRef = useRef(null); // landmarks foto para descarga HD
-  const photoNatRef = useRef(null); // tamaño natural para descarga HD
-  const photoCanvasRef = useRef(null);
-  const photoImgRef = useRef(null);
-  const [fitInfo, setFitInfo] = useState(null); // {ipdPx, angDeg, fitScale, warnings[], modePhoto}
-  const [photoWarn, setPhotoWarn] = useState("");
   const [tryOpacity, setTryOpacity] = useState(0.95); // slider montura
   const [tryLens, setTryLens] = useState("monofocal"); // tinte del cristal
   const [use3D, setUse3D] = useState(true); // armazón 3D real con fallback 2D
-  const [arOk, setArOk] = useState(null); // null=sin probar, true=3D activo, false=fallback 2D
-  const threeLiveRef = useRef(null);
-  const threePhotoRef = useRef(null);
-  const arLiveRef = useRef(null);
-  const arPhotoRef = useRef(null);
   const [showOriginal, setShowOriginal] = useState(false); // mantener para comparar
   const [zoomed, setZoomed] = useState(false); // detalle HD
-  const rafRef = useRef(0);
-  const [livePts, setLivePts] = useState(0);
   const [tryOn, setTryOn] = useState(true);
   const [tryId, setTryId] = useState(initialFrame || "F01");
   const tryFrame = frames.find((x) => x.id === tryId) ?? frames[0];
@@ -198,6 +50,38 @@ export default function Scanner() {
   const tryRef = useRef({ on: true, forma: "rectangular", frame: null, metrics: null, alpha: 0.95, tint: "monofocal", use3D: true });
   tryRef.current = { on: tryOn && !showOriginal, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity, tint: tryLens, use3D };
 
+  const {
+    videoRef,
+    overlayRef,
+    threeLiveRef,
+    livePts,
+    arOk,
+    setArOk,
+    startCamera,
+    stopCamera,
+  } = useLiveCameraTryOn({ tryRef, onError: setError });
+
+  const {
+    photoCanvasRef,
+    photoImgRef,
+    threePhotoRef,
+    fitInfo,
+    photoWarn,
+    downloadHD,
+    resetPhotoTryOn,
+  } = usePhotoTryOn({
+    preview,
+    tryRef,
+    tryId,
+    tryOn,
+    metrics,
+    tryOpacity,
+    tryLens,
+    showOriginal,
+    frames,
+    setArOk,
+  });
+
   useEffect(() => {
     if (initialFrame) setTryId(initialFrame);
   }, [initialFrame]);
@@ -205,7 +89,6 @@ export default function Scanner() {
   useEffect(() => {
     fetch(`${API_URL}/health`).then(() => setBackendOk(true)).catch(() => setBackendOk(false));
     listFrames().then(setFrames).catch(() => {});
-    return () => stopCamera();
   }, []);
 
   // Liberar los object URL al cambiar de foto o desmontar el escáner.
@@ -214,280 +97,6 @@ export default function Scanner() {
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
-
-  // El canvas 3D de la foto se desmonta con la página: liberar su contexto WebGL.
-  useEffect(() => {
-    return () => {
-      try { arPhotoRef.current?.dispose?.(); } catch { /* noop */ }
-      arPhotoRef.current = null;
-      try { imgLandmarkerRef.current?.close?.(); } catch { /* noop */ }
-      imgLandmarkerRef.current = null;
-    };
-  }, []);
-
-  async function startCamera() {
-    setError("");
-    stopCamera();
-    const session = cameraSessionRef.current;
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 } },
-        audio: false,
-      });
-      // Si mientras se pedía permiso se cambió de pestaña o se reintentó,
-      // detener este stream huérfano.
-      if (session !== cameraSessionRef.current) {
-        s.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      streamRef.current = s;
-      if (videoRef.current) {
-        videoRef.current.srcObject = s;
-        await videoRef.current.play().catch(() => {});
-      }
-      if (session !== cameraSessionRef.current) return;
-      // Overlay landmarks en vivo (progresivo, no bloquea si falla la red/CDN)
-      startLiveLandmarks().catch(() => {});
-    } catch {
-      if (session !== cameraSessionRef.current) return;
-      setError("No se pudo abrir la cámara (permiso, HTTPS o sin cámara). Usa la pestaña Subir foto.");
-    }
-  }
-
-  async function startLiveLandmarks() {
-    const session = liveSessionRef.current + 1;
-    liveSessionRef.current = session;
-    const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
-    const fileset = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-    );
-    const landmarker = await FaceLandmarker.createFromOptions(fileset, {
-      baseOptions: {
-        modelAssetPath:
-          "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-        delegate: "GPU",
-      },
-      outputFaceBlendshapes: false,
-      runningMode: "VIDEO",
-      numFaces: 1,
-    });
-    // Si se detuvo la cámara o se inició otra sesión mientras cargaba el CDN,
-    // cerrar este modelo y no arrancar un loop huérfano.
-    if (session !== liveSessionRef.current || !streamRef.current) {
-      landmarker.close?.();
-      return;
-    }
-    landmarkerRef.current = landmarker;
-    const loop = async () => {
-      if (session !== liveSessionRef.current) return;
-      const v = videoRef.current;
-      const cnv = overlayRef.current;
-      if (v && cnv && v.videoWidth) {
-        // Usar resolución real del video (no clientWidth) para no deformar el montaje.
-        // El CSS (.scanner__overlay 100%) se encarga del escalado visual.
-        cnv.width = v.videoWidth;
-        cnv.height = v.videoHeight;
-        try {
-          const res = landmarker.detectForVideo(v, performance.now());
-          const pts = res?.faceLandmarks?.[0]?.length ?? 0;
-          setLivePts(pts);
-          const ctx = cnv.getContext("2d");
-          ctx.clearRect(0, 0, cnv.width, cnv.height);
-          if (pts > 0) {
-            const raw = res.faceLandmarks[0];
-            const lm = smoothLandmarks(smoothLmRef.current, raw, 0.55);
-            smoothLmRef.current = lm;
-            lastLmRef.current = lm;
-            const t = tryRef.current;
-            // El 3D vive en su propio canvas; el 2D queda como fallback
-            if (t.on) {
-              let drew3D = false;
-              if (t.use3D && t.frame) {
-                try {
-                  // Si React recreó el canvas, el renderer anterior queda obsoleto.
-                  if (arLiveRef.current && arLiveRef.current.canvas !== threeLiveRef.current) {
-                    arLiveRef.current.dispose?.();
-                    arLiveRef.current = null;
-                  }
-                  if (!arLiveRef.current && threeLiveRef.current) arLiveRef.current = new GlassesAR(threeLiveRef.current);
-                  const ar = arLiveRef.current;
-                  if (ar) {
-                    ar.setModel(t.frame, t.tint, t.metrics);
-                    const pose = ar.render(lm, cnv.width, cnv.height);
-                    drew3D = !!pose;
-                  }
-                } catch { drew3D = false; }
-              }
-              setArOk((prev) => (prev === drew3D ? prev : drew3D));
-              if (!drew3D) {
-                try { arLiveRef.current?.clear(); } catch { /* noop */ }
-                drawGlasses(ctx, lm, v.videoWidth, v.videoHeight, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light: 0.55, tint: t.tint });
-              }
-            } else {
-              // Sin probador: limpiar también el canvas 3D para no dejar un armazón fantasma.
-              try { arLiveRef.current?.clear(); } catch { /* noop */ }
-              ctx.fillStyle = "rgba(0,212,255,.8)";
-              const sx = cnv.width / v.videoWidth;
-              const sy = cnv.height / v.videoHeight;
-              for (let i = 0; i < lm.length; i += 6) {
-                ctx.beginPath();
-                ctx.arc(lm[i].x * v.videoWidth * sx, lm[i].y * v.videoHeight * sy, 1.6, 0, 7);
-                ctx.fill();
-              }
-            }
-          } else {
-            try { arLiveRef.current?.clear(); } catch { /* noop */ }
-          }
-        } catch { /* un frame fallido no rompe el loop */ }
-      }
-      if (session === liveSessionRef.current) {
-        rafRef.current = requestAnimationFrame(loop);
-      }
-    };
-    cancelAnimationFrame(rafRef.current);
-    loop();
-  }
-
-  function stopCamera() {
-    cameraSessionRef.current += 1;
-    liveSessionRef.current += 1;
-    cancelAnimationFrame(rafRef.current);
-    landmarkerRef.current?.close?.();
-    landmarkerRef.current = null;
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    smoothLmRef.current = null;
-    lastLmRef.current = null;
-    try {
-      arLiveRef.current?.clear();
-      arLiveRef.current?.dispose?.();
-    } catch { /* noop */ }
-    arLiveRef.current = null;
-  }
-
-  // Try-on en foto capturada/subida (IMAGE mode, reutiliza el mismo CDN)
-  useEffect(() => {
-    if (!preview) return;
-    let dead = false;
-    (async () => {
-      setPhotoWarn("");
-      try {
-        const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
-        if (!imgLandmarkerRef.current) {
-          const fileset = await FilesetResolver.forVisionTasks(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-          );
-          if (dead) return;
-          imgLandmarkerRef.current = await FaceLandmarker.createFromOptions(fileset, {
-            baseOptions: {
-              modelAssetPath:
-                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-              delegate: "GPU",
-            },
-            runningMode: "IMAGE",
-            numFaces: 1,
-          });
-        }
-        const img = photoImgRef.current;
-        const cnv = photoCanvasRef.current;
-        if (!img || !cnv) return;
-        const arCanvas = threePhotoRef.current;
-        if (arPhotoRef.current && arCanvas && arPhotoRef.current.canvas !== arCanvas) {
-          try { arPhotoRef.current.dispose?.(); } catch { /* noop */ }
-          arPhotoRef.current = null;
-        }
-        await new Promise((r) => {
-          if (img.complete && img.naturalWidth) return r();
-          img.onload = () => r();
-          img.onerror = () => r();
-        });
-        if (dead) return;
-        const W = img.naturalWidth, H = img.naturalHeight;
-        photoNatRef.current = { W, H };
-        const maxW = 960; // HD para zoom detalle (antes 640 precario)
-        const sc = Math.min(1, maxW / W);
-        cnv.width = Math.round(W * sc);
-        cnv.height = Math.round(H * sc);
-        const ctx = cnv.getContext("2d");
-        ctx.clearRect(0, 0, cnv.width, cnv.height);
-        ctx.drawImage(img, 0, 0, cnv.width, cnv.height);
-        const light = sampleBrightness(cnv);
-        if (!tryRef.current.on) {
-          setFitInfo(null); lastPhotoLmRef.current = null;
-          try { arPhotoRef.current?.clear(); } catch { /* noop */ }
-          return;
-        }
-        const res = imgLandmarkerRef.current.detect(img);
-        const lm = res?.faceLandmarks?.[0];
-        if (!lm) {
-          setFitInfo(null);
-          try { arPhotoRef.current?.clear(); } catch { /* noop */ }
-          setPhotoWarn("No se detectó rostro en esta foto. Usa foto frontal, con buena luz, sin gafas oscuras.");
-          return;
-        }
-        const t = tryRef.current;
-        // Prioridad en foto: recorte 2D real. Si la montura no tiene asset,
-        // se conserva el 3D procedural o el dibujo vectorial como aproximación.
-        const meas = measureGlasses(lm, cnv.width, cnv.height);
-        let drew3D = false, pose3D = null;
-        let drewPhoto = false;
-        let fit = null;
-        try {
-          fit = await drawPhotoTryOn(ctx, lm, cnv.width, cnv.height, t.frame, t.metrics, {
-            alpha: t.alpha, tint: t.tint, light,
-          });
-          drewPhoto = !!fit;
-        } catch { drewPhoto = false; }
-        if (!drewPhoto && t.use3D && t.frame && arCanvas) {
-          try {
-            if (!arPhotoRef.current) arPhotoRef.current = new GlassesAR(arCanvas);
-            arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
-            pose3D = arPhotoRef.current.render(lm, cnv.width, cnv.height);
-            drew3D = !!pose3D;
-          } catch { drew3D = false; }
-        }
-        setArOk((prev) => (prev === drew3D ? prev : drew3D));
-        if (drewPhoto) {
-          try { arPhotoRef.current?.clear(); } catch { /* noop */ }
-        } else if (!drew3D) {
-          try { arPhotoRef.current?.clear(); } catch { /* noop */ }
-          fit = drawGlasses(ctx, lm, W, H, cnv.width, cnv.height, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: t.alpha, light, tint: t.tint });
-        }
-        if (!dead) {
-          lastPhotoLmRef.current = lm;
-          if (drewPhoto && fit) {
-            setFitInfo({
-              ipdPx: Math.round(fit.ipdPx),
-              angDeg: Number(fit.angDeg.toFixed(1)),
-              fitScale: 1,
-              warnings: fit.warnings,
-              lensW: Math.round(fit.frameW),
-              lensH: Math.round(fit.frameH),
-              light: Number(light.toFixed(2)),
-              decent: fit.decent ?? null,
-              mode3D: false,
-              modePhoto: true,
-              assetKey: fit.assetKey,
-            });
-            if (fit.warnings?.length) setPhotoWarn(fit.warnings.join(" · "));
-          } else if (drew3D && meas) {
-            const decent = pupilDecentration(t.frame, t.metrics);
-            let fitScale = 1;
-            if (t.frame?.ancho_total_mm && t.metrics?.temporal_est) {
-              fitScale = Math.min(1.25, Math.max(0.85, t.frame.ancho_total_mm / t.metrics.temporal_est));
-            }
-            setFitInfo({ ipdPx: Math.round(meas.ipdPx), angDeg: Number(meas.angDeg.toFixed(1)), fitScale: Number(fitScale.toFixed(2)), warnings: meas.warnings, lensW: null, lensH: null, light: Number(light.toFixed(2)), decent: decent ?? null, mode3D: true, modeGlb: !!pose3D?.glb, modePhoto: false, yaw: pose3D ? Number(pose3D.yawDeg.toFixed(0)) : null });
-            if (meas.warnings?.length) setPhotoWarn(meas.warnings.join(" · "));
-          } else {
-            setFitInfo(fit ? { ipdPx: Math.round(fit.ipdPx), angDeg: Number(fit.angDeg.toFixed(1)), fitScale: Number(fit.fitScale.toFixed(2)), warnings: fit.warnings, lensW: Math.round(fit.lensW), lensH: Math.round(fit.lensH), light: Number(light.toFixed(2)), decent: fit.decent ?? null, mode3D: false, modePhoto: false } : null);
-            if (fit?.warnings?.length) setPhotoWarn(fit.warnings.join(" · "));
-          }
-        }
-      } catch { /* foto sin try-on sigue permitiendo análisis */ }
-    })();
-    return () => { dead = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preview, tryId, tryOn, metrics, tryOpacity, tryLens, showOriginal, frames]);
 
   function capture() {
     const v = videoRef.current;
@@ -526,15 +135,10 @@ export default function Scanner() {
 
   async function erasePhoto() {
     if (preview) URL.revokeObjectURL(preview);
-    setFile(null); setPreview(null); setMetrics(null); setRecs([]); setError(""); setFitInfo(null); setPhotoWarn(""); setZoomed(false); setShowOriginal(false);
+    setFile(null); setPreview(null); setMetrics(null); setRecs([]); setError(""); setZoomed(false); setShowOriginal(false);
     setDetectedShape("");
+    resetPhotoTryOn();
     try { sessionStorage.removeItem("gs_last_scan"); } catch { /* noop */ }
-    lastPhotoLmRef.current = null; smoothLmRef.current = null;
-    try {
-      arPhotoRef.current?.clear();
-      arPhotoRef.current?.dispose?.();
-    } catch { /* noop */ }
-    arPhotoRef.current = null;
     try {
       const r = await fetch(`${API_URL}/analyze/photo`, { method: "DELETE" });
       const j = await r.json().catch(() => ({}));
@@ -542,62 +146,6 @@ export default function Scanner() {
     } catch {
       setError("Foto borrada de este dispositivo (sin conexión al servidor).");
     }
-  }
-
-  async function downloadMontage() {
-    // Descarga HD a resolución natural con la misma prioridad:
-    // 1. Recorte 2D real (PhotoTryOn).
-    // 2. Armazón 3D procedural si está habilitado.
-    // 3. Dibujo vectorial 2D como aproximación final.
-    try {
-      const img = photoImgRef.current;
-      const lm = lastPhotoLmRef.current;
-      const nat = photoNatRef.current;
-      const t = tryRef.current;
-      if (img && lm && nat && t.frame) {
-        const full = document.createElement("canvas");
-        full.width = nat.W; full.height = nat.H;
-        const fctx = full.getContext("2d");
-        fctx.drawImage(img, 0, 0, nat.W, nat.H);
-
-        let drewPhoto = false;
-        try {
-          const fitPhoto = await drawPhotoTryOn(fctx, lm, nat.W, nat.H, t.frame, t.metrics, {
-            alpha: 1, tint: t.tint, light: 0.5,
-          });
-          drewPhoto = !!fitPhoto;
-        } catch { drewPhoto = false; }
-
-        if (!drewPhoto) {
-          const overlay = threePhotoRef.current;
-          const is3D = !!(overlay && arPhotoRef.current && overlay.width > 10);
-          if (t.use3D && is3D) {
-            // Re-render 3D a tamaño natural y compone (preserveDrawingBuffer permite drawImage)
-            const prevW = overlay.width, prevH = overlay.height;
-            try {
-              arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
-              arPhotoRef.current.render(lm, nat.W, nat.H);
-              fctx.drawImage(overlay, 0, 0, nat.W, nat.H);
-            } finally {
-              arPhotoRef.current.render(lm, prevW, prevH);
-            }
-          } else {
-            drawGlasses(fctx, lm, nat.W, nat.H, nat.W, nat.H, t.forma, undefined, { frame: t.frame, metrics: t.metrics, alpha: 1, light: 0.5, tint: t.tint });
-          }
-        }
-        const a = document.createElement("a");
-        a.href = full.toDataURL("image/jpeg", 0.95);
-        a.download = `glassescanner-HD-${tryId || "montura"}.jpg`;
-        a.click();
-        return;
-      }
-    } catch { /* fallback abajo */ }
-    const cnv = photoCanvasRef.current;
-    if (!cnv) return;
-    const a = document.createElement("a");
-    a.href = cnv.toDataURL("image/jpeg", 0.92);
-    a.download = `glassescanner-${tryId || "montura"}.jpg`;
-    a.click();
   }
 
   function downloadEvidence() {
@@ -609,7 +157,7 @@ export default function Scanner() {
         modelo: t.frame ? { id: t.frame.id, nombre: t.frame.nombre, forma: t.frame.forma, material: t.frame.material, color: t.frame.color, A_mm: t.frame.A_mm, B_mm: t.frame.B_mm, D_mm: t.frame.D_mm, ancho_total_mm: t.frame.ancho_total_mm } : null,
         lente_montado: tryLens,
         opacidad: tryOpacity,
-        modo3D: !!arPhotoRef.current && arOk === true,
+        modo3D: fitInfo?.mode3D === true,
         metricas: metrics ? { face_shape: metrics.face_shape, symmetry_index: metrics.symmetry_index, ipd_mm_est: metrics.ipd_mm_est, temporal_est: metrics.temporal_est, nose_bridge_mm_est: metrics.nose_bridge_mm_est } : null,
         montaje: fitInfo,
         top3: recs.slice(0, 3).map((r) => ({ frame_id: r.frame_id, score: r.score, verdict: r.verdict })),
@@ -769,48 +317,14 @@ export default function Scanner() {
                 : ` · ⚠ pupila descentrada ${fitInfo.decent.perEye}mm por ojo`)}
             </small>
           )}
-          {(() => {
-            const selRec = recs.find((r) => r.frame_id === tryId) ?? null;
-            const selScore = selRec?.score ?? null;
-            const lenses = lensCompatibility(tryFrame, selScore);
-            return tryFrame ? (
-              <div className="scanner__trydetail">
-                <div className="scanner__trydetail-top">
-                  <b>Probando: {tryFrame.nombre}</b>
-                  <span className="tag">{tryFrame.forma}</span>
-                  <span className="tag">{tryFrame.material} · {tryFrame.color}</span>
-                  {selRec && (
-                    <span className={`badge-verdict verdict-badge--${selRec.verdict}`}>
-                      {selRec.verdict === "compatible" ? "✓" : selRec.verdict === "parcial" ? "~" : "✕"} {selRec.score}pts · {selRec.verdict}
-                    </span>
-                  )}
-                </div>
-                <small className="scanner__sub">
-                  A {tryFrame.A_mm}mm · B {tryFrame.B_mm}mm · D {tryFrame.D_mm}mm · Total {tryFrame.ancho_total_mm}mm
-                  {selRec ? " · puesto #"+(recs.findIndex((r) => r.frame_id === tryId)+1)+" de "+recs.length+" recomendados" : metrics ? " · fuera del top: ver lista" : " · analizá para ver su probabilidad"}
-                </small>
-                {lenses.length > 0 && (
-                  <div className="scanner__lentes">
-                    <small><b>Lentes para este rostro + montura (clic para ver el tinte):</b></small>
-                    <div className="lentes-tags">
-                      {lenses.map((l) => (
-                        <button
-                          key={l.tipo}
-                          type="button"
-                          title={`${l.motivo} Clic para montar este lente.`}
-                          onClick={() => setTryLens(l.tipo)}
-                          className={`lente-tag lente--${l.estado} ${tryLens === l.tipo ? "lente--active" : ""}`}
-                        >
-                          {l.estado === "compatible" ? "✓" : l.estado === "parcial" ? "~" : "✕"} {l.tipo} {l.prob}%
-                        </button>
-                      ))}
-                    </div>
-                    <small className="scanner__sub">Cristal montado: <LenteDot tipo={tryLens} /> <b>{tryLens}</b> — cambia con el modelo o un clic arriba</small>
-                  </div>
-                )}
-              </div>
-            ) : null;
-          })()}
+          <TryOnDetail
+            frame={tryFrame}
+            recs={recs}
+            tryId={tryId}
+            metrics={metrics}
+            tryLens={tryLens}
+            onSelectLens={setTryLens}
+          />
           <div className="scanner__row">
             <label style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
               <input type="checkbox" checked={tryOn} onChange={(e) => setTryOn(e.target.checked)} />
@@ -848,7 +362,7 @@ export default function Scanner() {
             <button className="btn btn--primary" onClick={runAnalysis} disabled={!!loading || !consent} title={!consent ? "Acepta el consentimiento para analizar la foto" : undefined}>
               {loading || "Analizar compatibilidad"}
             </button>
-            <button className="btn btn--glass" onClick={downloadMontage} disabled={!fitInfo} title="Descarga en resolución original">
+            <button className="btn btn--glass" onClick={downloadHD} disabled={!fitInfo} title="Descarga en resolución original">
               ⬇ Guardar HD
             </button>
             <button className="btn btn--glass" onClick={downloadEvidence} disabled={!fitInfo} title="Descarga foto + JSON con pose y medidas estimadas para diagnosticar">
@@ -863,55 +377,7 @@ export default function Scanner() {
 
       {error && <p className="scanner__error">{error}</p>}
 
-      {metrics && (
-        <div className="glass scanner__panel scanner__metrics">
-          <div className="scanner__metrics-header">
-            <h3>🔬 Análisis Morfométrico Facial <span className="tag">orientativo</span></h3>
-            <label className="scanner__shape-edit" title="Si el óptico no coincide con la forma detectada, corrígela aquí y se recalculan las recomendaciones.">
-              Forma:
-              <select
-                value={metrics.face_shape}
-                onChange={(e) => changeShape(e.target.value)}
-                disabled={!!loading}
-              >
-                {FORMAS.map((f) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </label>
-          </div>
-          <p className="scanner__sub">
-            Forma estimada automáticamente. Si el óptico no coincide, corrígela:
-            el sistema recalcula el contraste y las recomendaciones.
-          </p>
-          <div className="scanner__metrics-grid">
-            <div className="metric-chip">
-              <span className="metric-label">Índice de Simetría</span>
-              <span className="metric-val">{metrics.symmetry_index}%</span>
-            </div>
-            <div className="metric-chip">
-              <span className="metric-label">IPD estimada</span>
-              <span className="metric-val">≈ {Number(metrics.ipd_mm_est ?? 0).toFixed(1)} mm</span>
-            </div>
-            <div className="metric-chip">
-              <span className="metric-label">Ancho Facial Estimado</span>
-              <span className="metric-val">≈ {Number(metrics.temporal_est ?? 0).toFixed(1)} mm</span>
-            </div>
-            <div className="metric-chip">
-              <span className="metric-label">Puente Nasal Estimado</span>
-              <span className="metric-val">≈ {Number(metrics.nose_bridge_mm_est ?? 0).toFixed(1)} mm</span>
-            </div>
-            <div className="metric-chip">
-              <span className="metric-label">Proporción Largo/Ancho</span>
-              <span className="metric-val">{Number(metrics.ratios?.largo_ancho ?? 1.3).toFixed(2)}</span>
-            </div>
-            <div className="metric-chip">
-              <span className="metric-label">Zona de Cejas</span>
-              <span className="metric-val">{metrics.eyebrow_in_frame_zone ? "Despejada ✓" : "Atención"}</span>
-            </div>
-          </div>
-          <p className="scanner__sub">Valores estimados a partir de una foto 2D. No sustituyen una medición presencial en óptica.</p>
-          {metrics.warnings?.map((w) => <p key={w} className="scanner__warning">⚠ {w}</p>)}
-        </div>
-      )}
+      <ScannerMetrics metrics={metrics} loading={loading} onChangeShape={changeShape} />
 
       {recs.length > 0 && (
         <>
@@ -927,75 +393,19 @@ export default function Scanner() {
         <div className="scanner__grid">
           {recs.slice(0, 12).map((r) => {
             const f = frames.find((x) => x.id === r.frame_id);
-            const isSelected = tryId === r.frame_id;
             return (
-              <div key={r.frame_id} className={`glass scanner__card verdict--${r.verdict} ${isSelected ? "scanner__card--selected" : ""}`}>
-                <div className="scanner__card-top">
-                  <span className={`badge-verdict verdict-badge--${r.verdict}`}>
-                    {r.verdict === "compatible" ? "✓ Compatible" : r.verdict === "parcial" ? "~ Parcial" : "✕ Incompatible"}
-                  </span>
-                  <span className="scanner__card-score">{r.score} pts</span>
-                </div>
-
-                <div className="scanner__card-img-wrap">
-                  <img
-                    src={f?.imagen_url || `/frames/${f?.forma || "rectangular"}.jpg`}
-                    alt={f?.nombre || "Montura"}
-                    className="scanner__card-img"
-                    loading="lazy"
-                    onError={(e) => { e.target.style.display = "none"; }}
-                  />
-                </div>
-
-                <h4 className="scanner__card-title">{f?.nombre ?? r.frame_id}</h4>
-                <div className="scanner__card-meta">
-                  <span className="tag">{f?.forma}</span>
-                  <span className="tag">{f?.marca ?? "OptiVision"}</span>
-                  <span className="tag tag--highlight">{f?.estilo}</span>
-                  <span className="tag">Talla {f?.talla ?? "M"}</span>
-                  {f?.precio_rango && <span className="tag tag--price">{f.precio_rango}</span>}
-                </div>
-
-                <div className="scanner__card-specs">
-                  <span>Calibre A: <b>{f?.A_mm}mm</b></span>
-                  <span>Alto B: <b>{f?.B_mm}mm</b></span>
-                  <span>Puente D: <b>{f?.D_mm}mm</b></span>
-                  <span>Total: <b>{f?.ancho_total_mm}mm</b></span>
-                </div>
-
-                {(() => {
-                  const lenses = lensCompatibility(f, r.score);
-                  return lenses.length > 0 ? (
-                    <div className="scanner__card-lentes">
-                      <small>Lentes para tu rostro en esta montura:</small>
-                      <div className="lentes-tags">
-                        {lenses.map((l) => (
-                          <button key={l.tipo} type="button" title={`${l.motivo} Clic para montar este modelo + lente.`} onClick={() => { setTryId(r.frame_id); setTryLens(l.tipo); setTryOn(true); if (photoCanvasRef.current) photoCanvasRef.current.scrollIntoView({ behavior: "smooth", block: "center" }); }} className={`lente-tag lente--${l.estado}`}>
-                            {l.estado === "compatible" ? "✓" : l.estado === "parcial" ? "~" : "✕"} {l.tipo} {l.prob}%
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null;
-                })()}
-
-                <ul className="scanner__card-reasons">
-                  {r.reasons.map((x) => <li key={x}>{x}</li>)}
-                </ul>
-
-                <button
-                  className={`btn btn--sm ${isSelected ? "btn--primary" : "btn--glass"} scanner__card-btn`}
-                  onClick={() => {
-                    setTryId(r.frame_id);
-                    setTryOn(true);
-                    if (photoCanvasRef.current) {
-                      photoCanvasRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-                    }
-                  }}
-                >
-                  {isSelected ? "👓 Probando ahora" : "👓 Probar en probador virtual"}
-                </button>
-              </div>
+              <RecommendationCard
+                key={r.frame_id}
+                rec={r}
+                frame={f}
+                isSelected={tryId === r.frame_id}
+                onSelect={(lens) => {
+                  setTryId(r.frame_id);
+                  if (lens) setTryLens(lens);
+                  setTryOn(true);
+                  photoCanvasRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }}
+              />
             );
           })}
         </div>

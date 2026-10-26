@@ -2,31 +2,13 @@
 // Sin assets externos: geometría procedural por forma. Sirve en vivo (video)
 // y en foto (imagen capturada). v1.1: reemplazar por GLB en public/glasses/.
 // v2: ajuste real por marco (A/B/D/ancho_total) + métricas (temporal/ipd).
+import { frameColorHex, lensKind, LENS_KIND } from "./frameStyle.js";
+
 const IDX = { leftOuter: 33, leftInner: 133, rightInner: 362, rightOuter: 263, nose: 168 };
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-// Color real del catálogo (nombres en español) → hex para render fotorrealista.
-// Sin esto todo se veía fucsia/cyan "de juguete".
-export function frameColorHex(name = "") {
-  const n = String(name).toLowerCase();
-  if (n.includes("dorado rosa")) return "#d8a08a";
-  if (n.includes("dorado-verde") || n.includes("dorado verde")) return "#a89a4a";
-  if (n.includes("dorado")) return "#c19a3a";
-  if (n.includes("plateado") || n.includes("titanio") || n.includes("cristal")) return "#b8c0cc";
-  if (n.includes("carey oscuro") || n.includes("habana")) return "#5b2f12";
-  if (n.includes("carey claro") || n.includes("miel")) return "#a06a24";
-  if (n.includes("carey")) return "#6b3d14";
-  if (n.includes("borgo")) return "#6b1a2a";
-  if (n.includes("rojo") || n.includes("naranja")) return "#8f2a1e";
-  if (n.includes("azul marino") || n.includes("azul oscuro")) return "#1e3a8a";
-  if (n.includes("azul") || n.includes("verde")) return "#2f5f5f";
-  if (n.includes("grafito")) return "#3a3f4a";
-  if (n.includes("transparente")) return "#9fb3c8";
-  if (n.includes("mate")) return "#26262b";
-  if (n.includes("negro")) return "#17171a";
-  return "#23232a";
-}
+export { frameColorHex };
 
 // Estilo por material: el grosor sale del IPD medido (no fijo).
 
@@ -396,19 +378,17 @@ function metalGradient(ctx, span, dark, light) {
 // Tinte del cristal según tipo de lente elegido (además de la luz de la foto).
 // Niveles con salto visible: cada tipo debe distinguirse a simple vista.
 function lensTint(tint = "monofocal", light = 0.5) {
-  const t = String(tint || "monofocal").toLowerCase();
   const base = 0.1 + (1 - light) * 0.08;
-  if (t.includes("polarizado") || t.includes("sol")) {
-    return { hi: `rgba(60,75,86,${(base + 0.45).toFixed(3)})`, mid: `rgba(38,52,62,${(base + 0.5).toFixed(3)})`, lo: `rgba(20,30,38,${(base + 0.55).toFixed(3)})` };
+  switch (lensKind(tint)) {
+    case LENS_KIND.SUN:
+      return { hi: `rgba(60,75,86,${(base + 0.45).toFixed(3)})`, mid: `rgba(38,52,62,${(base + 0.5).toFixed(3)})`, lo: `rgba(20,30,38,${(base + 0.55).toFixed(3)})` };
+    case LENS_KIND.PHOTOCHROMIC:
+      return { hi: `rgba(140,146,158,${(base + 0.3).toFixed(3)})`, mid: `rgba(110,116,128,${(base + 0.34).toFixed(3)})`, lo: `rgba(85,90,102,${(base + 0.38).toFixed(3)})` };
+    case LENS_KIND.BLUE:
+      return { hi: `rgba(240,190,90,${(base + 0.2).toFixed(3)})`, mid: `rgba(225,170,70,${(base + 0.24).toFixed(3)})`, lo: `rgba(200,145,50,${(base + 0.28).toFixed(3)})` };
+    case LENS_KIND.PROGRESSIVE:
+      return { hi: `rgba(175,205,235,${(base + 0.1).toFixed(3)})`, mid: `rgba(150,185,220,${(base + 0.13).toFixed(3)})`, lo: `rgba(125,160,200,${(base + 0.16).toFixed(3)})` };
+    default:
+      return { hi: `rgba(200,220,240,${base.toFixed(3)})`, mid: `rgba(170,200,228,${(base + 0.02).toFixed(3)})`, lo: `rgba(145,180,210,${(base + 0.04).toFixed(3)})` };
   }
-  if (t.includes("fotocrom")) {
-    return { hi: `rgba(140,146,158,${(base + 0.3).toFixed(3)})`, mid: `rgba(110,116,128,${(base + 0.34).toFixed(3)})`, lo: `rgba(85,90,102,${(base + 0.38).toFixed(3)})` };
-  }
-  if (t.includes("blue")) {
-    return { hi: `rgba(240,190,90,${(base + 0.2).toFixed(3)})`, mid: `rgba(225,170,70,${(base + 0.24).toFixed(3)})`, lo: `rgba(200,145,50,${(base + 0.28).toFixed(3)})` };
-  }
-  if (t.includes("progresivo") || t.includes("bifocal")) {
-    return { hi: `rgba(175,205,235,${(base + 0.1).toFixed(3)})`, mid: `rgba(150,185,220,${(base + 0.13).toFixed(3)})`, lo: `rgba(125,160,200,${(base + 0.16).toFixed(3)})` };
-  }
-  return { hi: `rgba(200,220,240,${base.toFixed(3)})`, mid: `rgba(170,200,228,${(base + 0.02).toFixed(3)})`, lo: `rgba(145,180,210,${(base + 0.04).toFixed(3)})` };
 }

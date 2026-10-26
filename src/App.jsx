@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import Navbar from './components/layout/Navbar'
 import Footer from './components/layout/Footer'
 import GlassCard from './components/ui/GlassCard'
-import { useTheme } from './context/ThemeContext'
+import { useTheme } from './context/useTheme'
 import './App.css'
 
 function App() {

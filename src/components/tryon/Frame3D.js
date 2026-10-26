@@ -5,39 +5,22 @@
 //   const ar = new GlassesAR(canvas); ar.setModel(frame, tint); ar.render(lm, cw, ch, metrics)
 import * as THREE from "three";
 import { buildGlbGroup, loadGlb } from "./GlassesGLB.js";
+import { frameColorHex, lensKind, LENS_KIND } from "./frameStyle.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 const IDX = { lo: 33, li: 133, ri: 362, ro: 263, nose: 168, fore: 10, chin: 152 };
 
-export function frameColorHex(name = "") {
-  const n = String(name).toLowerCase();
-  if (n.includes("dorado rosa")) return "#d8a08a";
-  if (n.includes("dorado-verde") || n.includes("dorado verde")) return "#a89a4a";
-  if (n.includes("dorado")) return "#c19a3a";
-  if (n.includes("plateado") || n.includes("titanio") || n.includes("cristal")) return "#b8c0cc";
-  if (n.includes("carey oscuro") || n.includes("habana")) return "#5b2f12";
-  if (n.includes("carey claro") || n.includes("miel")) return "#a06a24";
-  if (n.includes("carey")) return "#6b3d14";
-  if (n.includes("borgo")) return "#6b1a2a";
-  if (n.includes("rojo") || n.includes("naranja")) return "#8f2a1e";
-  if (n.includes("azul marino") || n.includes("azul oscuro")) return "#1e3a8a";
-  if (n.includes("azul") || n.includes("verde")) return "#2f5f5f";
-  if (n.includes("grafito")) return "#3a3f4a";
-  if (n.includes("transparente")) return "#9fb3c8";
-  if (n.includes("mate")) return "#26262b";
-  if (n.includes("negro")) return "#17171a";
-  return "#23232a";
-}
-
 function glassTintMaterial(tint = "monofocal") {
-  const t = String(tint || "monofocal").toLowerCase();
   // Opacidades con salto visible entre tipos (antes 0.16–0.55, imperceptible).
   let color = 0xcfe0f0, opacity = 0.2;
-  if (t.includes("polarizado")) { color = 0x232f38; opacity = 0.72; }
-  else if (t.includes("fotocrom")) { color = 0x646a76; opacity = 0.55; }
-  else if (t.includes("blue")) { color = 0xd9a93f; opacity = 0.42; }
-  else if (t.includes("progresivo") || t.includes("bifocal")) { color = 0x9dc0e6; opacity = 0.3; }
+  switch (lensKind(tint)) {
+    case LENS_KIND.SUN: color = 0x232f38; opacity = 0.72; break;
+    case LENS_KIND.PHOTOCHROMIC: color = 0x646a76; opacity = 0.55; break;
+    case LENS_KIND.BLUE: color = 0xd9a93f; opacity = 0.42; break;
+    case LENS_KIND.PROGRESSIVE: color = 0x9dc0e6; opacity = 0.3; break;
+    default: break;
+  }
   return new THREE.MeshPhysicalMaterial({
     color, transparent: true, opacity, roughness: 0.06, metalness: 0,
     clearcoat: 1, clearcoatRoughness: 0.08, side: THREE.DoubleSide,

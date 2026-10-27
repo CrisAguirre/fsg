@@ -110,3 +110,23 @@ button.lente-tag:hover { filter: brightness(1.25); }
   .scanner__row .btn { width: 100%; }
   .scanner__grid { grid-template-columns: 1fr; }
 }
+
+/* En escritorio la foto se limita por alto para ver el rostro completo junto a
+   la montura en lugar de ocupar todo el ancho del panel. */
+@media (min-width: 641px) {
+  .scanner__zoomwrap {
+    width: fit-content;
+    max-width: 100%;
+    max-height: min(72vh, 760px);
+    margin-inline: auto;
+  }
+  .scanner__zoomwrap .scanner__preview {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    max-height: min(72vh, 760px);
+    margin-inline: auto;
+  }
+}
+
+.scanner__recs-more { display: flex; justify-content: center; }

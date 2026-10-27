@@ -33,6 +33,8 @@ export default function Scanner() {
   const [showOriginal, setShowOriginal] = useState(false); // mantener para comparar
   const [zoomed, setZoomed] = useState(false); // detalle HD
   const [tryOn, setTryOn] = useState(true);
+  const [showAllRecs, setShowAllRecs] = useState(false); // ver las 64 monturas
+  const RECS_PREVIEW = 12;
   const [tryId, setTryId] = useState(initialFrame || "F01");
   const tryFrame = frames.find((x) => x.id === tryId) ?? frames[0];
   const tryLensRef = useRef(tryLens);
@@ -88,7 +90,14 @@ export default function Scanner() {
 
   useEffect(() => {
     fetch(`${API_URL}/health`).then(() => setBackendOk(true)).catch(() => setBackendOk(false));
-    listFrames().then(setFrames).catch(() => {});
+    listFrames()
+      .then(setFrames)
+      .catch(() => {
+        setBackendOk(false);
+        setError(
+          `No se pudo cargar el catálogo de monturas desde ${API_URL}. Revisa tu conexión o que el servidor de análisis esté activo.`,
+        );
+      });
   }, []);
 
   // Liberar los object URL al cambiar de foto o desmontar el escáner.
@@ -223,6 +232,7 @@ export default function Scanner() {
     setLoading("Analizando proporciones faciales…");
     setMetrics(null);
     setRecs([]);
+    setShowAllRecs(false);
     try {
       const m = await analyzePhoto(file);
       if (!m || !m.face_detected) {
@@ -236,9 +246,12 @@ export default function Scanner() {
       setRecs(sorted);
       saveLastScan(m, sorted, m.face_shape);
     } catch (e) {
+      const netErr = e instanceof TypeError || /failed to fetch|load failed|networkerror|api 5\d\d/i.test(e.message || "");
       const msg = e.name === "AbortError"
         ? "El servidor tardó en responder. Por favor intenta de nuevo."
-        : (e.message || "Error al analizar la imagen.");
+        : netErr
+          ? "No se pudo conectar con el servidor de análisis. Revisa tu conexión y vuelve a intentar."
+          : (e.message || "Error al analizar la imagen.");
       setError(msg);
     } finally {
       setLoading("");
@@ -391,7 +404,7 @@ export default function Scanner() {
           </Link>
         </div>
         <div className="scanner__grid">
-          {recs.slice(0, 12).map((r) => {
+          {(showAllRecs ? recs : recs.slice(0, RECS_PREVIEW)).map((r) => {
             const f = frames.find((x) => x.id === r.frame_id);
             return (
               <RecommendationCard
@@ -409,6 +422,15 @@ export default function Scanner() {
             );
           })}
         </div>
+        {recs.length > RECS_PREVIEW && (
+          <div className="scanner__recs-more">
+            <button className="btn btn--glass" onClick={() => setShowAllRecs((v) => !v)}>
+              {showAllRecs
+                ? "Ver solo las 12 mejores"
+                : `Ver las ${recs.length} monturas compatibles`}
+            </button>
+          </div>
+        )}
         <FeedbackBox metrics={metrics} top={recs[0]} />
         </>
       )}

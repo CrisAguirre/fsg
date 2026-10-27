@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>tmp layout foto</title>
+<link rel="stylesheet" href="/src/pages/Scanner.css" />
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; }
+  #panel { width: 900px; margin: 0 auto; background: #eef2f8; }
+  #out { padding: 8px; font: 13px monospace; white-space: pre; }
+</style>
+</head>
+<body>
+<div id="panel" class="scanner__panel">
+  <div class="scanner__zoomwrap">
+    <canvas id="photo" class="scanner__preview" width="720" height="960"></canvas>
+    <canvas id="ar" class="scanner__overlay" aria-hidden="true"></canvas>
+  </div>
+</div>
+<div id="out"></div>
+<script type="module">
+  const c = document.getElementById("photo");
+  const g = c.getContext("2d");
+  const grd = g.createLinearGradient(0, 0, 0, c.height);
+  grd.addColorStop(0, "#c9d6e9");
+  grd.addColorStop(1, "#7b8ba6");
+  g.fillStyle = grd;
+  g.fillRect(0, 0, c.width, c.height);
+  const ar = document.getElementById("ar");
+  ar.width = c.width;
+  ar.height = c.height;
+
+  const box = (el) => {
+    const r = el.getBoundingClientRect();
+    return `${Math.round(r.width)}x${Math.round(r.height)}`;
+  };
+  document.getElementById("out").textContent = [
+    `viewport=${innerWidth}x${innerHeight}`,
+    `panel=${box(document.getElementById("panel"))}`,
+    `wrap=${box(document.querySelector(".scanner__zoomwrap"))}`,
+    `photo=${box(c)}`,
+    `overlay=${box(ar)}`,
+    `photo_css_width=${getComputedStyle(c).width}`,
+    `photo_css_maxheight=${getComputedStyle(c).maxHeight}`,
+  ].join("\n");
+</script>
+</body>
+</html>

@@ -162,7 +162,7 @@
     <label class="ctl"><span class="top">Rot Y <b id="ryv">0°</b></span><input id="ry" type="range" min="-180" max="180" step="1" value="0"></label>
     <label class="ctl"><span class="top">Rot Z <b id="rzv">0°</b></span><input id="rz" type="range" min="-180" max="180" step="1" value="0"></label>
     <label class="ctl"><span class="top">Vertical (Y) <b id="yv">0.000</b></span><input id="y" type="range" min="-0.35" max="0.35" step="0.005" value="0"></label>
-    <label class="ctl ctl--wide"><span class="top">Zoom <b id="zoomv">1.00×</b></span><input id="zoom" type="range" min="0.80" max="1.20" step="0.01" value="1.00"></label>
+    <label class="ctl ctl--wide"><span class="top">Zoom <b id="zoomv">1.00×</b></span><input id="zoom" type="range" min="0.50" max="2.00" step="0.01" value="1.00"></label>
   </div>
 
   <div class="actions">
@@ -256,10 +256,11 @@ camera.position.set(0, 0, 600);
 
 const controls3d = new OrbitControls(camera, canvas);
 controls3d.enablePan = false;
+// El zoom solo se controla con el slider: ni rueda del mouse ni pellizco
+// táctil, que ademas en movil compiten con el scroll de la pagina.
+controls3d.enableZoom = false;
 controls3d.enableDamping = true;
 controls3d.dampingFactor = 0.08;
-controls3d.minZoom = 0.6;
-controls3d.maxZoom = 2.4;
 controls3d.target.set(0, 0, 0);
 controls3d.update();
 

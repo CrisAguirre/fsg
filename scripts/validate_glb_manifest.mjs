@@ -84,6 +84,12 @@ for (const forma of FORMAS) {
   if (entry.y != null && !Number.isFinite(Number(entry.y))) {
     fail(`[${forma}] "y" debe ser numérico.`);
   }
+  if (entry.scale != null && (!Number.isFinite(Number(entry.scale)) || Number(entry.scale) <= 0)) {
+    fail(`[${forma}] "scale" debe ser numérico > 0.`);
+  }
+  if (entry.targetWidth != null && (!Number.isFinite(Number(entry.targetWidth)) || Number(entry.targetWidth) <= 0)) {
+    fail(`[${forma}] "targetWidth" debe ser numérico > 0.`);
+  }
   if (!String(entry.license || "").toUpperCase().includes("CC-BY-4.0")) {
     fail(`[${forma}] licencia ausente o distinta de CC-BY-4.0.`);
   }

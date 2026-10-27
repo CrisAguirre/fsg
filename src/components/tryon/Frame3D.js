@@ -288,7 +288,7 @@ export class GlassesAR {
     this.pendingGlbForma = forma;
     loadGlb(forma).then((loaded) => {
       if (!loaded || token !== this.glbToken || this.pendingGlbForma !== forma) return;
-      const width = Number(loaded.entry?.targetWidth) || targetWidth;
+      const width = (Number(loaded.entry?.targetWidth) || targetWidth) * (Number(loaded.entry?.scale) || 1);
       const key = `${forma}|${width.toFixed(3)}|${tint}`;
       let group = this.glbGroups.get(key);
       if (!group) {

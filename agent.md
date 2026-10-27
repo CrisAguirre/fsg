@@ -172,7 +172,7 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
 ### GLB y licencias
 
 - 8 formas con GLB en `public/glasses/`: rectangular, cuadrado, redondo, oval, aviador, wayfarer, cat-eye, rimless.
-- `manifest.json` define archivo, rotación, offset vertical, materiales de cristal/marco, autor, fuente y licencia.
+- `manifest.json` define archivo, rotación, offset vertical, `scale` (zoom relativo), materiales de cristal/marco, autor, fuente y licencia.
 - `LICENSES.md` atribuye las 8 obras (CC BY 4.0) y `/creditos-3d` las muestra desde el manifest.
 - `npm run validate:glb` verifica archivo existente, campos obligatorios, licencia CC BY 4.0 y presencia en `LICENSES.md`.
 

@@ -32,6 +32,7 @@ function normalizeEntry(forma, raw) {
     rot: Array.isArray(raw.rot) ? raw.rot : [0, 0, 0],
     y: Number(raw.y) || 0,
     targetWidth: Number(raw.targetWidth) || null,
+    scale: Number(raw.scale) || 1,
     lensMaterials: Array.isArray(raw.lensMaterials) ? raw.lensMaterials.map(String) : [],
     lensOpacity: raw.lensOpacity != null ? Number(raw.lensOpacity) : 0.16,
     frameMaterials: Array.isArray(raw.frameMaterials) ? raw.frameMaterials.map(String) : [],

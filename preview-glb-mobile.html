@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b1220" />
+<title>Ajuste GLB móvil — Glassescanner</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b1220;
+    --panel: #111a2b;
+    --line: #2a3850;
+    --text: #e8eefb;
+    --muted: #93a4bf;
+    --accent: #5eead4;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; overflow-x: hidden; }
+  body {
+    background: radial-gradient(120% 80% at 50% 0%, #17233a 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  header {
+    width: 100%;
+    max-width: 520px;
+    padding: 12px 14px 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  header h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .02em; }
+  header .badge { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+  #stage {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+    height: clamp(320px, 52vh, 560px);
+    background: linear-gradient(180deg, #e8eef8 0%, #c9d6e9 100%);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .38);
+    touch-action: none;
+  }
+  #view { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; }
+  #guide { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; transition: opacity .2s; }
+  #guide.off { opacity: 0; }
+  #hud {
+    position: absolute; z-index: 3; top: 8px; left: 10px; right: 10px;
+    display: flex; gap: 8px; align-items: center; font-size: 12px; pointer-events: none; min-width: 0;
+  }
+  #shapeName {
+    background: rgba(11, 18, 32, .74); color: #fff;
+    padding: 4px 9px; border-radius: 999px; font-weight: 600;
+  }
+  #status {
+    margin-left: auto; max-width: 62%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    background: rgba(255, 255, 255, .7); color: #23324a;
+    padding: 4px 9px; border-radius: 999px;
+  }
+  #status.err { background: #fecaca; color: #7f1d1d; }
+
+  #panel {
+    width: 100%; max-width: 520px; overflow-x: clip;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+  .shape-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  select, button {
+    font: inherit; color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px;
+  }
+  select { flex: 1; min-width: 0; }
+  button { cursor: pointer; }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--accent); color: #062a26; border-color: transparent; font-weight: 700; }
+
+  .controls {
+    display: grid; grid-template-columns: 1fr; gap: 8px 12px;
+    background: rgba(17, 26, 43, .88); border: 1px solid var(--line);
+    border-radius: 14px; padding: 10px 12px; min-width: 0;
+  }
+  .ctl { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 11px; color: var(--muted); }
+  .ctl .top { display: flex; justify-content: space-between; gap: 6px; min-width: 0; }
+  .ctl b { color: var(--text); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; min-width: 0; height: 26px; margin: 0; accent-color: var(--accent); }
+
+  @media (min-width: 460px) { .ctl--wide { grid-column: 1 / -1; } }
+
+  .shape-row, .actions { min-width: 0; }
+  .actions { display: flex; gap: 8px; margin-top: 8px; }
+  .actions button { flex: 1; min-width: 0; padding: 9px 6px; font-size: 13px; line-height: 1.15; }
+  .actions button:disabled { opacity: .5; }
+  .hint { margin: 8px 2px 0; font-size: 11px; line-height: 1.45; color: var(--muted); }
+  .hint code { color: #c7d6ee; }
+  details { margin-top: 6px; font-size: 11px; color: var(--muted); }
+  summary { cursor: pointer; }
+  .toggle { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+  .toggle input { accent-color: var(--accent); }
+
+  #jsonBox {
+    position: fixed; inset: 0; z-index: 20; background: rgba(2, 6, 14, .8);
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  #jsonBox[hidden] { display: none; }
+  .jsonCard {
+    width: 100%; max-width: 520px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 16px; padding: 14px;
+  }
+  .jsonCard h2 { margin: 0 0 6px; font-size: 15px; }
+  .jsonCard p { margin: 0 0 8px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+  textarea {
+    width: 100%; height: 180px; resize: vertical; background: #0a101c; color: #d7e3f8;
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+    font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  .jsonCard .actions { margin-top: 8px; }
+
+  @media (min-width: 460px) { .controls { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ajuste GLB · móvil</h1>
+  <span class="badge">8 formas</span>
+</header>
+
+<div id="stage">
+  <svg id="guide" viewBox="0 0 300 420" aria-hidden="true">
+    <ellipse cx="150" cy="210" rx="106" ry="172" fill="rgba(255,255,255,.30)" stroke="#7b8ba6" stroke-width="1.6" stroke-dasharray="6 7"/>
+    <path d="M44 186 q-14 24 0 62" fill="none" stroke="#7b8ba6" stroke-width="1.4"/>
+    <path d="M256 186 q14 24 0 62" fill="none" stroke="#7b8ba6" stroke-width="1.4"/>
+    <path d="M86 178 q26 -11 52 -2" fill="none" stroke="#6b7c96" stroke-width="2" stroke-linecap="round" opacity=".75"/>
+    <path d="M162 176 q26 -9 52 2" fill="none" stroke="#6b7c96" stroke-width="2" stroke-linecap="round" opacity=".75"/>
+    <ellipse cx="112" cy="210" rx="14" ry="6.5" fill="#6b7c96" opacity=".55"/>
+    <ellipse cx="188" cy="210" rx="14" ry="6.5" fill="#6b7c96" opacity=".55"/>
+    <path d="M150 216 q-9 36 9 45" fill="none" stroke="#7b8ba6" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M117 300 q33 15 66 0" fill="none" stroke="#7b8ba6" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M150 382 q-52 0 -70 -34" fill="none" stroke="#7b8ba6" stroke-width="1.2" stroke-dasharray="5 6"/>
+    <path d="M150 382 q52 0 70 -34" fill="none" stroke="#7b8ba6" stroke-width="1.2" stroke-dasharray="5 6"/>
+  </svg>
+  <canvas id="view"></canvas>
+  <div id="hud">
+    <span id="shapeName">—</span>
+    <span id="status">cargando…</span>
+  </div>
+</div>
+
+<div id="panel">
+  <div class="shape-row">
+    <button id="prev" aria-label="Forma anterior">◀</button>
+    <select id="shape" aria-label="Forma de montura"></select>
+    <button id="next" aria-label="Forma siguiente">▶</button>
+  </div>
+
+  <div class="controls">
+    <label class="ctl"><span class="top">Rot X <b id="rxv">0°</b></span><input id="rx" type="range" min="-180" max="180" step="1" value="0"></label>
+    <label class="ctl"><span class="top">Rot Y <b id="ryv">0°</b></span><input id="ry" type="range" min="-180" max="180" step="1" value="0"></label>
+    <label class="ctl"><span class="top">Rot Z <b id="rzv">0°</b></span><input id="rz" type="range" min="-180" max="180" step="1" value="0"></label>
+    <label class="ctl"><span class="top">Vertical (Y) <b id="yv">0.000</b></span><input id="y" type="range" min="-0.35" max="0.35" step="0.005" value="0"></label>
+    <label class="ctl ctl--wide"><span class="top">Zoom <b id="zoomv">1.00×</b></span><input id="zoom" type="range" min="0.80" max="1.20" step="0.01" value="1.00"></label>
+  </div>
+
+  <div class="actions">
+    <button id="reset">Reiniciar forma</button>
+    <button id="copy">Ver JSON</button>
+    <button id="download">Descargar</button>
+  </div>
+
+  <label class="toggle"><input type="checkbox" id="guideToggle" checked> Mostrar guía facial</label>
+
+  <details>
+    <summary>Cómo usar esta página</summary>
+    <p class="hint">
+      En el PC ejecuta <code>npm run dev -- --host</code> y abre en el móvil
+      <code>http://IP-DEL-PC:5173/preview-glb-mobile.html</code> (misma red Wi-Fi).
+      Ajusta Rot X/Y/Z y Vertical hasta que el puente quede sobre la nariz y las
+      patillas salgan hacia las orejas. Usa Zoom para corregir el tamaño relativo
+      (1.00× = tamaño calculado con las medidas de la montura). Arrastra el modelo
+      para mirarlo desde otro ángulo. Los cambios se guardan solo en este navegador;
+      “Ver JSON” genera el bloque para pegar en <code>public/glasses/manifest.json</code>.
+    </p>
+  </details>
+</div>
+
+<div id="jsonBox" hidden>
+  <div class="jsonCard">
+    <h2>JSON para manifest.json</h2>
+    <p>Solo aparecen las formas con cambios. Pega este bloque en <code>public/glasses/manifest.json</code> respetando las comas. <code>scale</code> es el zoom relativo (1 = tamaño por medidas).</p>
+    <textarea id="jsonText" readonly spellcheck="false"></textarea>
+    <div class="actions">
+      <button id="jsonCopy" class="primary">Copiar</button>
+      <button id="jsonClose">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { buildGlbGroup, loadGlb } from "/src/components/tryon/GlassesGLB.js";
+
+const FORMAS = ["rectangular", "cuadrado", "redondo", "oval", "aviador", "wayfarer", "cat-eye", "rimless"];
+const STORAGE_KEY = "gs_glb_tuning_v1";
+const DEFAULT_WIDTH = 2.1;
+
+const $ = (id) => document.getElementById(id);
+const stage = $("stage");
+const canvas = $("view");
+const guide = $("guide");
+const statusEl = $("status");
+const shapeName = $("shapeName");
+const shapeSel = $("shape");
+const jsonBox = $("jsonBox");
+const jsonText = $("jsonText");
+
+for (const forma of FORMAS) {
+  const opt = document.createElement("option");
+  opt.value = forma;
+  opt.textContent = forma;
+  shapeSel.appendChild(opt);
+}
+
+const stored = (() => {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {}; }
+  catch { return {}; }
+})();
+
+let manifest = {};
+let current = null;
+let currentShape = "";
+let group = null;
+let loadToken = 0;
+let saveTimer = 0;
+let buildQueued = false;
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setClearColor(0x000000, 0);
+
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 1.5));
+const dir = new THREE.DirectionalLight(0xffffff, 1.6);
+dir.position.set(1.5, 2, 4);
+scene.add(dir);
+const fill = new THREE.DirectionalLight(0xbcd2ff, 0.5);
+fill.position.set(-2, -1, 3);
+scene.add(fill);
+
+const camera = new THREE.OrthographicCamera(-1.5, 1.5, 1.5, -1.5, 1, 1200);
+camera.position.set(0, 0, 600);
+
+const controls3d = new OrbitControls(camera, canvas);
+controls3d.enablePan = false;
+controls3d.enableDamping = true;
+controls3d.dampingFactor = 0.08;
+controls3d.minZoom = 0.6;
+controls3d.maxZoom = 2.4;
+controls3d.target.set(0, 0, 0);
+controls3d.update();
+
+function fitCamera() {
+  const w = stage.clientWidth || 1;
+  const h = stage.clientHeight || 1;
+  const aspect = w / h;
+  const halfW = 1.5; // 3.0 unidades de ancho visible; la montura (2.1) ocupa ~70%.
+  const halfH = halfW / aspect;
+  camera.left = -halfW;
+  camera.right = halfW;
+  camera.top = halfH;
+  camera.bottom = -halfH;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+}
+new ResizeObserver(fitCamera).observe(stage);
+fitCamera();
+
+const inputs = { rx: $("rx"), ry: $("ry"), rz: $("rz"), y: $("y"), zoom: $("zoom") };
+const outputs = { rx: $("rxv"), ry: $("ryv"), rz: $("rzv"), y: $("yv"), zoom: $("zoomv") };
+
+function paintOutputs() {
+  outputs.rx.textContent = `${Number(inputs.rx.value)}°`;
+  outputs.ry.textContent = `${Number(inputs.ry.value)}°`;
+  outputs.rz.textContent = `${Number(inputs.rz.value)}°`;
+  outputs.y.textContent = Number(inputs.y.value).toFixed(3);
+  outputs.zoom.textContent = `${Number(inputs.zoom.value).toFixed(2)}×`;
+}
+
+function readControls() {
+  return {
+    rot: [Number(inputs.rx.value), Number(inputs.ry.value), Number(inputs.rz.value)],
+    y: Number(inputs.y.value),
+    zoom: Number(inputs.zoom.value),
+  };
+}
+
+function writeControls(values) {
+  const rot = values?.rot || [0, 0, 0];
+  inputs.rx.value = rot[0];
+  inputs.ry.value = rot[1];
+  inputs.rz.value = rot[2];
+  inputs.y.value = values?.y ?? 0;
+  inputs.zoom.value = values?.zoom ?? 1;
+  paintOutputs();
+}
+
+function persist() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stored)); } catch { /* modo privado */ }
+  }, 150);
+}
+
+function rebuild() {
+  if (!current) return;
+  if (group) {
+    scene.remove(group);
+    group = null;
+  }
+  const v = readControls();
+  const entry = { ...current.entry, rot: v.rot, y: v.y };
+  const baseWidth = Number(current.entry.targetWidth) || DEFAULT_WIDTH;
+  group = buildGlbGroup(current.gltf.scene, { targetWidth: baseWidth * v.zoom, entry, tint: "monofocal" });
+  scene.add(group);
+}
+
+function scheduleRebuild() {
+  if (buildQueued) return;
+  buildQueued = true;
+  requestAnimationFrame(() => {
+    buildQueued = false;
+    rebuild();
+  });
+}
+
+async function selectShape(forma) {
+  const token = ++loadToken;
+  currentShape = forma;
+  shapeSel.value = forma;
+  shapeName.textContent = forma;
+  statusEl.classList.remove("err");
+  statusEl.textContent = "cargando…";
+  history.replaceState(null, "", `?forma=${encodeURIComponent(forma)}`);
+
+  try {
+    const loaded = await loadGlb(forma);
+    if (token !== loadToken) return;
+    if (!loaded) throw new Error("sin GLB en el manifest");
+    current = loaded;
+    const base = {
+      rot: loaded.entry.rot,
+      y: Number(loaded.entry.y) || 0,
+      zoom: Number(loaded.entry.scale) || 1,
+    };
+    writeControls(stored[forma] || base);
+    rebuild();
+    statusEl.textContent = [loaded.entry.title || forma, loaded.entry.author]
+      .filter(Boolean).join(" · ");
+  } catch (err) {
+    if (token !== loadToken) return;
+    current = null;
+    if (group) { scene.remove(group); group = null; }
+    statusEl.textContent = "ERROR: " + (err?.message || err);
+    statusEl.classList.add("err");
+  }
+}
+
+Object.values(inputs).forEach((el) => {
+  el.addEventListener("input", () => {
+    paintOutputs();
+    if (!current) return;
+    stored[currentShape] = readControls();
+    persist();
+    scheduleRebuild();
+  });
+});
+
+$("reset").addEventListener("click", () => {
+  if (!current) return;
+  delete stored[currentShape];
+  persist();
+  writeControls({
+    rot: current.entry.rot,
+    y: Number(current.entry.y) || 0,
+    zoom: Number(current.entry.scale) || 1,
+  });
+  rebuild();
+  statusEl.textContent = "Reiniciado a los valores del manifest";
+  statusEl.classList.remove("err");
+});
+
+function buildPatch() {
+  const patch = {};
+  for (const forma of FORMAS) {
+    const s = stored[forma];
+    if (!s) continue;
+    const raw = manifest[forma] || {};
+    const baseRot = Array.isArray(raw.rot) ? raw.rot : [0, 0, 0];
+    const baseY = Number(raw.y) || 0;
+    const baseScale = Number(raw.scale) || 1;
+    const changed =
+      Math.abs(s.rot[0] - baseRot[0]) > 0.05 ||
+      Math.abs(s.rot[1] - baseRot[1]) > 0.05 ||
+      Math.abs(s.rot[2] - baseRot[2]) > 0.05 ||
+      Math.abs(s.y - baseY) > 0.001;
+    const changedZoom = Number.isFinite(s.zoom) && Math.abs(s.zoom - baseScale) > 0.005;
+    if (!changed && !changedZoom) continue;
+    const out = {
+      rot: s.rot.map((n) => Math.round(n * 10) / 10),
+      y: Math.round(s.y * 1000) / 1000,
+    };
+    if (changedZoom) out.scale = Math.round(s.zoom * 1000) / 1000;
+    patch[forma] = out;
+  }
+  return patch;
+}
+
+function openJson() {
+  jsonText.value = JSON.stringify(buildPatch(), null, 2);
+  jsonBox.hidden = false;
+  jsonText.focus();
+  jsonText.select();
+}
+
+$("copy").addEventListener("click", openJson);
+$("jsonClose").addEventListener("click", () => { jsonBox.hidden = true; });
+jsonBox.addEventListener("click", (e) => { if (e.target === jsonBox) jsonBox.hidden = true; });
+
+$("jsonCopy").addEventListener("click", async () => {
+  const text = jsonText.value;
+  try {
+    await navigator.clipboard.writeText(text);
+    $("jsonCopy").textContent = "Copiado ✓";
+    setTimeout(() => { $("jsonCopy").textContent = "Copiar"; }, 1400);
+  } catch {
+    jsonText.focus();
+    jsonText.select();
+    document.execCommand("copy");
+    $("jsonCopy").textContent = "Seleccionado";
+    setTimeout(() => { $("jsonCopy").textContent = "Copiar"; }, 1400);
+  }
+});
+
+$("download").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(buildPatch(), null, 2) + "\n"], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "glb-tuning.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+});
+
+$("guideToggle").addEventListener("change", (e) => {
+  guide.classList.toggle("off", !e.target.checked);
+});
+
+function step(delta) {
+  const i = Math.max(0, FORMAS.indexOf(currentShape));
+  selectShape(FORMAS[(i + delta + FORMAS.length) % FORMAS.length]);
+}
+$("prev").addEventListener("click", () => step(-1));
+$("next").addEventListener("click", () => step(1));
+shapeSel.addEventListener("change", (e) => selectShape(e.target.value));
+
+window.addEventListener("error", (e) => {
+  statusEl.textContent = "ERROR: " + e.message;
+  statusEl.classList.add("err");
+});
+window.addEventListener("unhandledrejection", (e) => {
+  statusEl.textContent = "ERROR: " + (e.reason?.message || e.reason);
+  statusEl.classList.add("err");
+});
+
+renderer.setAnimationLoop(() => {
+  controls3d.update();
+  renderer.render(scene, camera);
+});
+
+async function boot() {
+  try {
+    const res = await fetch("/glasses/manifest.json", { cache: "no-cache" });
+    manifest = res.ok ? await res.json() : {};
+  } catch {
+    manifest = {};
+  }
+  const initial = new URLSearchParams(location.search).get("forma");
+  await selectShape(FORMAS.includes(initial) ? initial : FORMAS[0]);
+}
+
+boot();
+</script>
+</body>
+</html>

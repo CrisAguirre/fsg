@@ -2,7 +2,7 @@
   "_comment": "Modelos 3D por forma para el probador. Todos CC-BY-4.0; ver LICENSES.md. rot en grados [x,y,z]; y en unidades IPD.",
   "rectangular": {
     "file": "rectangular.glb",
-    "rot": [0, 0, 0],
+    "rot": [1, 0, 0],
     "y": 0,
     "lensMaterials": ["Material.001"],
     "lensOpacity": 0.14,
@@ -17,7 +17,7 @@
   },
   "cuadrado": {
     "file": "cuadrado.glb",
-    "rot": [0, 0, 0],
+    "rot": [4, 0, 0],
     "y": 0,
     "lensMaterials": ["Glass"],
     "lensOpacity": 0.16,
@@ -32,7 +32,7 @@
   },
   "redondo": {
     "file": "redondo.glb",
-    "rot": [0, 0, 0],
+    "rot": [9, 0, 0],
     "y": 0,
     "lensMaterials": ["Glass__Solid__White", "Glass__Solid__White1", "Glass__Solid__White2", "Glass__Solid__White__1", "Glass__Solid__White__11"],
     "lensOpacity": 0.16,
@@ -47,7 +47,7 @@
   },
   "oval": {
     "file": "oval.glb",
-    "rot": [0, 0, 0],
+    "rot": [3, 0, 0],
     "y": 0,
     "lensMaterials": ["blinn1"],
     "lensOpacity": 0.16,
@@ -62,7 +62,7 @@
   },
   "aviador": {
     "file": "aviador.glb",
-    "rot": [0, 0, 0],
+    "rot": [11, 0, 0],
     "y": 0,
     "frameMaterials": ["frame"],
     "frameColor": "#333a42",
@@ -77,7 +77,7 @@
   },
   "wayfarer": {
     "file": "wayfarer.glb",
-    "rot": [0, 0, 0],
+    "rot": [3, 0, 0],
     "y": 0,
     "lensMaterials": ["Glasses_glass"],
     "lensOpacity": 0.16,
@@ -107,7 +107,7 @@
   },
   "rimless": {
     "file": "rimless.glb",
-    "rot": [0, 90, 0],
+    "rot": [4, 90, 0],
     "y": 0,
     "source": "glasses_project.glb",
     "title": "Glasses Project",

@@ -23,6 +23,11 @@ la prioridad del recorte 2D de `public/tryon/`.
 - `file`: nombre del GLB dentro de esta carpeta.
 - `rot`: rotación en grados `[x, y, z]` para orientar el modelo hacia la cámara.
 - `y`: desplazamiento vertical en unidades de IPD.
+- `scale` (opcional): multiplicador de tamaño relativo al ancho calculado con las
+  medidas de la montura. `1` = sin cambio; `0.95` reduce un 5 % y `1.05` amplía
+  un 5 %.
+- `targetWidth` (opcional): ancho absoluto en unidades de IPD. Tiene prioridad
+  sobre el cálculo por medidas; `scale` se aplica después.
 - `lensMaterials` / `lensOpacity`: materiales que se tratan como cristales y su
   transparencia base.
 - `frameMaterials` / `frameColor`: materiales del marco que se recolorean.

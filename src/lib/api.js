@@ -1,4 +1,9 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// En desarrollo se pasa por el proxy de Vite (/api -> backend remoto) para que
+// el navegador no bloquee las llamadas por CORS. En producción se usa la URL
+// absoluta configurada en `.env`.
+const API_URL = import.meta.env.DEV
+  ? import.meta.env.VITE_API_URL_DEV || "/api"
+  : import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 async function req(path, opts = {}) {
   const r = await fetch(`${API_URL}${path}`, opts);

@@ -58,6 +58,7 @@ export function useLiveCameraTryOn({ tryRef, onError }) {
         delegate: "GPU",
       },
       outputFaceBlendshapes: false,
+      outputFacialTransformationMatrixes: true,
       runningMode: "VIDEO",
       numFaces: 1,
     });
@@ -114,7 +115,8 @@ export function useLiveCameraTryOn({ tryRef, onError }) {
                     const ar = arLiveRef.current;
                     if (ar) {
                       ar.setModel(t.frame, t.tint, t.metrics);
-                      const pose = ar.render(lm, cnv.width, cnv.height);
+                      const mat = res?.facialTransformationMatrixes?.[0]?.data ?? null;
+                      const pose = ar.render(lm, cnv.width, cnv.height, mat ? { matrix: mat } : null);
                       drew3D = !!pose;
                     }
                   } catch {

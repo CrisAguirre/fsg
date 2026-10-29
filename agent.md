@@ -1,15 +1,15 @@
 # Grupo Prisma Visión — Glassescanner 3D · Contexto del Proyecto
-> Actualizado 2026-10-25: Refactorización del escáner completada (de 1011 a 421 líneas, con hooks y componentes extraídos), code-splitting de Three.js (`Scanner` de 651 kB → **43.57 kB**) y unificación de la lógica 3D duplicada en `frameStyle.js`. Se añadieron los 8 GLB por forma con manifest y licencias CC BY 4.0 (`/creditos-3d`), el validador `npm run validate:glb` (8/8) y la verificación numérica `npm run test:pose` (9/9). Lint sin warnings, build OK y backend 15/15. El reentrenamiento ML del 25/10 **no se desplegó** (LOO 13 % vs baseline 33 %); el modelo proxy sigue como fallback y la corrección manual de forma es el mecanismo principal. Proceso de trabajo en [`../AGENTS.md`](../AGENTS.md).
+> Actualizado 2026-10-29: El probador de foto pasó a **3D GLB primero** (pose real por matriz facial de MediaPipe, ancho físico según medidas, sombra de contacto) con el recorte 2D como respaldo. Se mantiene la refactorización del escáner del 25/10 (de 1011 a 421 líneas, con hooks y componentes extraídos), el code-splitting de Three.js (`Scanner` de 651 kB → **43.57 kB**) y la unificación de la lógica 3D en `frameStyle.js`. Los 8 GLB por forma tienen manifest y licencias CC BY 4.0 (`/creditos-3d`), validador `npm run validate:glb` (8/8) y verificación numérica `npm run test:pose` (14/14). Lint sin warnings, build OK y backend 15/15. El reentrenamiento ML del 25/10 **no se desplegó** (LOO 13 % vs baseline 33 %); el modelo proxy sigue como fallback y la corrección manual de forma es el mecanismo principal. Proceso de trabajo en [`../AGENTS.md`](../AGENTS.md).
 
 Este documento proporciona el contexto actual del proyecto para que otras inteligencias artificiales puedan continuar con el desarrollo.
 
 ## Información General
 *   **Organización / Marca:** Grupo Prisma Visión (GPV).
 *   **Nombre del Producto:** Glassescanner 3D (Escáner Facial y Asesoría Biométrica para Monturas).
-*   **Propósito:** Aplicación web de escaneo facial y recomendación de monturas con veredicto Compatible/Parcial/Incompatible explicado + probador virtual fotorrealista híbrido (2D foto / 3D procedural / 2D vectorial).
+*   **Propósito:** Aplicación web de escaneo facial y recomendación de monturas con veredicto Compatible/Parcial/Incompatible explicado + probador virtual fotorrealista híbrido (3D GLB en foto y video / recorte 2D / 2D vectorial de respaldo).
 *   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GlassesAR 3D procedural y GLB por forma, cargado de forma diferida), Canvas 2D (PhotoTryOn con recortes transparentes y GlassesOverlay procedural), Context API para temas (`ThemeProvider` + `useTheme`). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + Random Forest + SVM ML + MongoDB Motor).
 *   **Despliegue:** Front `https://glassescanner.vercel.app/` (Vercel) · Back `https://glassescanner-backend.onrender.com` (Render, Docker `python:3.11-slim` + sysdeps para OpenCV) · Mongo Atlas (`glassescanner`, seed local de 64 marcos).
-*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-10-25: backend **15/15 tests PASS**, frontend `npm run lint` **0 warnings**, `npm run build` OK, `npm run test:pose` **9/9** y `npm run validate:glb` **8/8**.
+*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-10-29: backend **15/15 tests PASS**, frontend `npm run lint` **0 warnings**, `npm run build` OK, `npm run test:pose` **14/14** y `npm run validate:glb` **8/8**.
 
 ## Identidad Corporativa y Diseño (Design System)
 El diseño combina **Minimalismo Corporativo Prémium** con **Aeroglass / Glassmorphism** de alta gama óptica.
@@ -147,7 +147,7 @@ Front: `VITE_API_URL` (en `.env` local ignorado; configurar en Vercel). Back: `E
 
 - `Scanner.jsx`: **1011 → 421 líneas**. Conserva consentimiento, estado del flujo, análisis y composición; ya no contiene cámara, MediaPipe ni descarga HD.
 - `hooks/useLiveCameraTryOn.js`: `getUserMedia`, FaceLandmarker en modo VIDEO, suavizado de landmarks, try-on 3D/2D y limpieza de stream/WebGL.
-- `hooks/usePhotoTryOn.js`: FaceLandmarker en modo IMAGE, prioridad recorte 2D → GLB → vectorial, métricas de ajuste y descarga HD a resolución natural.
+- `hooks/usePhotoTryOn.js`: FaceLandmarker en modo IMAGE, prioridad GLB 3D → recorte 2D → vectorial, pose por matriz facial, métricas de ajuste y descarga HD a resolución natural.
 - `components/scanner/`: `FeedbackBox`, `LenteDot`, `ScannerMetrics`, `TryOnDetail`, `RecommendationCard`.
 - `lib/imageUtils.js`: brillo de referencia y normalización de fotos (≤1280 px, JPEG 0.88).
 - `lib/lensCompatibility.js`: reglas lente ↔ montura ↔ rostro.
@@ -183,7 +183,7 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
 ## Verificación técnica 2026-10-25
 *   Frontend `npm run lint` → **0 warnings** (se separó `useTheme`).
 *   Frontend `npm run build` → OK; `Scanner` 43.57 kB y sin chunks > 500 kB.
-*   `npm run test:pose` → **9/9** (pose frontal, signo de yaw, escala de lente F01, borde y cobertura pupilar).
+*   `npm run test:pose` → **14/14** (pose frontal, signo de yaw, escala de lente F01, borde y cobertura pupilar, extracción de yaw/pitch/roll desde la matriz facial).
 *   `npm run validate:glb` → **8/8** formas con GLB y atribución CC BY 4.0.
 *   Backend `python -m pytest -q` → **15 passed** (1 warning de deprecación de `httpx`/Starlette, ajeno al proyecto).
 *   `git status`: cambios del refactor **sin commitear** al cierre de esta sesión.
@@ -217,7 +217,7 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   **Script de accuracy actualizado:** `scripts/piloto_accuracy.py` ahora compara reglas vs ML vs ground truth con detalle por caso, distribuciones y criterios PILOTO_30.md.
     *   **Script de entrenamiento:** `scripts/train_classifier.py` con data augmentation (jitter ×8), LOO cross-validation, matriz de confusión y comparación reglas vs ML.
 11. **Probador 2D Fotorrealista en Modo Foto (2026-10-24):**
-    *   **Prioridad en foto:** 1. Recorte 2D real (`drawPhotoTryOn` en `PhotoTryOn.js`) → 2. Armazón 3D procedural (`GlassesAR` en `Frame3D.js`) si no hay asset o falla → 3. Dibujo vectorial 2D (`drawGlasses` en `GlassesOverlay.js`) como aproximación final. Implementado en render de canvas y descarga HD en `Scanner.jsx`.
+    *   **Prioridad en foto (histórica, reemplazada por el punto 15):** 1. Recorte 2D real (`drawPhotoTryOn` en `PhotoTryOn.js`) → 2. Armazón 3D procedural (`GlassesAR` en `Frame3D.js`) si no hay asset o falla → 3. Dibujo vectorial 2D (`drawGlasses` en `GlassesOverlay.js`) como aproximación final. Implementado en render de canvas y descarga HD en `Scanner.jsx`.
     *   **Calibración de assets 2D:** los 8 formatos (`rectangular`, `rimless`, `aviador`, `cat-eye`, `cuadrado`, `oval`, `redondo`, `wayfarer`) recortados en WebP transparente con orificios limpios en ambos lentes y capa de cristal/reflejo (`public/tryon/*-frame.webp` y `*-lens.webp`).
     *   **Manifest calibrado:** `public/tryon/manifest.json` calibrado con centros ópticos simétricos nivelados horizontalmente al eje pupilar (`lc_x ≈ 0.251`, `rc_x ≈ 0.749`, `y0 == y1`, `ipdRatio ≈ 0.49-0.50`), corrigiendo el cálculo de escala y rotación.
     *   **Pipeline automatizado:** `scripts/build_tryon_assets.py` con garantía de simetría horizontal automática en agujeros de lente, reflejos y centros ópticos.
@@ -232,6 +232,19 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
 14. **Validación del clasificador ML (2026-10-25):**
     *   `piloto-rostros/VALIDACION_FORMA_2026-10-25.md`: 30/30 casos con `forma_real`; sistema guardado 33 %, reglas 27 %, proxy ML 47 %, baseline 33 %.
     *   El reentrenamiento con ground truth real obtuvo **LOO 13 %**, por debajo del baseline. **No se desplegó**; se conserva el proxy como fallback y la corrección manual de forma en `/scanner`.
+15. **Realismo 3D en foto (2026-10-29):**
+    *   **3D GLB primero:** `usePhotoTryOn` monta el GLB calibrado antes del recorte 2D; el 2D queda como respaldo si WebGL o el modelo fallan. Aplica a la vista previa y a la descarga HD.
+    *   **Pose real:** `poseFromMatrix()` lee `facialTransformationMatrixes` de MediaPipe y sustituye el heurístico de la punta de la nariz, que daba `pitch -22°` en una foto frontal y hundía las patillas. También se usa en el try-on en vivo.
+    *   **Tamaño físico:** el `scale` del manifest solo se aplica cuando faltan medidas reales (IPD + `ancho_total_mm`); con medidas, el ancho lo fija el producto (F01 140 mm vs F04 150 mm se distinguen).
+    *   **Sombra de contacto:** clase `scanner__overlay--3d` con `drop-shadow` sobre el canvas transparente para que la montura no parezca flotar.
+    *   **Regresión:** `test:pose` sube a **14/14** con casos de matriz identidad, pitch, yaw, roll y entrada inválida.
+
+## Verificación técnica 2026-10-29
+*   Frontend `npm run lint` → **0 warnings**.
+*   Frontend `npm run build` → OK (`Scanner` 44.62 kB, `Frame3D` 12.33 kB diferido).
+*   `npm run test:pose` → **14/14**.
+*   `npm run validate:glb` → **8/8**.
+*   Comparativa visual A/B sobre `piloto-rostros/casos/caso-01.jpg`: 3D alineado, patillas detrás de la sien y F04 visiblemente más ancha que F01.
 
 ## Deuda técnica resuelta
 *   ✓ `temporal_est` dinámico derivado de landmarks en backend y frontend.
@@ -246,7 +259,7 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
 *   ✓ Clasificador ML de 7 formas integrado (RF+SVM, joblib) con fallback a reglas; el modelo actual es proxy y **no está validado** con ground truth real.
 *   ✓ Anotador v2 con métricas, badges comparativos y accuracy en vivo.
 *   ✓ Script de accuracy con comparación ML vs reglas vs ground truth.
-*   ✓ Probador 2D fotorrealista con recortes transparentes, reflejos simétricos y cadena de fallback 2D cutout → 3D procedural → vectorial en `/scanner` y descarga HD.
+*   ✓ Probador con recortes transparentes, reflejos simétricos y cadena de fallback **3D GLB → recorte 2D → vectorial** en `/scanner` y descarga HD.
 *   ✓ `Scanner.jsx` desacoplado en hooks, componentes y utilidades (1011 → 421 líneas).
 *   ✓ Three.js/`Frame3D` fuera del chunk inicial y descargado solo al activar el 3D.
 *   ✓ `frameColorHex` y la clasificación de tintes unificados en `frameStyle.js`.

@@ -4,7 +4,8 @@
 //  1. Rostro frontal sintético → yaw/pitch/roll ≈ 0
 //  2. Giro a la derecha → yaw con signo correcto
 //  3. F01 (A52/D18, IPD63) → lente 0.825, borde exterior llega a sienes
-import { estimatePose } from "../src/components/tryon/Frame3D.js";
+//  4. poseFromMatrix (matriz facial de MediaPipe) extrae yaw/pitch/roll reales
+import { estimatePose, poseFromMatrix } from "../src/components/tryon/Frame3D.js";
 
 const N = 478;
 const mk = () => Array.from({ length: N }, () => ({ x: 0.5, y: 0.5, z: 0 }));
@@ -47,6 +48,28 @@ check("borde llega a sien", outerNorm >= templeR - 0.03, `borde=${outerNorm.toFi
 const innerL = 0.5 - (lensCX - lensW / 2) * p1.ipd; // borde interno lente izq
 const outerL = 0.5 - (lensCX + lensW / 2) * p1.ipd; // borde externo lente izq
 check("lente cubre pupila", outerL < 0.4 && 0.4 < innerL, `pupila_izq=0.40 dentro de [${outerL.toFixed(3)},${innerL.toFixed(3)}]`);
+
+// Caso 4: matriz facial de MediaPipe (column-major, como THREE.Matrix4.fromArray).
+// Antes el pitch salía del heurístico de la nariz (-22° en una foto frontal) y
+// hundía las patillas; con la matriz la montura respeta la pose real.
+const near = (a, b, tol = 0.01) => Math.abs(a - b) < tol;
+const rotX = (a) => { const c = Math.cos(a), s = Math.sin(a); return [1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1]; };
+const rotY = (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1]; };
+const rotZ = (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]; };
+
+const pId = poseFromMatrix([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+check("matriz identidad → pose 0", pId && near(pId.yaw, 0) && near(pId.pitch, 0) && near(pId.roll, 0), `yaw/pitch/roll=${pId ? [pId.yaw, pId.pitch, pId.roll].map((v) => v.toFixed(4)).join("/") : "null"}`);
+
+const pPitch = poseFromMatrix(rotX(0.15));
+check("matriz pitch 8.6°", pPitch && near(pPitch.pitch, 0.15) && near(pPitch.yaw, 0) && near(pPitch.roll, 0), `pitch=${pPitch ? pPitch.pitch.toFixed(4) : "null"}rad`);
+
+const pYaw = poseFromMatrix(rotY(0.25));
+check("matriz yaw 14.3°", pYaw && near(pYaw.yaw, 0.25) && near(pYaw.pitch, 0), `yaw=${pYaw ? pYaw.yaw.toFixed(4) : "null"}rad`);
+
+const pRoll = poseFromMatrix(rotZ(0.1));
+check("matriz roll 5.7°", pRoll && near(pRoll.roll, 0.1) && near(pRoll.yaw, 0), `roll=${pRoll ? pRoll.roll.toFixed(4) : "null"}rad`);
+
+check("matriz inválida → null", poseFromMatrix([1, 0, 0]) === null && poseFromMatrix(null) === null);
 
 console.log(fails === 0 ? "OK: todas las verificaciones numericas" : `FALLOS: ${fails}`);
 process.exit(fails === 0 ? 0 : 1);

@@ -204,6 +204,21 @@ export function estimatePose(lm) {
   return { cx, cy, ipd, roll, yaw, pitch };
 }
 
+/**
+ * Pose real a partir de la matriz facial 4x4 de MediaPipe (row-major).
+ * Es mucho más estable que deducir pitch de la punta de la nariz: en una foto
+ * frontal el heurístico daba -22° y hundía las patillas sobre las mejillas.
+ * @returns {{yaw:number, pitch:number, roll:number}|null} radianes
+ */
+export function poseFromMatrix(data) {
+  if (!data || data.length < 16) return null;
+  const m = new THREE.Matrix4().fromArray(data);
+  const q = new THREE.Quaternion().setFromRotationMatrix(m);
+  const e = new THREE.Euler().setFromQuaternion(q, "YXZ");
+  if (![e.x, e.y, e.z].every(Number.isFinite)) return null;
+  return { yaw: e.y, pitch: e.x, roll: e.z };
+}
+
 export class GlassesAR {
   constructor(canvas) {
     this.canvas = canvas;
@@ -228,6 +243,7 @@ export class GlassesAR {
     this.glbToken = 0;
     this.pendingGlbForma = "";
     this.usingGlb = false;
+    this.applyEntryScale = true;
   }
 
   setModel(frame, tint = "monofocal", metrics = null) {
@@ -265,7 +281,12 @@ export class GlassesAR {
 
     const forma = frame?.forma || "rectangular";
     const targetWidth = glbTargetWidth(frame, metrics);
-    const glbKey = `${forma}|${targetWidth.toFixed(3)}|${tint}`;
+    // El `scale` del manifest se calibró contra una guía genérica de la página
+    // de ajuste. Cuando hay medidas reales (IPD + ancho total) el ancho ya es
+    // físico y aplicarlo encogería la montura ~25 %. Solo se usa como
+    // corrección cuando no hay medidas.
+    this.applyEntryScale = !(ipd > 0 && Number(frame?.ancho_total_mm) > 0);
+    const glbKey = `${forma}|${targetWidth.toFixed(3)}|${tint}|${this.applyEntryScale ? "s" : "n"}`;
     const cachedGlb = this.glbGroups.get(glbKey);
     if (cachedGlb) {
       // El GLB ya está normalizado y cacheado: se reutiliza sin parpadeo.
@@ -279,17 +300,18 @@ export class GlassesAR {
     this.group = buildGlassesGroup(frame, tint, dims);
     this.usingGlb = false;
     this.scene.add(this.group);
-    this._loadGlb(frame, tint, targetWidth);
+    this._loadGlb(frame, tint, targetWidth, glbKey);
   }
 
-  _loadGlb(frame, tint, targetWidth) {
+  _loadGlb(frame, tint, targetWidth, glbKey) {
     const forma = frame?.forma || "rectangular";
     const token = ++this.glbToken;
     this.pendingGlbForma = forma;
     loadGlb(forma).then((loaded) => {
       if (!loaded || token !== this.glbToken || this.pendingGlbForma !== forma) return;
-      const width = (Number(loaded.entry?.targetWidth) || targetWidth) * (Number(loaded.entry?.scale) || 1);
-      const key = `${forma}|${width.toFixed(3)}|${tint}`;
+      const entryScale = this.applyEntryScale ? (Number(loaded.entry?.scale) || 1) : 1;
+      const width = (Number(loaded.entry?.targetWidth) || targetWidth) * entryScale;
+      const key = glbKey || `${forma}|${width.toFixed(3)}|${tint}`;
       let group = this.glbGroups.get(key);
       if (!group) {
         group = buildGlbGroup(loaded.gltf.scene, { targetWidth: width, entry: loaded.entry, tint });
@@ -317,7 +339,7 @@ export class GlassesAR {
     });
   }
 
-  render(lm, cw, ch) {
+  render(lm, cw, ch, poseOverride = null) {
     if (!this.renderer || !this.scene || !this.camera) return null;
     if (!lm || lm.length < 400 || !this.group) return null;
     if (this.canvas.width !== Math.round(cw) || this.canvas.height !== Math.round(ch)) {
@@ -328,7 +350,19 @@ export class GlassesAR {
     this.camera.left = -cw / 2; this.camera.right = cw / 2;
     this.camera.top = ch / 2; this.camera.bottom = -ch / 2;
     this.camera.updateProjectionMatrix();
-    const pose = estimatePose(lm);
+    // La posición y la escala salen de los landmarks (centro de ojos e IPD en
+    // píxeles). La rotación puede venir de la matriz facial de MediaPipe, que
+    // es una pose real y no una heurística de la punta de la nariz.
+    const base = estimatePose(lm);
+    const override = poseOverride?.matrix ? poseFromMatrix(poseOverride.matrix) : poseOverride;
+    const pose = override
+      ? {
+          ...base,
+          yaw: Number.isFinite(override.yaw) ? override.yaw : base.yaw,
+          pitch: Number.isFinite(override.pitch) ? override.pitch : base.pitch,
+          roll: Number.isFinite(override.roll) ? override.roll : base.roll,
+        }
+      : base;
     const px = pose.cx * cw - cw / 2;
     const py = -(pose.cy * ch - ch / 2);
     this.group.position.set(px, py, 0);
@@ -338,6 +372,26 @@ export class GlassesAR {
     this.group.rotation.set(pose.pitch, pose.yaw, -pose.roll, "YXZ");
     this.renderer.render(this.scene, this.camera);
     return { yawDeg: pose.yaw * 57.3, pitchDeg: pose.pitch * 57.3, rollDeg: pose.roll * 57.3, ipdPx: pose.ipd * cw, glb: this.usingGlb };
+  }
+
+  /**
+   * Espera (como máximo `timeoutMs`) a que el GLB esté montado. Sirve al modo
+   * foto, que necesita decidir entre 3D y 2D en un solo render.
+   */
+  whenReady(timeoutMs = 1500) {
+    if (this.usingGlb) return Promise.resolve(true);
+    const token = this.glbToken;
+    const start = performance.now();
+    return new Promise((resolve) => {
+      const tick = () => {
+        if (this.usingGlb) return resolve(true);
+        if (this.glbToken !== token || performance.now() - start >= timeoutMs) {
+          return resolve(this.usingGlb);
+        }
+        setTimeout(tick, 60);
+      };
+      tick();
+    });
   }
 
   clear() {

@@ -282,7 +282,7 @@ export default function Scanner() {
           <div className="scanner__camwrap">
             <video ref={videoRef} playsInline muted className="scanner__video" />
             <canvas ref={overlayRef} className="scanner__overlay" aria-hidden="true" />
-            <canvas ref={threeLiveRef} className="scanner__overlay" aria-hidden="true" />
+            <canvas ref={threeLiveRef} className="scanner__overlay scanner__overlay--3d" aria-hidden="true" />
           </div>
           <small>{livePts > 0 ? `Rostro en vivo: ${livePts} puntos · ${arOk ? "armazón 3D siguiendo tu cabeza" : "probador 2D"} · centra tu cara en el óvalo` : "Activa la cámara y centra tu rostro de frente."}</small>
           <div className="scanner__row">
@@ -312,7 +312,7 @@ export default function Scanner() {
           <img ref={photoImgRef} src={preview} alt="rostro para análisis" className="scanner__preview" style={{ display: "none" }} />
           <div className={`scanner__zoomwrap ${zoomed ? "zoomed" : ""}`}>
             <canvas ref={photoCanvasRef} className="scanner__preview" onClick={() => setZoomed((z) => !z)} title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"} />
-            <canvas ref={threePhotoRef} className="scanner__overlay" aria-hidden="true" />
+            <canvas ref={threePhotoRef} className="scanner__overlay scanner__overlay--3d" aria-hidden="true" />
           </div>
           {photoWarn && <p className="scanner__warning">⚠ {photoWarn}</p>}
           <small className="scanner__sub">

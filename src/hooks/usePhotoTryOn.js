@@ -30,6 +30,7 @@ export function usePhotoTryOn({
   const imgLandmarkerRef = useRef(null);
   const arPhotoRef = useRef(null);
   const lastPhotoLmRef = useRef(null);
+  const lastMatrixRef = useRef(null);
   const photoNatRef = useRef(null);
   const [fitInfo, setFitInfo] = useState(null);
   const [photoWarn, setPhotoWarn] = useState("");
@@ -55,6 +56,7 @@ export function usePhotoTryOn({
             },
             runningMode: "IMAGE",
             numFaces: 1,
+            outputFacialTransformationMatrixes: true,
           });
         }
         const img = photoImgRef.current;
@@ -111,55 +113,59 @@ export function usePhotoTryOn({
           return;
         }
         const t = tryRef.current;
-        // Prioridad en foto: recorte 2D real. Si la montura no tiene asset,
-        // se conserva el 3D procedural o el dibujo vectorial como aproximación.
+        // Prioridad 3D: geometría, pose y profundidad reales del GLB. El
+        // recorte 2D queda como respaldo si el GLB no carga o no hay WebGL.
+        const matrix = res?.facialTransformationMatrixes?.[0]?.data ?? null;
+        lastMatrixRef.current = matrix;
         const meas = measureGlasses(lm, cnv.width, cnv.height);
         let drew3D = false;
         let pose3D = null;
         let drewPhoto = false;
         let fit = null;
-        try {
-          fit = await drawPhotoTryOn(ctx, lm, cnv.width, cnv.height, t.frame, t.metrics, {
-            alpha: t.alpha,
-            tint: t.tint,
-            light,
-          });
-          drewPhoto = !!fit;
-        } catch {
-          drewPhoto = false;
-        }
-        if (!drewPhoto && t.use3D && t.frame && arCanvas) {
+        if (t.use3D && t.frame && arCanvas) {
           try {
             const GlassesAR = await loadGlassesAR();
             if (dead) return;
             if (!arPhotoRef.current) arPhotoRef.current = new GlassesAR(arCanvas);
-            arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
-            pose3D = arPhotoRef.current.render(lm, cnv.width, cnv.height);
+            const ar = arPhotoRef.current;
+            ar.setModel(t.frame, t.tint, t.metrics);
+            await ar.whenReady(1400);
+            if (dead) return;
+            pose3D = ar.render(lm, cnv.width, cnv.height, matrix ? { matrix } : null);
             drew3D = !!pose3D;
           } catch {
             drew3D = false;
           }
         }
+        if (!drew3D) {
+          try {
+            fit = await drawPhotoTryOn(ctx, lm, cnv.width, cnv.height, t.frame, t.metrics, {
+              alpha: t.alpha,
+              tint: t.tint,
+              light,
+            });
+            drewPhoto = !!fit;
+          } catch {
+            drewPhoto = false;
+          }
+        }
         setArOk((prev) => (prev === drew3D ? prev : drew3D));
-        if (drewPhoto) {
+        if (!drew3D) {
+          // Sin 3D el canvas WebGL no debe conservar el render anterior.
           try {
             arPhotoRef.current?.clear();
           } catch {
             /* noop */
           }
-        } else if (!drew3D) {
-          try {
-            arPhotoRef.current?.clear();
-          } catch {
-            /* noop */
+          if (!drewPhoto) {
+            fit = drawGlasses(ctx, lm, W, H, cnv.width, cnv.height, t.forma, undefined, {
+              frame: t.frame,
+              metrics: t.metrics,
+              alpha: t.alpha,
+              light,
+              tint: t.tint,
+            });
           }
-          fit = drawGlasses(ctx, lm, W, H, cnv.width, cnv.height, t.forma, undefined, {
-            frame: t.frame,
-            metrics: t.metrics,
-            alpha: t.alpha,
-            light,
-            tint: t.tint,
-          });
         }
         if (!dead) {
           lastPhotoLmRef.current = lm;
@@ -280,33 +286,49 @@ export function usePhotoTryOn({
         const fctx = full.getContext("2d");
         fctx.drawImage(img, 0, 0, nat.W, nat.H);
 
-        let drewPhoto = false;
-        try {
-          const fitPhoto = await drawPhotoTryOn(fctx, lm, nat.W, nat.H, t.frame, t.metrics, {
-            alpha: 1,
-            tint: t.tint,
-            light: 0.5,
-          });
-          drewPhoto = !!fitPhoto;
-        } catch {
-          drewPhoto = false;
+        // Misma prioridad que en pantalla: 3D primero, 2D como respaldo.
+        let drew3D = false;
+        const overlay = threePhotoRef.current;
+        if (t.use3D && overlay && arPhotoRef.current) {
+          const prevW = overlay.width;
+          const prevH = overlay.height;
+          // Límite de textura WebGL: fotos muy grandes se renderizan a escala
+          // y se componen al tamaño natural.
+          const hd = Math.min(1, 4096 / Math.max(nat.W, nat.H));
+          const rw = Math.max(2, Math.round(nat.W * hd));
+          const rh = Math.max(2, Math.round(nat.H * hd));
+          const matrix = lastMatrixRef.current;
+          try {
+            arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
+            const pose = arPhotoRef.current.render(lm, rw, rh, matrix ? { matrix } : null);
+            if (pose) {
+              fctx.drawImage(overlay, 0, 0, nat.W, nat.H);
+              drew3D = true;
+            }
+          } catch {
+            drew3D = false;
+          } finally {
+            try {
+              arPhotoRef.current.render(lm, prevW, prevH, matrix ? { matrix } : null);
+            } catch {
+              /* noop */
+            }
+          }
         }
 
-        if (!drewPhoto) {
-          const overlay = threePhotoRef.current;
-          const is3D = !!(overlay && arPhotoRef.current && overlay.width > 10);
-          if (t.use3D && is3D) {
-            // Re-render 3D a tamaño natural y compone (preserveDrawingBuffer permite drawImage)
-            const prevW = overlay.width;
-            const prevH = overlay.height;
-            try {
-              arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
-              arPhotoRef.current.render(lm, nat.W, nat.H);
-              fctx.drawImage(overlay, 0, 0, nat.W, nat.H);
-            } finally {
-              arPhotoRef.current.render(lm, prevW, prevH);
-            }
-          } else {
+        if (!drew3D) {
+          let drewPhoto = false;
+          try {
+            const fitPhoto = await drawPhotoTryOn(fctx, lm, nat.W, nat.H, t.frame, t.metrics, {
+              alpha: 1,
+              tint: t.tint,
+              light: 0.5,
+            });
+            drewPhoto = !!fitPhoto;
+          } catch {
+            drewPhoto = false;
+          }
+          if (!drewPhoto) {
             drawGlasses(fctx, lm, nat.W, nat.H, nat.W, nat.H, t.forma, undefined, {
               frame: t.frame,
               metrics: t.metrics,

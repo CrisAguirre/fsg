@@ -11,6 +11,9 @@
 /* El video manda el alto (sin recorte): los overlays calcan su caja exacta */
 .scanner__camwrap .scanner__video { max-height: none; display: block; }
 .scanner__overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+/* Sombra de contacto del 3D: el canvas solo tiene píxeles de la montura, así
+   que el filtro sigue su silueta y evita que el armazón parezca flotar. */
+.scanner__overlay--3d { filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.35)); }
 /* Zoomwrap de foto: misma técnica, sin max-height que aplaste el overlay */
 .scanner__zoomwrap { position: relative; overflow: hidden; border-radius: 12px; }
 .scanner__zoomwrap .scanner__preview { max-height: none; object-fit: fill; }

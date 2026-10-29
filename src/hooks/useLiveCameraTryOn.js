@@ -10,7 +10,7 @@ import { loadGlassesAR } from "../components/tryon/arLoader.js";
 let glassesARClass = null;
 
 /**
- * @param {{ tryRef: { current: object }, onError?: (msg: string) => void }} options
+ * @param {{ tryRef: { current: import("../types").TryState }, onError?: (msg: string) => void }} options
  */
 export function useLiveCameraTryOn({ tryRef, onError }) {
   const videoRef = useRef(null);

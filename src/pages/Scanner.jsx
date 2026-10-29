@@ -36,9 +36,17 @@ export default function Scanner() {
   const [showAllRecs, setShowAllRecs] = useState(false); // ver las 64 monturas
   const RECS_PREVIEW = 12;
   const [tryId, setTryId] = useState(initialFrame || "F01");
+  // Sincroniza el frame del query string sin `setState` dentro de un efecto.
+  const [prevInitialFrame, setPrevInitialFrame] = useState(initialFrame);
+  if (initialFrame !== prevInitialFrame) {
+    setPrevInitialFrame(initialFrame);
+    if (initialFrame) setTryId(initialFrame);
+  }
   const tryFrame = frames.find((x) => x.id === tryId) ?? frames[0];
   const tryLensRef = useRef(tryLens);
-  tryLensRef.current = tryLens;
+  useEffect(() => {
+    tryLensRef.current = tryLens;
+  }, [tryLens]);
   // Transparencia según modelo: al cambiar de montura (o al llegar el análisis)
   // se monta su lente ideal, el de mayor probabilidad para tu rostro.
   // No depende de tryLens para no pelear con tu elección manual.
@@ -49,8 +57,14 @@ export default function Scanner() {
     if (lenses.length > 0 && lenses[0].tipo !== tryLensRef.current) setTryLens(lenses[0].tipo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tryId, frames, recs]);
-  const tryRef = useRef({ on: true, forma: "rectangular", frame: null, metrics: null, alpha: 0.95, tint: "monofocal", use3D: true });
-  tryRef.current = { on: tryOn && !showOriginal, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity, tint: tryLens, use3D };
+  /** @type {import("../types").TryState} */
+  const initialTryRef = { on: true, forma: "rectangular", frame: null, metrics: null, alpha: 0.95, tint: "monofocal", use3D: true };
+  const tryRef = useRef(initialTryRef);
+  const tryState = { on: tryOn && !showOriginal, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity, tint: tryLens, use3D };
+  // Los motores de try-on leen el ref en cada frame; se actualiza tras el render.
+  useEffect(() => {
+    tryRef.current = tryState;
+  });
 
   const {
     videoRef,
@@ -83,10 +97,6 @@ export default function Scanner() {
     frames,
     setArOk,
   });
-
-  useEffect(() => {
-    if (initialFrame) setTryId(initialFrame);
-  }, [initialFrame]);
 
   useEffect(() => {
     fetch(`${API_URL}/health`).then(() => setBackendOk(true)).catch(() => setBackendOk(false));

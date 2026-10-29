@@ -71,11 +71,11 @@ export function usePhotoTryOn({
           }
           arPhotoRef.current = null;
         }
-        await new Promise((r) => {
+        await /** @type {Promise<void>} */ (new Promise((r) => {
           if (img.complete && img.naturalWidth) return r();
           img.onload = () => r();
           img.onerror = () => r();
-        });
+        }));
         if (dead) return;
         const W = img.naturalWidth;
         const H = img.naturalHeight;

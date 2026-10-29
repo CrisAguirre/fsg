@@ -1,0 +1,232 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: catalogo.spec.js >> el botón de cerrar del modal devuelve el foco al catálogo
+- Location: e2e\catalogo.spec.js:33:1
+
+# Error details
+
+```
+Test timeout of 30000ms exceeded.
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - navigation [ref=e3]:
+    - generic [ref=e4]:
+      - link "Grupo Prisma Visión — Glassescanner" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img "Grupo Prisma Visión" [ref=e7]
+        - generic [ref=e8]:
+          - generic [ref=e9]: GRUPO PRISMA VISIÓN
+          - generic [ref=e10]: Glassescanner 3D
+      - list [ref=e11]:
+        - listitem [ref=e12]:
+          - link "Funciones" [ref=e13] [cursor=pointer]:
+            - /url: /#features
+        - listitem [ref=e14]:
+          - link "Cómo Funciona" [ref=e15] [cursor=pointer]:
+            - /url: /#how-it-works
+        - listitem [ref=e16]:
+          - link "Catálogo" [ref=e17] [cursor=pointer]:
+            - /url: /catalogo
+        - listitem [ref=e18]:
+          - link "Escáner Facial" [ref=e19] [cursor=pointer]:
+            - /url: /scanner
+        - listitem [ref=e20]:
+          - link "Admin" [ref=e21] [cursor=pointer]:
+            - /url: /admin/frames
+      - generic [ref=e22]:
+        - button "Cambiar a Vista Nocturna" [ref=e23] [cursor=pointer]:
+          - generic [ref=e26]: Nocturna
+        - link "Iniciar Escaneo" [ref=e27] [cursor=pointer]:
+          - /url: /scanner
+  - main [ref=e28]:
+    - generic [ref=e29]:
+      - generic [ref=e30]: Stock Oficial · 2 Modelos Disponibles
+      - heading "Catálogo de Monturas y Lentes" [level=1] [ref=e32]
+      - paragraph [ref=e33]: Explora nuestra colección calibrada para todo tipo de geometrías faciales. Selecciona cualquier modelo y pruébalo en tiempo real con nuestro escáner facial 3D.
+    - generic [ref=e34]:
+      - generic [ref=e35]:
+        - generic [ref=e36]:
+          - generic: 🔍
+          - textbox "Buscar por modelo, marca (OptiVision, Lumen, Vertex), color o material..." [ref=e37]
+        - generic [ref=e38]: Mostrando 2 de 2 monturas
+      - tablist "Filtro por forma de montura" [ref=e39]:
+        - tab "Todas" [selected] [ref=e40] [cursor=pointer]
+        - tab "Rectangular" [ref=e41] [cursor=pointer]
+        - tab "Cuadrado" [ref=e42] [cursor=pointer]
+        - tab "Redondo" [ref=e43] [cursor=pointer]
+        - tab "Oval" [ref=e44] [cursor=pointer]
+        - tab "Aviador" [ref=e45] [cursor=pointer]
+        - tab "Wayfarer" [ref=e46] [cursor=pointer]
+        - tab "Cat-Eye" [ref=e47] [cursor=pointer]
+        - tab "Rimless" [ref=e48] [cursor=pointer]
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - generic [ref=e51]: Género
+          - combobox "Género" [ref=e52] [cursor=pointer]:
+            - option "Todos los géneros" [selected]
+            - option "Unisex"
+            - option "Hombre"
+            - option "Mujer"
+        - generic [ref=e53]:
+          - generic [ref=e54]: Estilo
+          - combobox "Estilo" [ref=e55] [cursor=pointer]:
+            - option "Todos los estilos" [selected]
+            - option "Casual"
+            - option "Formal"
+            - option "Vintage"
+            - option "Sport"
+        - generic [ref=e56]:
+          - generic [ref=e57]: Talla
+          - combobox "Talla" [ref=e58] [cursor=pointer]:
+            - option "Todas las tallas" [selected]
+            - option "S (Pequeña)"
+            - option "M (Mediana)"
+            - option "L (Grande)"
+        - generic [ref=e59]:
+          - generic [ref=e60]: Rango de Precio
+          - combobox "Rango de Precio" [ref=e61] [cursor=pointer]:
+            - option "Todos los precios" [selected]
+            - option "$ Económico"
+            - option "$$ Medio"
+            - option "$$$ Premium"
+        - generic [ref=e62]:
+          - generic [ref=e63]: Lente Compatible
+          - combobox "Lente Compatible" [ref=e64] [cursor=pointer]:
+            - option "Cualquier tipo de lente" [selected]
+            - option "Monofocal"
+            - option "Bifocal"
+            - option "Progresivo"
+            - option "Filtro Luz Azul (Blue-Cut)"
+            - option "Fotocromático"
+            - option "Polarizado"
+    - generic [ref=e65]:
+      - article [ref=e66]:
+        - generic [ref=e67]:
+          - generic [ref=e68]:
+            - generic [ref=e69]: rectangular
+            - generic [ref=e70]: OptiVision
+          - generic [ref=e71]: $$ Medio
+        - generic [ref=e73]:
+          - img "Aurora Rectangular" [ref=e74]
+          - generic [ref=e75]: F01
+        - generic [ref=e76]:
+          - heading "Aurora Rectangular" [level=3] [ref=e77]
+          - generic [ref=e78]:
+            - generic [ref=e79]: casual
+            - generic [ref=e80]: Talla M
+            - generic [ref=e81]: unisex
+            - generic [ref=e82]: Acetato
+            - generic [ref=e83]: Negro
+          - generic [ref=e84]:
+            - generic "Calibre / Ancho del lente" [ref=e85]:
+              - generic [ref=e86]: A (Lente)
+              - generic [ref=e87]: 52 mm
+            - generic "Altura del lente" [ref=e88]:
+              - generic [ref=e89]: B (Alto)
+              - generic [ref=e90]: 36 mm
+            - generic "Puente nasal" [ref=e91]:
+              - generic [ref=e92]: D (Puente)
+              - generic [ref=e93]: 18 mm
+            - generic "Ancho total frontal" [ref=e94]:
+              - generic [ref=e95]: Ancho Total
+              - generic [ref=e96]: 138 mm
+          - generic [ref=e97]:
+            - generic [ref=e98]: "Lentes compatibles:"
+            - generic [ref=e99]:
+              - generic [ref=e100]: monofocal
+              - generic [ref=e101]: blue-cut
+        - generic [ref=e102]:
+          - button "Detalles" [active] [ref=e103] [cursor=pointer]
+          - button "Probar con Escáner ⚡" [ref=e104] [cursor=pointer]
+      - article [ref=e105]:
+        - generic [ref=e106]:
+          - generic [ref=e107]:
+            - generic [ref=e108]: redondo
+            - generic [ref=e109]: Prisma
+          - generic [ref=e110]: $$$ Premium
+        - generic [ref=e112]:
+          - img "Solar Redondo" [ref=e113]
+          - generic [ref=e114]: F02
+        - generic [ref=e115]:
+          - heading "Solar Redondo" [level=3] [ref=e116]
+          - generic [ref=e117]:
+            - generic [ref=e118]: elegante
+            - generic [ref=e119]: Talla S
+            - generic [ref=e120]: mujer
+            - generic [ref=e121]: Metal
+            - generic [ref=e122]: Dorado
+          - generic [ref=e123]:
+            - generic "Calibre / Ancho del lente" [ref=e124]:
+              - generic [ref=e125]: A (Lente)
+              - generic [ref=e126]: 48 mm
+            - generic "Altura del lente" [ref=e127]:
+              - generic [ref=e128]: B (Alto)
+              - generic [ref=e129]: 42 mm
+            - generic "Puente nasal" [ref=e130]:
+              - generic [ref=e131]: D (Puente)
+              - generic [ref=e132]: 20 mm
+            - generic "Ancho total frontal" [ref=e133]:
+              - generic [ref=e134]: Ancho Total
+              - generic [ref=e135]: 132 mm
+          - generic [ref=e136]:
+            - generic [ref=e137]: "Lentes compatibles:"
+            - generic [ref=e138]: polarizado
+        - generic [ref=e140]:
+          - button "Detalles" [ref=e141] [cursor=pointer]
+          - button "Probar con Escáner ⚡" [ref=e142] [cursor=pointer]
+    - dialog [ref=e143]:
+      - button "Cerrar detalle" [ref=e144] [cursor=pointer]: ✕
+      - generic [ref=e145]:
+        - text: rectangular
+        - heading "Aurora Rectangular" [level=2] [ref=e146]
+        - paragraph [ref=e147]: "Código: F01 · Marca: OptiVision"
+      - img "Aurora Rectangular" [ref=e149]
+      - generic [ref=e150]:
+        - generic [ref=e151]:
+          - generic [ref=e152]: Ancho Total Montura
+          - generic [ref=e153]: 138 mm
+        - generic [ref=e154]:
+          - generic [ref=e155]: Calibre Lente (A)
+          - generic [ref=e156]: 52 mm
+        - generic [ref=e157]:
+          - generic [ref=e158]: Altura Lente (B)
+          - generic [ref=e159]: 36 mm
+        - generic [ref=e160]:
+          - generic [ref=e161]: Puente Nasal (D)
+          - generic [ref=e162]: 18 mm
+        - generic [ref=e163]:
+          - generic [ref=e164]: Largo de Patilla
+          - generic [ref=e165]: 140 mm
+        - generic [ref=e166]:
+          - generic [ref=e167]: Material y Acabado
+          - generic [ref=e168]: Acetato · Negro
+      - generic [ref=e169]:
+        - heading "Tipos de Lente Soportados Técnicamente:" [level=4] [ref=e170]
+        - generic [ref=e171]:
+          - generic [ref=e172]: monofocal
+          - generic [ref=e173]: blue-cut
+      - button "Probar este modelo en mi rostro con el Escáner 3D" [ref=e175] [cursor=pointer]
+  - contentinfo [ref=e176]:
+    - generic [ref=e177]:
+      - generic [ref=e178]:
+        - img "Grupo Prisma Visión" [ref=e180]
+        - generic [ref=e181]:
+          - generic [ref=e182]: Grupo Prisma Visión
+          - paragraph [ref=e183]: Análisis facial y asesoría óptica asistida para elegir mejor tu montura
+      - generic [ref=e185]:
+        - paragraph [ref=e186]: © 2026 Grupo Prisma Visión. Todos los derechos reservados.
+        - paragraph [ref=e187]:
+          - text: Glassescanner 3D · Análisis facial orientativo · Ajuste de monturas ·
+          - link "Créditos 3D (CC BY 4.0)" [ref=e188] [cursor=pointer]:
+            - /url: /creditos-3d
+```

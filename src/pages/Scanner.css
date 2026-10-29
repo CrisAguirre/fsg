@@ -2,6 +2,7 @@
 .scanner__sub { color: var(--text-secondary); }
 .scanner__consent { display: flex; gap: .6rem; padding: 1rem; align-items: flex-start; color: var(--text-secondary); }
 .scanner__tabs { display: flex; gap: .5rem; padding: .6rem; background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); }
+.scanner__tabs button, .scanner__row .btn, .scanner select { min-height: 44px; font-size: 1rem; }
 .scanner__tabs button { flex: 1; padding: .7rem; border-radius: 12px; background: transparent; color: var(--text-secondary); cursor: pointer; border: none; font-weight: 500; font-family: var(--font-sans); transition: all .2s ease; }
 .scanner__tabs button:hover { color: var(--text-heading); background: var(--bg-glass-hover); }
 .scanner__tabs button.active { background: var(--text-heading); color: var(--bg-deep); font-weight: 700; box-shadow: var(--shadow-sm); }
@@ -23,11 +24,14 @@
 .verdict--compatible { border-left: 3px solid #22c55e; }
 .verdict--parcial { border-left: 3px solid #eab308; }
 .verdict--incompatible { border-left: 3px solid #ef4444; }
-.scanner__tabs button, .scanner__row .btn, .scanner select { min-height: 44px; font-size: 1rem; }
 
 /* Controles de selección de marcos */
 .scanner select { max-width: 100%; border-radius: 10px; padding: .5rem .7rem; background: var(--input-bg); color: var(--input-color); border: 1px solid var(--input-border); transition: border-color 0.2s ease; }
 .scanner select option { background: var(--input-bg); color: var(--input-color); }
+.scanner__shape-edit select {
+  background: var(--input-bg); color: var(--input-color); border: 1px solid var(--input-border);
+  border-radius: 8px; padding: .35rem .5rem; font: inherit; text-transform: capitalize;
+}
 .scanner select:focus { outline: none; border-color: var(--border-accent); }
 .scanner__select { flex: 1 1 220px; min-width: 0; }
 
@@ -37,7 +41,6 @@
 .scanner__lentes { display: grid; gap: .3rem; }
 
 /* Probador calidad: zoom detalle + opacidad */
-.scanner__zoomwrap { overflow: hidden; border-radius: 12px; }
 .scanner__zoomwrap canvas { cursor: zoom-in; transition: transform .25s ease; width: 100%; }
 .scanner__zoomwrap.zoomed canvas { cursor: zoom-out; transform: scale(1.6); }
 .scanner__opacity { display: flex; gap: .4rem; align-items: center; font-size: .85rem; color: var(--text-secondary); }
@@ -46,10 +49,6 @@
 /* ── Metrics Grid ── */
 .scanner__metrics-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
 .scanner__shape-edit { display: flex; align-items: center; gap: .45rem; font-size: .85rem; color: var(--text-secondary); }
-.scanner__shape-edit select {
-  background: var(--input-bg); color: var(--input-color); border: 1px solid var(--input-border);
-  border-radius: 8px; padding: .35rem .5rem; font: inherit; text-transform: capitalize;
-}
 .scanner__metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .75rem; margin-top: .5rem; }
 .metric-chip { background: var(--bg-elevated); border: 1px solid var(--border-glass); border-radius: 10px; padding: .6rem .8rem; display: flex; flex-direction: column; gap: .2rem; }
 .metric-label { font-size: .75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }

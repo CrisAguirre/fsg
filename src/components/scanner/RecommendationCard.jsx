@@ -18,7 +18,7 @@ export default function RecommendationCard({ rec, frame, isSelected, onSelect })
           alt={frame?.nombre || "Montura"}
           className="scanner__card-img"
           loading="lazy"
-          onError={(e) => { e.target.style.display = "none"; }}
+          onError={(e) => { e.currentTarget.style.display = "none"; }}
         />
       </div>
 

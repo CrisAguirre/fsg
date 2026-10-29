@@ -23,6 +23,27 @@ export async function loadManifest() {
   return manifestPromise;
 }
 
+/**
+ * @typedef {Object} GlbEntry
+ * @property {string} forma
+ * @property {string} url
+ * @property {number[]} rot
+ * @property {number} y
+ * @property {number|null} targetWidth
+ * @property {number} scale
+ * @property {string[]} lensMaterials
+ * @property {number} lensOpacity
+ * @property {string[]} frameMaterials
+ * @property {string} frameColor
+ * @property {string} source
+ * @property {string} title
+ * @property {string} author
+ * @property {string} author_url
+ * @property {string} source_url
+ * @property {string} license
+ * @property {string} license_url
+ */
+
 function normalizeEntry(forma, raw) {
   if (!raw) return null;
   const file = String(raw.file || `${forma}.glb`);
@@ -72,7 +93,8 @@ export async function glbDisponible(forma) {
 
 /**
  * Carga (con caché) el GLB de una forma.
- * @returns {Promise<null|{gltf: object, entry: object}>}
+ * @param {string} [forma]
+ * @returns {Promise<null|{gltf: import("three/addons/loaders/GLTFLoader.js").GLTF, entry: GlbEntry}>}
  */
 export async function loadGlb(forma) {
   if (!forma) return null;
@@ -195,7 +217,7 @@ export function buildGlbGroup(scene, { targetWidth = DEFAULT_WIDTH, entry = null
   applyFrameTint(outer, entry);
   applyLensTint(outer, entry, tint);
   outer.traverse((o) => {
-    if (o.isMesh) o.userData.sharedGlb = true; // geometría/materiales del caché
+    if (o instanceof THREE.Mesh) o.userData.sharedGlb = true; // geometría/materiales del caché
   });
 
   const root = new THREE.Group();

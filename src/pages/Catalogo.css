@@ -519,6 +519,7 @@
 
 .modal-close-btn {
   position: absolute;
+  z-index: 2; /* por encima del header: si no, el h2 intercepta el clic */
   top: 1.25rem;
   right: 1.25rem;
   background: var(--bg-glass);

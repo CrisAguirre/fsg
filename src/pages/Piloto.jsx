@@ -77,7 +77,7 @@ export default function Piloto() {
       <form className="glass admin__form" onSubmit={guardar}>
         <div className="admin__grid">
           <label>Óptica<input value={optica} onChange={(e) => setOptica(e.target.value)} required /></label>
-          <label>Caso #<input type="number" min="1" max="99" value={caso} onChange={(e) => setCaso(e.target.value)} required /></label>
+          <label>Caso #<input type="number" min="1" max="99" value={caso} onChange={(e) => setCaso(Number(e.target.value))} required /></label>
           <label>Forma real (ojo óptico)<select value={formaReal} onChange={(e) => setFormaReal(e.target.value)}>{FORMAS.map((f) => <option key={f}>{f}</option>)}</select></label>
           <label>Forma detectada por IA<input value={formaDetectada || "—"} readOnly /></label>
           <label>Marco recomendado (top-1)<input value={marcoRecomendado} onChange={(e) => setMarcoRecomendado(e.target.value.toUpperCase())} placeholder="F04" /></label>

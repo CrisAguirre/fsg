@@ -74,6 +74,16 @@ export default function Catalogo() {
   const [tipoLente, setTipoLente] = useState('todos');
   const [selectedFrame, setSelectedFrame] = useState(null);
 
+  // El modal se cierra con Escape además de con el botón y el fondo.
+  useEffect(() => {
+    if (!selectedFrame) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setSelectedFrame(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedFrame]);
+
   useEffect(() => {
     let active = true;
     listFrames()
@@ -187,36 +197,36 @@ export default function Catalogo() {
           {/* Dropdowns secundarios */}
           <div className="catalogo-dropdowns-grid">
             <div className="filter-group">
-              <label>Género</label>
-              <select value={genero} onChange={(e) => setGenero(e.target.value)}>
+              <label htmlFor="filtro-genero">Género</label>
+              <select id="filtro-genero" value={genero} onChange={(e) => setGenero(e.target.value)}>
                 {GENEROS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
               </select>
             </div>
 
             <div className="filter-group">
-              <label>Estilo</label>
-              <select value={estilo} onChange={(e) => setEstilo(e.target.value)}>
+              <label htmlFor="filtro-estilo">Estilo</label>
+              <select id="filtro-estilo" value={estilo} onChange={(e) => setEstilo(e.target.value)}>
                 {ESTILOS.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
               </select>
             </div>
 
             <div className="filter-group">
-              <label>Talla</label>
-              <select value={talla} onChange={(e) => setTalla(e.target.value)}>
+              <label htmlFor="filtro-talla">Talla</label>
+              <select id="filtro-talla" value={talla} onChange={(e) => setTalla(e.target.value)}>
                 {TALLAS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
               </select>
             </div>
 
             <div className="filter-group">
-              <label>Rango de Precio</label>
-              <select value={precio} onChange={(e) => setPrecio(e.target.value)}>
+              <label htmlFor="filtro-precio">Rango de Precio</label>
+              <select id="filtro-precio" value={precio} onChange={(e) => setPrecio(e.target.value)}>
                 {PRECIOS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
               </select>
             </div>
 
             <div className="filter-group">
-              <label>Lente Compatible</label>
-              <select value={tipoLente} onChange={(e) => setTipoLente(e.target.value)}>
+              <label htmlFor="filtro-lente">Lente Compatible</label>
+              <select id="filtro-lente" value={tipoLente} onChange={(e) => setTipoLente(e.target.value)}>
                 {LENTES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
               </select>
             </div>
@@ -346,13 +356,22 @@ export default function Catalogo() {
 
         {/* ── Modal de Detalle de Montura ──────────────────────── */}
         {selectedFrame && (
-          <div className="catalogo-modal-backdrop" onClick={() => setSelectedFrame(null)}>
-            <div className="catalogo-modal glass--heavy" onClick={(e) => e.stopPropagation()}>
-              <button className="modal-close-btn" onClick={() => setSelectedFrame(null)}>✕</button>
+          <div
+            className="catalogo-modal-backdrop"
+            role="presentation"
+            onClick={(e) => { if (e.target === e.currentTarget) setSelectedFrame(null); }}
+          >
+            <div
+              className="catalogo-modal glass--heavy"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="catalogo-modal-title"
+            >
+              <button className="modal-close-btn" onClick={() => setSelectedFrame(null)} aria-label="Cerrar detalle">✕</button>
 
               <div className="modal-header">
                 <span className="badge-shape">{selectedFrame.forma}</span>
-                <h2>{selectedFrame.nombre}</h2>
+                <h2 id="catalogo-modal-title">{selectedFrame.nombre}</h2>
                 <p className="modal-sub">Código: <b>{selectedFrame.id}</b> · Marca: <b>{selectedFrame.marca}</b></p>
               </div>
 
@@ -361,7 +380,7 @@ export default function Catalogo() {
                   src={selectedFrame.imagen_url || `/frames/${selectedFrame.forma}.jpg`}
                   alt={selectedFrame.nombre}
                   className="modal-frame-img"
-                  onError={(e) => { e.target.style.display = "none"; }}
+                  onError={(e) => { e.currentTarget.style.display = "none"; }}
                 />
               </div>
 

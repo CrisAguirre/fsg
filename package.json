@@ -7,6 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "lint:eslint": "eslint src",
+    "lint:css": "stylelint \"src/**/*.css\"",
+    "typecheck": "tsc -p tsconfig.audit.json",
+    "audit:deps": "npm audit --omit=dev",
     "validate:glb": "node scripts/validate_glb_manifest.mjs",
     "test:pose": "node scripts/verify_pose.mjs",
     "preview": "vite preview"
@@ -20,10 +24,19 @@
     "three": "^0.186.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
     "oxlint": "^1.81.0",
+    "stylelint": "^17.16.0",
+    "stylelint-config-standard": "^40.0.0",
+    "typescript": "^7.0.2",
     "vite": "^8.3.0"
   }
 }

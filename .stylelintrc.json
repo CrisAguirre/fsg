@@ -1,0 +1,19 @@
+{
+  "extends": "stylelint-config-standard",
+  "ignoreFiles": ["dist/**", "public/**"],
+  "rules": {
+    "selector-class-pattern": null,
+    "declaration-block-single-line-max-declarations": null,
+    "color-function-alias-notation": null,
+    "alpha-value-notation": null,
+    "color-function-notation": null,
+    "color-hex-length": null,
+    "rule-empty-line-before": null,
+    "at-rule-empty-line-before": null,
+    "comment-empty-line-before": null,
+    "media-feature-range-notation": null,
+    "property-no-vendor-prefix": null,
+    "font-family-name-quotes": null,
+    "keyframes-name-pattern": null
+  }
+}

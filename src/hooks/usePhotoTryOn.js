@@ -10,6 +10,7 @@ import {
 } from "../components/tryon/GlassesOverlay.js";
 import { drawPhotoTryOn } from "../components/tryon/PhotoTryOn.js";
 import { loadGlassesAR } from "../components/tryon/arLoader.js";
+import { blockMediapipeTelemetry } from "../lib/mediapipeTelemetry.js";
 import { sampleBrightness } from "../lib/imageUtils.js";
 
 export function usePhotoTryOn({
@@ -42,6 +43,7 @@ export function usePhotoTryOn({
     (async () => {
       setPhotoWarn("");
       try {
+        blockMediapipeTelemetry();
         const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
         if (!imgLandmarkerRef.current) {
           const fileset = await FilesetResolver.forVisionTasks(

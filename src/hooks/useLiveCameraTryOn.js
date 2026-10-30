@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { drawGlasses, smoothLandmarks } from "../components/tryon/GlassesOverlay.js";
 import { loadGlassesAR } from "../components/tryon/arLoader.js";
+import { blockMediapipeTelemetry } from "../lib/mediapipeTelemetry.js";
 
 let glassesARClass = null;
 
@@ -47,6 +48,7 @@ export function useLiveCameraTryOn({ tryRef, onError }) {
   const startLiveLandmarks = useCallback(async () => {
     const session = liveSessionRef.current + 1;
     liveSessionRef.current = session;
+    blockMediapipeTelemetry();
     const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
     const fileset = await FilesetResolver.forVisionTasks(
       "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm",

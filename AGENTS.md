@@ -58,7 +58,8 @@ src/
 ├── lib/
 │   ├── api.js                     # cliente HTTP (timeout, health, analyze, recommend, CRUD)
 │   ├── imageUtils.js              # brillo y normalización de fotos
-│   └── lensCompatibility.js       # reglas lente ↔ montura ↔ rostro
+│   ├── lensCompatibility.js       # reglas lente ↔ montura ↔ rostro
+│   └── mediapipeTelemetry.js      # corta la telemetría de MediaPipe (403)
 ├── components/scanner/
 │   ├── FeedbackBox.jsx            # voto 1-5★
 │   ├── FrameStrip.jsx             # tira de monturas recomendadas sobre la foto
@@ -105,7 +106,7 @@ npm run lint          # 0 warnings
 npm run lint:eslint   # accesibilidad + hooks (0)
 npm run lint:css      # stylelint (0)
 npm run typecheck     # tsc --checkJs (0)
-npm test              # vitest (35)
+npm test              # vitest (38)
 npm run test:e2e      # playwright (6; `npx playwright install chromium` la primera vez)
 npm run build         # 0 errores y ningún chunk > 500 kB
 npm run test:pose     # 14/14 verificaciones numéricas
@@ -146,7 +147,10 @@ Definición de terminado:
 - Frontend: build OK en ~0.5 s. `Scanner` = **43.57 kB** (antes 651 kB).
   `Three.js` se descarga solo al activar el 3D (chunks 45/246/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
-- `test`: **35/35**; `test:e2e`: **6/6**.
+- `test`: **38/38**; `test:e2e`: **6/6**.
+- Telemetría de MediaPipe bloqueada en cliente (`lib/mediapipeTelemetry.js`):
+  el POST a `odml.pa.googleapis.com/v1/log` respondía 403 y ensuciaba la consola;
+  ahora se corta con un `Response` 200 vacío sin abrir conexión (privacidad).
 - `test:pose`: **14/14**.
 - `validate:glb`: **8/8** modelos CC BY 4.0.
 - Flujo principal: subir/capturar foto con consentimiento **dispara el análisis
@@ -191,3 +195,5 @@ Definición de terminado:
   IPD estándar (63 mm) para no dibujar una montura de ~1 IPD.
 - Enviar o persistir el registro del escaneo en el servidor: el registro es local
   y descargable; la foto nunca se almacena.
+- Permitir telemetría de MediaPipe (`odml.pa.googleapis.com`): se bloquea en el
+  cliente con `lib/mediapipeTelemetry.js`; no añadir ese host al CSP.

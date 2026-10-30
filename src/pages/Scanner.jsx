@@ -9,6 +9,7 @@ import FeedbackBox from "../components/scanner/FeedbackBox.jsx";
 import ScannerMetrics from "../components/scanner/ScannerMetrics.jsx";
 import TryOnDetail from "../components/scanner/TryOnDetail.jsx";
 import RecommendationCard from "../components/scanner/RecommendationCard.jsx";
+import FrameStrip from "../components/scanner/FrameStrip.jsx";
 import { useLiveCameraTryOn } from "../hooks/useLiveCameraTryOn.js";
 import { usePhotoTryOn } from "../hooks/usePhotoTryOn.js";
 import "./Scanner.css";
@@ -125,10 +126,14 @@ export default function Scanner() {
     c.getContext("2d").drawImage(v, 0, 0);
     c.toBlob((b) => {
       if (!b) return setError("No se pudo capturar. Intenta de nuevo.");
-      setFile(new File([b], "captura.jpg", { type: "image/jpeg" }));
+      const captured = new File([b], "captura.jpg", { type: "image/jpeg" });
+      setFile(captured);
       setPreview(URL.createObjectURL(b));
       setMetrics(null);
       setRecs([]);
+      // Con el consentimiento ya aceptado, capturar es suficiente: se analiza
+      // de inmediato y el resultado aparece bajo la foto.
+      if (consent) runAnalysis(captured);
     }, "image/jpeg", 0.88);
   }
 
@@ -137,19 +142,24 @@ export default function Scanner() {
     if (!f) return;
     setError("");
     setLoading("Cargando y optimizando imagen…");
+    let chosen = null;
     try {
       const normalized = await normalizeImageFile(f);
+      chosen = normalized.file;
       setFile(normalized.file);
       setPreview(normalized.previewUrl);
       setMetrics(null);
       setRecs([]);
     } catch {
+      chosen = f;
       setFile(f);
       setPreview(URL.createObjectURL(f));
     } finally {
       setLoading("");
       if (e.target) e.target.value = "";
     }
+    // Un solo gesto (elegir foto) ya dispara el análisis si hay consentimiento.
+    if (consent && chosen) runAnalysis(chosen);
   }
 
   async function erasePhoto() {
@@ -229,12 +239,13 @@ export default function Scanner() {
     }
   }
 
-  async function runAnalysis() {
+  async function runAnalysis(fileArg) {
+    const target = fileArg ?? file;
     if (!consent) {
       setError("Debes aceptar el tratamiento de datos biométricos (Ley 1581) para continuar.");
       return;
     }
-    if (!file) {
+    if (!target) {
       setError(tab === "camara" ? "Captura primero con la cámara." : "Selecciona primero una foto de tu rostro.");
       return;
     }
@@ -244,7 +255,7 @@ export default function Scanner() {
     setRecs([]);
     setShowAllRecs(false);
     try {
-      const m = await analyzePhoto(file);
+      const m = await analyzePhoto(target);
       if (!m || !m.face_detected) {
         throw new Error(m?.warnings?.[0] || "No se detectó un rostro frontal claro. Asegúrate de mirar de frente y tener buena luz.");
       }
@@ -294,7 +305,17 @@ export default function Scanner() {
             <canvas ref={overlayRef} className="scanner__overlay" aria-hidden="true" />
             <canvas ref={threeLiveRef} className="scanner__overlay scanner__overlay--3d" aria-hidden="true" />
           </div>
-          <small>{livePts > 0 ? `Rostro en vivo: ${livePts} puntos · ${arOk ? "armazón 3D siguiendo tu cabeza" : "probador 2D"} · centra tu cara en el óvalo` : "Activa la cámara y centra tu rostro de frente."}</small>
+          <div
+            className={`scanner__live ${livePts > 0 ? "scanner__live--ok" : ""}`}
+            role="status"
+            aria-live="polite"
+          >
+            <span className="scanner__live-dot" aria-hidden="true" />
+            {livePts > 0
+              ? `Escaneo en vivo · ${livePts} puntos faciales detectados`
+              : "Escaneo en vivo · buscando tu rostro"}
+          </div>
+          <small>{livePts > 0 ? `${arOk ? "Armazón 3D siguiendo tu cabeza" : "Probador 2D"} · centra tu cara en el óvalo` : "Activa la cámara y centra tu rostro de frente."}</small>
           <div className="scanner__row">
             <button className="btn btn--glass" onClick={startCamera}>Activar cámara</button>
             <button className="btn btn--primary" onClick={capture}>Capturar</button>
@@ -304,6 +325,21 @@ export default function Scanner() {
             </label>
           </div>
           <small>Requiere HTTPS + permiso. En iPhone usa Safari con gesto Capturar. Mové la cabeza: el 3D te sigue.</small>
+          <label className="scanner__live-select">
+            Montura en vivo
+            <select
+              value={tryId}
+              onChange={(e) => setTryId(e.target.value)}
+              aria-label="Montura para cámara en vivo"
+              className="scanner__select"
+            >
+              {frames.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nombre} · {f.forma}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       ) : (
         <div className="glass scanner__panel">
@@ -325,6 +361,15 @@ export default function Scanner() {
             <canvas ref={threePhotoRef} className="scanner__overlay scanner__overlay--3d" aria-hidden="true" />
           </div>
           {photoWarn && <p className="scanner__warning">⚠ {photoWarn}</p>}
+          <FrameStrip
+            recs={recs}
+            frames={frames}
+            tryId={tryId}
+            onSelect={(id) => {
+              setTryId(id);
+              setTryOn(true);
+            }}
+          />
           <small className="scanner__sub">
             Modelos 3D con licencia CC BY 4.0 · <Link to="/creditos-3d">autores y atribuciones</Link>
           </small>

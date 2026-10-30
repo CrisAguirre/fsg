@@ -35,6 +35,30 @@
 .scanner select:focus { outline: none; border-color: var(--border-accent); }
 .scanner__select { flex: 1 1 220px; min-width: 0; }
 
+/* Tira de monturas recomendadas en la misma vista del probador */
+.scanner__strip-wrap { display: grid; gap: .45rem; }
+.scanner__strip-head { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.scanner__strip-head b { color: var(--text-heading); font-size: .95rem; }
+.scanner__strip-head small { color: var(--text-muted); font-size: .78rem; }
+.scanner__strip { display: flex; gap: .55rem; overflow-x: auto; padding: .15rem .15rem .5rem; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.scanner__strip-btn { flex: 0 0 132px; scroll-snap-align: start; display: grid; gap: .15rem; padding: .45rem; border-radius: 10px; border: 1px solid var(--border-glass); background: var(--bg-elevated); color: var(--text-secondary); cursor: pointer; text-align: left; font-family: var(--font-sans); transition: border-color .2s ease, transform .2s ease; }
+.scanner__strip-btn:hover { border-color: var(--border-accent); transform: translateY(-1px); }
+.scanner__strip-btn--active { border-color: var(--border-accent); box-shadow: var(--shadow-glow); }
+.scanner__strip-btn img { width: 100%; height: 46px; object-fit: contain; background: #000; border-radius: 6px; }
+.scanner__strip-name { font-size: .78rem; font-weight: 600; color: var(--text-heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scanner__strip-score { font-size: .72rem; font-weight: 700; }
+.verdict-text--compatible { color: #22c55e; }
+.verdict-text--parcial { color: #eab308; }
+.verdict-text--incompatible { color: #ef4444; }
+
+/* Estado del escaneo en vivo */
+.scanner__live { display: inline-flex; align-items: center; gap: .45rem; font-size: .85rem; color: var(--text-secondary); }
+.scanner__live-dot { width: .55rem; height: .55rem; border-radius: 50%; background: #ef4444; animation: scannerBlink 1.4s ease-in-out infinite; }
+.scanner__live--ok .scanner__live-dot { background: #22c55e; }
+.scanner__live-select { display: flex; gap: .45rem; align-items: center; font-size: .85rem; color: var(--text-secondary); flex-wrap: wrap; }
+@keyframes scannerBlink { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .scanner__live-dot { animation: none; } }
+
 /* Ficha del modelo en el probador */
 .scanner__trydetail { display: grid; gap: .4rem; padding: .7rem .8rem; border-radius: 12px; background: var(--bg-elevated); border: 1px solid var(--border-glass); }
 .scanner__trydetail-top { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }

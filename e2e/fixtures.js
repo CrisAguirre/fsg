@@ -44,4 +44,35 @@ export const FRAMES = [
 export async function mockApi(page) {
   await page.route("**/api/health", (route) => route.fulfill({ json: { ok: true } }));
   await page.route("**/api/frames", (route) => route.fulfill({ json: FRAMES }));
+  await page.route("**/api/analyze", (route) => route.fulfill({ json: METRICS }));
+  await page.route("**/api/recommend", (route) => route.fulfill({ json: RECS }));
 }
+
+/** Respuesta mínima de `POST /analyze` para el flujo foto → recomendación. */
+export const METRICS = {
+  face_detected: true,
+  face_shape: "oval",
+  symmetry_index: 91,
+  ratios: { largo_ancho: 1.3, frente_pomulo: 0.95, mandibula_frente: 0.9 },
+  ipd_mm_est: 63,
+  nose_bridge_mm_est: 18,
+  temporal_est: 139,
+  eyebrow_in_frame_zone: true,
+  warnings: [],
+};
+
+/** Respuesta mínima de `POST /recommend`, ordenada por score. */
+export const RECS = [
+  {
+    frame_id: "F01",
+    score: 88,
+    verdict: "compatible",
+    reasons: ["Proporción compatible", "Centrado óptico correcto", "Apoyo nasal adecuado"],
+  },
+  {
+    frame_id: "F02",
+    score: 61,
+    verdict: "parcial",
+    reasons: ["Forma parcialmente compatible", "Revisar altura del lente", "Apoyo nasal ajustado"],
+  },
+];

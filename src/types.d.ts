@@ -22,6 +22,14 @@ export interface TryMetrics {
   [key: string]: unknown;
 }
 
+/** Recomendación de `POST /recommend`. */
+export interface TryRec {
+  frame_id: string;
+  score: number;
+  verdict: string;
+  reasons: string[];
+}
+
 /**
  * Estado que Scanner publica para los motores de try-on.
  * Los hooks lo leen en cada frame, por eso vive en un ref.

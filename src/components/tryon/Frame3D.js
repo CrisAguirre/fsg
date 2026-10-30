@@ -177,8 +177,12 @@ export function buildGlassesGroup(frame, tint = "monofocal", dims = null) {
 }
 
 // Ancho real de la montura en unidades IPD (1.0 = distancia interpupilar).
+// Sin análisis todavía (cámara en vivo) se asume una IPD adulta estándar:
+// antes se dibujaba ~1 IPD de ancho y la montura se veía diminuta.
+const FALLBACK_IPD_MM = 63;
+
 function glbTargetWidth(frame, metrics) {
-  const ipd = Number(metrics?.ipd_mm_est);
+  const ipd = Number(metrics?.ipd_mm_est) || (Number(frame?.A_mm) > 0 ? FALLBACK_IPD_MM : 0);
   let width = 2.1;
   if (ipd > 0 && Number(frame?.ancho_total_mm) > 0) {
     width = Number(frame.ancho_total_mm) / ipd;
@@ -186,6 +190,45 @@ function glbTargetWidth(frame, metrics) {
     width = (2 * Number(frame.A_mm) + Number(frame.D_mm)) / ipd;
   }
   return clamp(width, 1.7, 2.6);
+}
+
+/**
+ * Dimensiones ópticas de la montura en unidades IPD (1.0 = distancia
+ * interpupilar). Sin análisis todavía se asume una IPD adulta estándar para
+ * que el armazón no nazca diminuto en la cámara en vivo.
+ */
+export function frameDims(frame, metrics) {
+  const measuredIpd = Number(metrics?.ipd_mm_est);
+  const ipd = measuredIpd > 0 ? measuredIpd : Number(frame?.A_mm) > 0 ? FALLBACK_IPD_MM : 0;
+  if (frame?.A_mm && frame?.B_mm && frame?.D_mm && ipd > 0) {
+    const lensW = clamp(frame.A_mm / ipd, 0.55, 1.05);
+    const lensH = clamp(frame.B_mm / ipd, 0.35, 0.9);
+    const lensCX = clamp((frame.A_mm + frame.D_mm) / 2 / ipd, 0.4, 0.7);
+    return {
+      ipd,
+      lensW,
+      lensH,
+      lensCX,
+      bridgeW: clamp(frame.D_mm / ipd, 0.12, 0.45),
+    };
+  }
+  let fitScale = 1;
+  let ratioHB = null;
+  if (frame?.ancho_total_mm && metrics?.temporal_est) {
+    fitScale = clamp(frame.ancho_total_mm / metrics.temporal_est, 0.85, 1.25);
+  }
+  if (frame?.A_mm && frame?.B_mm && frame.A_mm > 0) {
+    ratioHB = clamp(frame.B_mm / frame.A_mm, 0.6, 1.0);
+  }
+  const lensW = 0.44 * fitScale;
+  return {
+    ipd,
+    lensW,
+    lensH: lensW * (ratioHB ?? 0.72),
+    lensCX: 0.5,
+    bridgeW: Math.max(0.1, 1 - lensW),
+    fitScale,
+  };
 }
 
 export function estimatePose(lm) {
@@ -254,37 +297,16 @@ export class GlassesAR {
     this.group = null;
     // Dimensiones ópticas reales en unidades IPD (1.0 = tu IPD).
     // Ej: A52/D18 con IPD63 → lente 0.83, centros ±0.56, puente 0.29.
-    let dims = null;
-    const ipd = Number(metrics?.ipd_mm_est);
-    if (frame?.A_mm && frame?.B_mm && frame?.D_mm && ipd > 0) {
-      const lensW = clamp(frame.A_mm / ipd, 0.55, 1.05);
-      const lensH = clamp(frame.B_mm / ipd, 0.35, 0.9);
-      const lensCX = clamp((frame.A_mm + frame.D_mm) / 2 / ipd, 0.4, 0.7);
-      dims = { lensW, lensH, lensCX, bridgeW: clamp(frame.D_mm / ipd, 0.12, 0.45) };
-    } else {
-      let fitScale = 1, ratioHB = null;
-      if (frame?.ancho_total_mm && metrics?.temporal_est) {
-        fitScale = clamp(frame.ancho_total_mm / metrics.temporal_est, 0.85, 1.25);
-      }
-      if (frame?.A_mm && frame?.B_mm && frame.A_mm > 0) {
-        ratioHB = clamp(frame.B_mm / frame.A_mm, 0.6, 1.0);
-      }
-      const lensW = 0.44 * fitScale;
-      dims = {
-        lensW,
-        lensH: lensW * (ratioHB ?? 0.72),
-        lensCX: 0.5,
-        bridgeW: Math.max(0.1, 1 - lensW),
-        fitScale,
-      };
-    }
+    // En vivo, antes del análisis, se usa una IPD adulta estándar para que la
+    // montura nazca con el tamaño correcto y no se vea pequeña.
+    const { ipd, ...dims } = frameDims(frame, metrics);
 
     const forma = frame?.forma || "rectangular";
-    const targetWidth = glbTargetWidth(frame, metrics);
+    const targetWidth = glbTargetWidth(frame, { ipd_mm_est: ipd });
     // El `scale` del manifest se calibró contra una guía genérica de la página
-    // de ajuste. Cuando hay medidas reales (IPD + ancho total) el ancho ya es
-    // físico y aplicarlo encogería la montura ~25 %. Solo se usa como
-    // corrección cuando no hay medidas.
+    // de ajuste. Cuando hay ancho total y una IPD (real o estándar) el ancho ya
+    // es físico y aplicarlo encogería la montura ~25 %. Solo se usa como
+    // corrección cuando la montura no declara medidas.
     this.applyEntryScale = !(ipd > 0 && Number(frame?.ancho_total_mm) > 0);
     const glbKey = `${forma}|${targetWidth.toFixed(3)}|${tint}|${this.applyEntryScale ? "s" : "n"}`;
     const cachedGlb = this.glbGroups.get(glbKey);

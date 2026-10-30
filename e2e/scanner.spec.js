@@ -46,6 +46,9 @@ test("subir foto analiza y permite cambiar de montura en la misma vista", async 
   await expect(strip).toBeVisible();
   await expect(strip.getByRole("button")).toHaveCount(2);
   await expect(page.locator(".scanner__trydetail")).toContainText("Aurora Rectangular");
+  await expect(page.locator(".scanner__record")).toContainText("Registro del escaneo");
+  await expect(page.locator(".scanner__record")).toContainText("Ovalado");
+  await expect(page.locator(".scanner__record")).toContainText("Foto subida");
 
   await strip.getByRole("button", { name: /Solar Redondo/ }).click();
   await expect(page.locator(".scanner__trydetail")).toContainText("Solar Redondo");

@@ -10,6 +10,7 @@ import ScannerMetrics from "../components/scanner/ScannerMetrics.jsx";
 import TryOnDetail from "../components/scanner/TryOnDetail.jsx";
 import RecommendationCard from "../components/scanner/RecommendationCard.jsx";
 import FrameStrip from "../components/scanner/FrameStrip.jsx";
+import ScanRecord from "../components/scanner/ScanRecord.jsx";
 import { useLiveCameraTryOn } from "../hooks/useLiveCameraTryOn.js";
 import { usePhotoTryOn } from "../hooks/usePhotoTryOn.js";
 import "./Scanner.css";
@@ -23,6 +24,7 @@ export default function Scanner() {
   const [preview, setPreview] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [detectedShape, setDetectedShape] = useState("");
+  const [scanMeta, setScanMeta] = useState(null);
   const [recs, setRecs] = useState([]);
   const [frames, setFrames] = useState([]);
   const [loading, setLoading] = useState("");
@@ -131,6 +133,7 @@ export default function Scanner() {
       setPreview(URL.createObjectURL(b));
       setMetrics(null);
       setRecs([]);
+      setScanMeta(null);
       // Con el consentimiento ya aceptado, capturar es suficiente: se analiza
       // de inmediato y el resultado aparece bajo la foto.
       if (consent) runAnalysis(captured);
@@ -150,6 +153,7 @@ export default function Scanner() {
       setPreview(normalized.previewUrl);
       setMetrics(null);
       setRecs([]);
+      setScanMeta(null);
     } catch {
       chosen = f;
       setFile(f);
@@ -166,6 +170,7 @@ export default function Scanner() {
     if (preview) URL.revokeObjectURL(preview);
     setFile(null); setPreview(null); setMetrics(null); setRecs([]); setError(""); setZoomed(false); setShowOriginal(false);
     setDetectedShape("");
+    setScanMeta(null);
     resetPhotoTryOn();
     try { sessionStorage.removeItem("gs_last_scan"); } catch { /* noop */ }
     try {
@@ -261,6 +266,10 @@ export default function Scanner() {
       }
       setMetrics(m);
       setDetectedShape(m.face_shape);
+      setScanMeta({
+        at: new Date().toISOString(),
+        source: tab === "camara" ? "Cámara en vivo" : "Foto subida",
+      });
       setLoading("Calculando compatibilidades con el stock…");
       const r = await recommend(m, null);
       const sorted = r.sort((a, b) => b.score - a.score);
@@ -446,6 +455,13 @@ export default function Scanner() {
       {error && <p className="scanner__error">{error}</p>}
 
       <ScannerMetrics metrics={metrics} loading={loading} onChangeShape={changeShape} />
+      <ScanRecord
+        metrics={metrics}
+        detectedShape={detectedShape}
+        scanMeta={scanMeta}
+        top={recs[0] ?? null}
+        frame={recs[0] ? frames.find((f) => f.id === recs[0].frame_id) ?? null : null}
+      />
 
       {recs.length > 0 && (
         <>

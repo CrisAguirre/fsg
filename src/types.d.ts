@@ -16,9 +16,20 @@ export interface TryFrame {
 
 /** Métricas faciales de `POST /analyze`. */
 export interface TryMetrics {
+  face_detected?: boolean;
   ipd_mm_est?: number;
   ancho_total_mm?: number;
   face_shape?: string;
+  symmetry_index?: number;
+  temporal_est?: number;
+  nose_bridge_mm_est?: number;
+  eyebrow_in_frame_zone?: boolean;
+  ratios?: {
+    largo_ancho?: number;
+    frente_pomulo?: number;
+    mandibula_frente?: number;
+  };
+  warnings?: string[];
   [key: string]: unknown;
 }
 

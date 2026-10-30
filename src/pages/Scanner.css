@@ -70,6 +70,15 @@
 .scanner__opacity { display: flex; gap: .4rem; align-items: center; font-size: .85rem; color: var(--text-secondary); }
 .scanner__opacity input[type="range"] { width: 110px; accent-color: var(--text-heading); }
 
+/* ── Registro del escaneo ── */
+.scanner__record { padding: 1rem; display: grid; gap: .6rem; }
+.scanner__record-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.scanner__record-head h3 { margin: 0; font-size: 1.05rem; color: var(--text-heading); }
+.scanner__record-grid { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .5rem; }
+.scanner__record-item { background: var(--bg-elevated); border: 1px solid var(--border-glass); border-radius: 8px; padding: .45rem .6rem; }
+.scanner__record-item dt { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.scanner__record-item dd { margin: .1rem 0 0; font-size: .88rem; font-weight: 600; color: var(--text-heading); }
+
 /* ── Metrics Grid ── */
 .scanner__metrics-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
 .scanner__shape-edit { display: flex; align-items: center; gap: .45rem; font-size: .85rem; color: var(--text-secondary); }

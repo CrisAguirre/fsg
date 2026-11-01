@@ -1,14 +1,5 @@
-const FORMA_LABEL = {
-  oval: "Ovalado",
-  redondo: "Redondo",
-  cuadrado: "Cuadrado",
-  corazon: "Corazón",
-  diamante: "Diamante",
-  oblongo: "Oblongo",
-  triangular: "Triangular",
-};
+import { formaLabel } from "../../lib/faceLabels.js";
 
-const forma = (value) => FORMA_LABEL[value] || value || "—";
 const mm = (value) => `${Number(value ?? 0).toFixed(1)} mm`;
 const num = (value, digits = 2) => Number(value ?? 0).toFixed(digits);
 
@@ -31,8 +22,8 @@ export default function ScanRecord({ metrics, detectedShape, scanMeta, top, fram
   const rows = [
     ["Fecha y hora", new Date(scanMeta.at).toLocaleString("es-CO")],
     ["Origen", scanMeta.source],
-    ["Forma detectada", forma(detectedShape || metrics.face_shape)],
-    ["Forma confirmada", forma(metrics.face_shape)],
+    ["Forma detectada", formaLabel(detectedShape || metrics.face_shape)],
+    ["Forma confirmada", formaLabel(metrics.face_shape)],
     ["Índice de simetría", `${Number(metrics.symmetry_index ?? 0).toFixed(0)} %`],
     ["IPD estimada", mm(metrics.ipd_mm_est)],
     ["Ancho temporal estimado", mm(metrics.temporal_est)],

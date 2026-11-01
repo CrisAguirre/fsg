@@ -51,12 +51,14 @@ Reglas de frontera:
 
 ```text
 src/
-├── pages/Scanner.jsx              # orquestador del flujo (consentimiento → análisis → try-on)
+├── pages/Scanner.jsx              # asistente de 3 pasos (escaneo → informe/monturas → escaneo con montura)
 ├── hooks/
 │   ├── useLiveCameraTryOn.js      # getUserMedia + MediaPipe VIDEO + try-on 3D/2D en vivo
 │   └── usePhotoTryOn.js           # MediaPipe IMAGE + GLB 3D + recorte 2D + descarga HD
 ├── lib/
 │   ├── api.js                     # cliente HTTP (timeout, health, analyze, recommend, CRUD)
+│   ├── compatibility.js           # % por forma/material/color/lente + centrado + ajuste
+│   ├── faceLabels.js              # formas y etiquetas faciales (fuente única)
 │   ├── imageUtils.js              # brillo y normalización de fotos
 │   ├── lensCompatibility.js       # reglas lente ↔ montura ↔ rostro
 │   └── mediapipeTelemetry.js      # corta la telemetría de MediaPipe (403)
@@ -64,8 +66,11 @@ src/
 │   ├── FeedbackBox.jsx            # voto 1-5★
 │   ├── FrameStrip.jsx             # tira de monturas recomendadas sobre la foto
 │   ├── LenteDot.jsx               # muestra de tinte
+│   ├── ScanCapture.jsx            # cámara/foto reutilizable en ambos escaneos
 │   ├── ScanRecord.jsx             # registro visible + descarga JSON del escaneo
+│   ├── ScanReport.jsx             # informe membreteado imprimible (PDF) + JSON
 │   ├── ScannerMetrics.jsx         # panel morfométrico + corrección de forma
+│   ├── StepCards.jsx              # las 3 cards del paso 2 (la 3.ª es obligatoria)
 │   ├── TryOnDetail.jsx            # montura probada + lentes compatibles
 │   └── RecommendationCard.jsx     # tarjeta de recomendación
 └── components/tryon/
@@ -89,14 +94,18 @@ src/
 
 ### 2.4 Flujo funcional del escáner
 
-1. Consentimiento Ley 1581 (obligatorio antes de procesar).
-2. Entrada: cámara en vivo (MediaPipe VIDEO) o foto subida.
-3. `POST /analyze` → forma de cara, simetría, proporciones, IPD, ancho temporal y
-   puente nasal.
-4. `POST /recommend` → monturas ordenadas por compatibilidad.
-5. Probador: GLB 3D sobre la foto o el video; tira de recomendadas y selector de
-   montura en la misma vista.
-6. Registro local del escaneo + feedback del piloto. La foto no se almacena.
+1. **Inicio:** el usuario pulsa “Iniciar escaneo”.
+2. **Consentimiento** Ley 1581 (obligatorio antes de procesar).
+3. **Escaneo 1, sin monturas:** cámara en vivo (MediaPipe VIDEO) o foto subida.
+4. `POST /analyze` → forma de cara, simetría, proporciones, IPD, ancho temporal y
+   puente nasal; `POST /recommend` → monturas ordenadas por compatibilidad.
+5. **Tres cards:** informe del rostro · monturas recomendadas (probador 3D) ·
+   escaneo con montura (**obligatorio**, bloqueado hasta confirmar la prueba física).
+6. **Escaneo 2, con la montura puesta:** se analiza solo el ajuste de esa montura
+   (no se compara con el escaneo 1).
+7. **Informe membreteado** descargable (PDF por impresión del navegador + JSON) con
+   tipo de rostro, composición y % por forma, material, color y tipo de lente.
+8. Feedback del piloto. Ninguna foto se almacena; ambos escaneos son locales.
 
 ## 3. Gate de verificación
 
@@ -106,8 +115,8 @@ npm run lint          # 0 warnings
 npm run lint:eslint   # accesibilidad + hooks (0)
 npm run lint:css      # stylelint (0)
 npm run typecheck     # tsc --checkJs (0)
-npm test              # vitest (38)
-npm run test:e2e      # playwright (6; `npx playwright install chromium` la primera vez)
+npm test              # vitest (48)
+npm run test:e2e      # playwright (7; `npx playwright install chromium` la primera vez)
 npm run build         # 0 errores y ningún chunk > 500 kB
 npm run test:pose     # 14/14 verificaciones numéricas
 npm run validate:glb  # 8/8 formas con GLB y atribución
@@ -142,21 +151,27 @@ Definición de terminado:
 - [ ] Documentación actualizada.
 - [ ] Sin fotos ni claves reales en el diff.
 
-## 4. Estado verificado (2026-10-30)
+## 4. Estado verificado (2026-11-01)
 
-- Frontend: build OK en ~0.5 s. `Scanner` = **43.57 kB** (antes 651 kB).
+- Frontend: build OK en ~0.6 s. `Scanner` = **64.4 kB** (antes 651 kB); el
+  informe y los porcentajes añaden ~21 kB al chunk del escáner.
   `Three.js` se descarga solo al activar el 3D (chunks 45/246/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
-- `test`: **38/38**; `test:e2e`: **6/6**.
+- `test`: **48/48**; `test:e2e`: **7/7**.
 - Telemetría de MediaPipe bloqueada en cliente (`lib/mediapipeTelemetry.js`):
   el POST a `odml.pa.googleapis.com/v1/log` respondía 403 y ensuciaba la consola;
   ahora se corta con un `Response` 200 vacío sin abrir conexión (privacidad).
 - `test:pose`: **14/14**.
 - `validate:glb`: **8/8** modelos CC BY 4.0.
-- Flujo principal: subir/capturar foto con consentimiento **dispara el análisis
-  automáticamente**; las monturas recomendadas aparecen en una tira sobre la
-  misma foto y se pueden probar sin bajar a la cuadrícula. En cámara en vivo se
-  puede cambiar de montura con el selector y el 3D sigue la pose real.
+- Flujo principal (2026-11-01): asistente de **3 pasos**. Escaneo 1 sin monturas →
+  tres cards (informe · monturas · escaneo con montura) → escaneo 2 obligatorio con
+  la montura puesta. El informe del escaneo 2 mide **el ajuste de esa montura**
+  (score, veredicto, centrado PD/IPD y motivos), no se compara con el escaneo 1.
+- Informe membreteado (`ScanReport.jsx`): logo y nombre, folio, fecha, tipo de
+  rostro, composición, medidas y **% por forma, material, color y tipo de lente**.
+  Descarga como PDF (impresión del navegador) y JSON. Se genera en el cliente.
+- Compatibilidad agregada (`lib/compatibility.js`): media del score del motor por
+  atributo del catálogo + probabilidad media por tipo de lente.
 - Escala del 3D en vivo: sin análisis se usa IPD estándar de **63 mm** para que
   el armazón nazca a tamaño de cara; con análisis se recalcula con la IPD medida
   y el `ancho_total_mm` real.
@@ -197,3 +212,6 @@ Definición de terminado:
   y descargable; la foto nunca se almacena.
 - Permitir telemetría de MediaPipe (`odml.pa.googleapis.com`): se bloquea en el
   cliente con `lib/mediapipeTelemetry.js`; no añadir ese host al CSP.
+- Duplicar `FORMAS`/`FORMA_LABEL`: viven en `lib/faceLabels.js`.
+- Habilitar el escaneo con montura sin confirmar la prueba física: el paso 3 es
+  obligatorio y debe seguir bloqueado hasta que el cliente se ponga la montura.

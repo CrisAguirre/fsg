@@ -1,6 +1,10 @@
 # Grupo Prisma Visión — Glassescanner 3D · Contexto del Proyecto
-> Actualizado 2026-10-30: Fase 4 del backend cerrada (Ruff/mypy/bandit limpios,
-> 38/38 tests, cobertura 91 %, Docker sin root y dependencias dev separadas). El
+> Actualizado 2026-11-01: el escáner pasó a un **asistente de 3 pasos** (escaneo
+> sin monturas → cards de informe y monturas → escaneo obligatorio con la montura
+> puesta) con **informe membreteado descargable** (PDF/JSON) y % de compatibilidad
+> por forma, material, color y tipo de lente. Fase 4 del backend cerrada
+> (Ruff/mypy/bandit limpios, 38/38 tests, cobertura 91 %, Docker sin root y
+> dependencias dev separadas). El
 > probador de foto pasó a **3D GLB primero** (pose real por matriz facial de MediaPipe, ancho físico según medidas, sombra de contacto) con el recorte 2D como respaldo. Se mantiene la refactorización del escáner del 25/10 (de 1011 a 421 líneas, con hooks y componentes extraídos), el code-splitting de Three.js (`Scanner` de 651 kB → **43.57 kB**) y la unificación de la lógica 3D en `frameStyle.js`. Los 8 GLB por forma tienen manifest y licencias CC BY 4.0 (`/creditos-3d`), validador `npm run validate:glb` (8/8) y verificación numérica `npm run test:pose` (14/14). Lint sin warnings, build OK y backend 38/38. El reentrenamiento ML del 25/10 **no se desplegó** (LOO 13 % vs baseline 33 %); el modelo proxy sigue como fallback y la corrección manual de forma es el mecanismo principal. Proceso de trabajo en [`AGENTS.md`](AGENTS.md).
 
 Este documento proporciona el contexto actual del proyecto para que otras inteligencias artificiales puedan continuar con el desarrollo.
@@ -11,7 +15,8 @@ Este documento proporciona el contexto actual del proyecto para que otras inteli
 *   **Propósito:** Aplicación web de escaneo facial y recomendación de monturas con veredicto Compatible/Parcial/Incompatible explicado + probador virtual fotorrealista híbrido (3D GLB en foto y video / recorte 2D / 2D vectorial de respaldo).
 *   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GlassesAR 3D procedural y GLB por forma, cargado de forma diferida), Canvas 2D (PhotoTryOn con recortes transparentes y GlassesOverlay procedural), Context API para temas (`ThemeProvider` + `useTheme`). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + Random Forest + SVM ML + MongoDB Motor).
 *   **Despliegue:** Front `https://glassescanner.vercel.app/` (Vercel) · Back `https://glassescanner-backend.onrender.com` (Render, Docker `python:3.11-slim` + sysdeps para OpenCV) · Mongo Atlas (`glassescanner`, seed local de 64 marcos).
-*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-10-30: backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **38/38**, `npm run test:e2e` **6/6**, `npm run build` OK, `npm run test:pose` **14/14** y `npm run validate:glb` **8/8**.
+*   **Flujo del escáner (3 pasos):** (1) “Iniciar escaneo” → consentimiento → captura sin monturas; (2) cards de **informe del rostro** (tipo, composición, medidas y % por forma/material/color/lente) y **monturas recomendadas** (probador 3D); (3) **escaneo obligatorio con la montura puesta**, habilitado solo tras confirmar la prueba física, que genera el **informe de ajuste** de esa montura (score, veredicto, centrado PD/IPD y motivos). Ambos informes se descargan en PDF (impresión del navegador) y JSON; nada se guarda en el servidor.
+*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-11-01: backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **48/48**, `npm run test:e2e` **7/7**, `npm run build` OK, `npm run test:pose` **14/14** y `npm run validate:glb` **8/8**.
 
 ## Identidad Corporativa y Diseño (Design System)
 El diseño combina **Minimalismo Corporativo Prémium** con **Aeroglass / Glassmorphism** de alta gama óptica.

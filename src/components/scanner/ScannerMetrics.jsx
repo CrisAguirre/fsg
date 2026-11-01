@@ -1,4 +1,4 @@
-const FORMAS = ["oval", "redondo", "cuadrado", "corazon", "diamante", "oblongo", "triangular"];
+import { FORMAS } from "../../lib/faceLabels.js";
 
 export default function ScannerMetrics({ metrics, loading, onChangeShape }) {
   if (!metrics) return null;

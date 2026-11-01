@@ -1,16 +1,18 @@
-// Tres cards animadas que aparecen tras el primer escaneo: informe, monturas
-// recomendadas y escaneo con montura. La tercera es obligatoria y solo se
-// habilita cuando el cliente ya se probó físicamente una montura.
+// Cuatro cards que aparecen tras el primer escaneo: informe, monturas
+// recomendadas, escaneo con montura (obligatorio) y probador virtual (servicio
+// alterno opcional, sin análisis). La tercera solo se habilita cuando el cliente
+// ya se probó físicamente una montura.
 export default function StepCards({
   recsCount,
   fitFrameName,
   onReport,
   onCatalog,
   onFitScan,
+  onTryOn,
 }) {
   const fitReady = !!fitFrameName;
   return (
-    <section className="scanner__hub" aria-label="Resultado del escaneo facial">
+    <section className="scanner__hub" aria-label="Resultados del escaneo y servicios">
       <div className="scanner__hub-grid">
         <article className="scanner__stepcard glass scanner__stepcard--1">
           <span className="scanner__stepcard-icon" aria-hidden="true">📄</span>
@@ -63,6 +65,19 @@ export default function StepCards({
             title={fitReady ? undefined : "Disponible cuando confirmes que te probaste una montura"}
           >
             Escanear con montura
+          </button>
+        </article>
+
+        <article className="scanner__stepcard glass scanner__stepcard--4 scanner__stepcard--alt">
+          <span className="scanner__stepcard-icon" aria-hidden="true">🕶️</span>
+          <span className="scanner__stepcard-tag">Servicio alterno · opcional</span>
+          <h3>Probador virtual</h3>
+          <p>
+            Pruébate cualquier montura del catálogo con la cámara en vivo o sobre una
+            foto, en 2D o 3D. No requiere el escaneo facial.
+          </p>
+          <button type="button" className="btn btn--glass" onClick={onTryOn}>
+            Abrir probador
           </button>
         </article>
       </div>

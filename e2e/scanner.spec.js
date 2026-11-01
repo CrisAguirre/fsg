@@ -28,17 +28,75 @@ test("el escaneo no avanza sin aceptar el consentimiento", async ({ page }) => {
   await expect(continuar).toBeEnabled();
 });
 
-test("la foto subida lleva al resumen con las tres cards del flujo", async ({ page }) => {
+test("la foto subida lleva al resumen con las cuatro cards del flujo", async ({ page }) => {
   await llegarAlResumen(page);
 
-  await expect(page.locator(".scanner__stepcard")).toHaveCount(3);
+  await expect(page.locator(".scanner__stepcard")).toHaveCount(4);
   await expect(page.locator(".scanner__stepcard--1")).toContainText("Informe del rostro");
   await expect(page.locator(".scanner__stepcard--2")).toContainText("Monturas recomendadas");
+  await expect(page.locator(".scanner__stepcard--4")).toContainText("Probador virtual");
 
   // El paso 3 es obligatorio pero queda bloqueado hasta probarse una montura.
   const escanear = page.getByRole("button", { name: "Escanear con montura" });
   await expect(escanear).toBeDisabled();
   await expect(escanear).toHaveAttribute("title", /probaste una montura/i);
+});
+
+test("la cuarta card abre el probador virtual independiente", async ({ page }) => {
+  await llegarAlResumen(page);
+  await page.getByRole("button", { name: "Abrir probador" }).click();
+
+  const studio = page.locator(".tryon");
+  await expect(studio).toBeVisible();
+  await expect(studio).toContainText("Servicio alterno");
+  await expect(studio).toContainText("No requiere el escaneo facial");
+  await expect(studio).toContainText("sin análisis de compatibilidad");
+  await expect(page.getByRole("button", { name: /Cámara en vivo/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Foto o captura/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "← Volver" }).click();
+  await expect(page.locator(".scanner__hub")).toBeVisible();
+});
+
+test("el probador independiente monta una foto y permite elegir 2D/3D", async ({ page }) => {
+  await page.goto("/scanner");
+  await page.getByRole("button", { name: /Probar monturas sin escanear/ }).click();
+
+  // Servicio independiente: su propio consentimiento, sin pasar por el escaneo.
+  await page.locator(".tryon__consent input[type=checkbox]").check();
+  await page.getByRole("button", { name: "Continuar" }).click();
+
+  await page.getByRole("button", { name: /Foto o captura/ }).click();
+  await page.locator('.tryon input[type="file"]').setInputFiles("public/frames/rectangular.jpg");
+
+  await expect(page.locator(".tryon .scanner__zoomwrap")).toBeVisible();
+  await expect(page.locator(".scanner__trydetail")).toContainText("Aurora Rectangular");
+
+  const twoD = page.getByRole("button", { name: "2D", exact: true });
+  const threeD = page.getByRole("button", { name: "3D real", exact: true });
+  await twoD.click();
+  await expect(twoD).toHaveAttribute("aria-pressed", "true");
+  await threeD.click();
+  await expect(threeD).toHaveAttribute("aria-pressed", "true");
+
+  await page.getByLabel("Montura para el probador").selectOption("F02");
+  await expect(page.locator(".scanner__trydetail")).toContainText("Solar Redondo");
+});
+
+test("el probador en vivo enciende la cámara y captura una foto", async ({ page }) => {
+  await page.goto("/scanner");
+  await page.getByRole("button", { name: /Probar monturas sin escanear/ }).click();
+  await page.locator(".tryon__consent input[type=checkbox]").check();
+  await page.getByRole("button", { name: "Continuar" }).click();
+
+  await page.getByRole("button", { name: /Activar cámara/ }).click();
+  const video = page.locator(".tryon video");
+  await expect(video).toBeVisible();
+  await expect.poll(async () => video.evaluate((v) => v.videoWidth)).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: /Capturar y probar en foto/ }).click();
+  await expect(page.locator(".tryon .scanner__zoomwrap")).toBeVisible();
+  await expect(page.locator(".scanner__trydetail")).toContainText("Aurora Rectangular");
 });
 
 test("el informe se abre membreteado y con compatibilidad por tipo", async ({ page }) => {

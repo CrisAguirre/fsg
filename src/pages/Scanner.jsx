@@ -1,7 +1,9 @@
 // Orquestador del escaneo facial en tres pasos:
 //   1. Iniciar escaneo → consentimiento → captura (sin monturas) → análisis
-//   2. Cards: informe del rostro | monturas recomendadas (probador 3D)
+//   2. Cards: informe del rostro | monturas recomendadas (probador 3D) |
+//      escaneo obligatorio con montura | probador virtual (servicio alterno)
 //   3. Escaneo obligatorio con la montura puesta → informe de ajuste
+// La 4.ª card es opcional e independiente: abre `TryOnStudio` sin exigir análisis.
 // La lógica pesada vive en hooks (cámara, MediaPipe, 3D) y en `lib/` (porcentajes,
 // compatibilidad). Aquí solo se compone el flujo.
 import { useEffect, useRef, useState } from "react";
@@ -19,6 +21,7 @@ import FrameStrip from "../components/scanner/FrameStrip.jsx";
 import ScanCapture from "../components/scanner/ScanCapture.jsx";
 import ScanReport from "../components/scanner/ScanReport.jsx";
 import StepCards from "../components/scanner/StepCards.jsx";
+import TryOnStudio from "../components/scanner/TryOnStudio.jsx";
 import { useLiveCameraTryOn } from "../hooks/useLiveCameraTryOn.js";
 import { usePhotoTryOn } from "../hooks/usePhotoTryOn.js";
 import "./Scanner.css";
@@ -30,9 +33,10 @@ const sourceLabel = (tab) => (tab === "camara" ? "Cámara en vivo" : "Foto subid
 export default function Scanner() {
   const [searchParams] = useSearchParams();
   const initialFrame = searchParams.get("frameId");
+  const initialFrameRef = useRef(initialFrame);
 
   // Fase del asistente.
-  const [phase, setPhase] = useState("start"); // start|consent|capture|hub|report|catalog|captureFit|fitReport
+  const [phase, setPhase] = useState("start"); // start|consent|capture|hub|report|catalog|captureFit|fitReport|tryon
   const [consent, setConsent] = useState(false);
   const [tab, setTab] = useState("camara"); // camara | subir
 
@@ -117,7 +121,7 @@ export default function Scanner() {
     downloadHD,
     resetPhotoTryOn,
   } = usePhotoTryOn({
-    preview,
+    preview: phase === "catalog" ? preview : null,
     tryRef,
     tryId,
     tryOn,
@@ -127,12 +131,18 @@ export default function Scanner() {
     showOriginal,
     frames,
     setArOk,
+    use3D,
   });
 
   useEffect(() => {
     fetch(`${API_URL}/health`).then(() => setBackendOk(true)).catch(() => setBackendOk(false));
     listFrames()
-      .then(setFrames)
+      .then((list) => {
+        setFrames(list);
+        if (list.length > 0 && !list.some((f) => f.id === (initialFrameRef.current || "F01"))) {
+          setTryId(list[0].id);
+        }
+      })
       .catch(() => {
         setBackendOk(false);
         setError(
@@ -146,7 +156,7 @@ export default function Scanner() {
   useEffect(() => () => { if (fitPreview) URL.revokeObjectURL(fitPreview); }, [fitPreview]);
 
   function go(next) {
-    if (["start", "consent", "hub", "report", "fitReport"].includes(next)) stopCamera();
+    if (["start", "consent", "hub", "report", "fitReport", "tryon"].includes(next)) stopCamera();
     if (next === "report" || next === "fitReport") setLiveOn(false);
     setError("");
     setPhase(next);
@@ -158,9 +168,24 @@ export default function Scanner() {
     try {
       const list = await listFrames();
       setFrames(list);
+      if (list.length > 0 && !list.some((f) => f.id === tryId)) setTryId(list[0].id);
       return list;
     } catch {
       return frames;
+    }
+  }
+
+  /** Reintento manual desde el probador virtual (servicio alterno). */
+  async function reloadFrames() {
+    try {
+      const list = await listFrames();
+      setFrames(list);
+      if (list.length > 0 && !list.some((f) => f.id === tryId)) setTryId(list[0].id);
+      setBackendOk(true);
+      return list;
+    } catch {
+      setBackendOk(false);
+      return [];
     }
   }
 
@@ -356,7 +381,7 @@ export default function Scanner() {
     } catch { /* noop */ }
   }
 
-  const step = phase === "start" || phase === "consent" || phase === "capture" ? 1 : phase === "hub" || phase === "report" || phase === "catalog" ? 2 : 3;
+  const step = phase === "tryon" ? 0 : phase === "start" || phase === "consent" || phase === "capture" ? 1 : phase === "hub" || phase === "report" || phase === "catalog" ? 2 : 3;
 
   return (
     <>
@@ -367,11 +392,13 @@ export default function Scanner() {
           Análisis facial · estimaciones orientativas · Backend: <code>{API_URL}</code> · {backendOk === null ? "…" : backendOk ? "en línea ✓" : "sin conexión ✕"}
         </p>
 
-        <ol className="scanner__steps" aria-label="Pasos del escaneo">
-          <li className={step >= 1 ? "is-active" : ""}>1 · Escaneo facial</li>
-          <li className={step >= 2 ? "is-active" : ""}>2 · Informe y monturas</li>
-          <li className={step >= 3 ? "is-active" : ""}>3 · Escaneo con montura</li>
-        </ol>
+        {phase !== "tryon" && (
+          <ol className="scanner__steps" aria-label="Pasos del escaneo">
+            <li className={step >= 1 ? "is-active" : ""}>1 · Escaneo facial</li>
+            <li className={step >= 2 ? "is-active" : ""}>2 · Informe y monturas</li>
+            <li className={step >= 3 ? "is-active" : ""}>3 · Escaneo con montura</li>
+          </ol>
+        )}
 
         {phase === "start" && (
           <section className="glass scanner__intro">
@@ -380,10 +407,16 @@ export default function Scanner() {
               <li><b>Análisis facial:</b> forma del rostro, simetría y medidas estimadas.</li>
               <li><b>Compatibilidad:</b> % por forma, material, color y tipo de lente.</li>
               <li><b>Informe:</b> composición del rostro según el sistema experto, descargable.</li>
+              <li><b>Probador virtual:</b> servicio alterno para probarte monturas con la cámara o una foto, sin escanear.</li>
             </ul>
-            <button type="button" className="btn btn--primary scanner__cta" onClick={() => go("consent")}>
-              Iniciar escaneo
-            </button>
+            <div className="scanner__row">
+              <button type="button" className="btn btn--primary scanner__cta" onClick={() => go("consent")}>
+                Iniciar escaneo
+              </button>
+              <button type="button" className="btn btn--glass" onClick={() => go("tryon")}>
+                🕶️ Probar monturas sin escanear
+              </button>
+            </div>
             <small>Sin monturas en este primer escaneo: primero medimos tu rostro.</small>
           </section>
         )}
@@ -393,7 +426,7 @@ export default function Scanner() {
             <h2>Consentimiento informado</h2>
             <label className="scanner__consent">
               <input type="checkbox" required checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-              Acepto el tratamiento de mi imagen para el análisis facial (dato sensible, Ley 1581/2012). La foto se procesa para este análisis y no se almacena en el servidor; el resultado es orientativo.
+              Acepto el tratamiento de mi imagen para el análisis facial y el probador virtual (dato sensible, Ley 1581/2012). La foto se procesa para este análisis y no se almacena en el servidor; el resultado es orientativo.
             </label>
             <div className="scanner__row">
               <button type="button" className="btn btn--primary" disabled={!consent} onClick={() => go("capture")}>
@@ -457,9 +490,34 @@ export default function Scanner() {
               onReport={() => go("report")}
               onCatalog={() => { setTryOn(true); go("catalog"); }}
               onFitScan={() => go("captureFit")}
+              onTryOn={() => go("tryon")}
             />
             <ScannerMetrics metrics={metrics} loading={loading} onChangeShape={changeShape} />
           </>
+        )}
+
+        {phase === "tryon" && (
+          <TryOnStudio
+            frames={frames}
+            tryRef={tryRef}
+            tryId={tryId}
+            onTryId={setTryId}
+            tryOpacity={tryOpacity}
+            onOpacity={setTryOpacity}
+            tryLens={tryLens}
+            onLens={setTryLens}
+            use3D={use3D}
+            onUse3D={setUse3D}
+            showOriginal={showOriginal}
+            onShowOriginal={setShowOriginal}
+            tryOn={tryOn}
+            onTryOn={setTryOn}
+            metrics={metrics}
+            consent={consent}
+            onConsent={setConsent}
+            onClose={() => go(metrics ? "hub" : "start")}
+            onReload={reloadFrames}
+          />
         )}
 
         {phase === "report" && (
@@ -647,10 +705,10 @@ export default function Scanner() {
           </>
         )}
 
-        {loading && <p className="scanner__loading" role="status">{loading}</p>}
-        {error && <p className="scanner__error">{error}</p>}
+        {phase !== "tryon" && loading && <p className="scanner__loading" role="status">{loading}</p>}
+        {phase !== "tryon" && error && <p className="scanner__error">{error}</p>}
 
-        {phase !== "start" && (
+        {phase !== "start" && phase !== "tryon" && (
           <div className="scanner__row scanner__footer-actions">
             {phase !== "catalog" && phase !== "report" && phase !== "fitReport" && (
               <button type="button" className="btn btn--glass btn--sm" onClick={() => go("hub")} disabled={!metrics}>

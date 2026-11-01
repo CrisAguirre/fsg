@@ -10,7 +10,19 @@ export default defineConfig({
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [{
+    name: "chromium",
+    use: {
+      ...devices["Desktop Chrome"],
+      // Cámara falsa para el E2E del probador en vivo (sin pedir permisos).
+      launchOptions: {
+        args: [
+          "--use-fake-device-for-media-stream",
+          "--use-fake-ui-for-media-stream",
+        ],
+      },
+    },
+  }],
   webServer: {
     command: "npm run dev -- --port 5173 --strictPort",
     url: "http://localhost:5173",

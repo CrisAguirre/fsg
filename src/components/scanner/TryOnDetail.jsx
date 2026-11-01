@@ -1,7 +1,7 @@
 import LenteDot from "./LenteDot.jsx";
 import { lensCompatibility } from "../../lib/lensCompatibility.js";
 
-export default function TryOnDetail({ frame, recs, tryId, metrics, tryLens, onSelectLens }) {
+export default function TryOnDetail({ frame, recs, tryId, metrics, tryLens, onSelectLens, standalone = false }) {
   if (!frame) return null;
 
   const selRec = recs.find((r) => r.frame_id === tryId) ?? null;
@@ -24,13 +24,15 @@ export default function TryOnDetail({ frame, recs, tryId, metrics, tryLens, onSe
         A {frame.A_mm}mm · B {frame.B_mm}mm · D {frame.D_mm}mm · Total {frame.ancho_total_mm}mm
         {selRec
           ? " · puesto #" + (rank + 1) + " de " + recs.length + " recomendados"
-          : metrics
-            ? " · fuera del top: ver lista"
-            : " · analizá para ver su probabilidad"}
+          : standalone
+            ? " · servicio alterno: sin análisis de compatibilidad"
+            : metrics
+              ? " · fuera del top: ver lista"
+              : " · analizá para ver su probabilidad"}
       </small>
       {lenses.length > 0 && (
         <div className="scanner__lentes">
-          <small><b>Lentes para este rostro + montura (clic para ver el tinte):</b></small>
+          <small><b>{standalone ? "Lentes compatibles con esta montura (según su geometría):" : "Lentes para este rostro + montura (clic para ver el tinte):"}</b></small>
           <div className="lentes-tags">
             {lenses.map((l) => (
               <button

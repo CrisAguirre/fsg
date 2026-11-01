@@ -51,7 +51,7 @@ Reglas de frontera:
 
 ```text
 src/
-├── pages/Scanner.jsx              # asistente de 3 pasos (escaneo → informe/monturas → escaneo con montura)
+├── pages/Scanner.jsx              # asistente de 3 pasos + probador autónomo opcional (4.ª card)
 ├── hooks/
 │   ├── useLiveCameraTryOn.js      # getUserMedia + MediaPipe VIDEO + try-on 3D/2D en vivo
 │   └── usePhotoTryOn.js           # MediaPipe IMAGE + GLB 3D + recorte 2D + descarga HD
@@ -70,7 +70,8 @@ src/
 │   ├── ScanRecord.jsx             # registro visible + descarga JSON del escaneo
 │   ├── ScanReport.jsx             # informe membreteado imprimible (PDF) + JSON
 │   ├── ScannerMetrics.jsx         # panel morfométrico + corrección de forma
-│   ├── StepCards.jsx              # las 3 cards del paso 2 (la 3.ª es obligatoria)
+│   ├── StepCards.jsx              # las 4 cards del paso 2 (la 3.ª obligatoria; la 4.ª alterna)
+│   ├── TryOnStudio.jsx            # probador autónomo: cámara en vivo 3D o foto 2D/3D
 │   ├── TryOnDetail.jsx            # montura probada + lentes compatibles
 │   └── RecommendationCard.jsx     # tarjeta de recomendación
 └── components/tryon/
@@ -99,8 +100,11 @@ src/
 3. **Escaneo 1, sin monturas:** cámara en vivo (MediaPipe VIDEO) o foto subida.
 4. `POST /analyze` → forma de cara, simetría, proporciones, IPD, ancho temporal y
    puente nasal; `POST /recommend` → monturas ordenadas por compatibilidad.
-5. **Tres cards:** informe del rostro · monturas recomendadas (probador 3D) ·
-   escaneo con montura (**obligatorio**, bloqueado hasta confirmar la prueba física).
+5. **Cuatro cards:** informe del rostro · monturas recomendadas (probador 3D) ·
+   escaneo con montura (**obligatorio**, bloqueado hasta confirmar la prueba
+   física) · probador virtual (**opcional**, servicio alterno que no requiere el
+   escaneo: cámara en vivo con montura 3D o foto subida/capturada con modelo
+   2D/3D escogible).
 6. **Escaneo 2, con la montura puesta:** se analiza solo el ajuste de esa montura
    (no se compara con el escaneo 1).
 7. **Informe membreteado** descargable (PDF por impresión del navegador + JSON) con
@@ -116,7 +120,7 @@ npm run lint:eslint   # accesibilidad + hooks (0)
 npm run lint:css      # stylelint (0)
 npm run typecheck     # tsc --checkJs (0)
 npm test              # vitest (48)
-npm run test:e2e      # playwright (7; `npx playwright install chromium` la primera vez)
+npm run test:e2e      # playwright (10; `npx playwright install chromium` la primera vez)
 npm run build         # 0 errores y ningún chunk > 500 kB
 npm run test:pose     # 14/14 verificaciones numéricas
 npm run validate:glb  # 8/8 formas con GLB y atribución
@@ -153,20 +157,31 @@ Definición de terminado:
 
 ## 4. Estado verificado (2026-11-01)
 
-- Frontend: build OK en ~0.6 s. `Scanner` = **64.4 kB** (antes 651 kB); el
-  informe y los porcentajes añaden ~21 kB al chunk del escáner.
-  `Three.js` se descarga solo al activar el 3D (chunks 45/246/352 kB).
+- Frontend: build OK en ~0.5 s. `Scanner` = **81.8 kB** (antes 64.4 kB; el
+  probador autónomo añade ~17 kB). `Three.js` se descarga solo al activar el 3D
+  (chunks 45/246/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
-- `test`: **48/48**; `test:e2e`: **7/7**.
+- `test`: **48/48**; `test:e2e`: **10/10**.
+- El E2E del probador en vivo usa la cámara falsa de Chromium
+  (`--use-fake-device-for-media-stream`, `--use-fake-ui-for-media-stream`);
+  MediaPipe y WebGL siguen mockeados, así que la validación real en móvil
+  (permisos HTTPS, seguimiento y escala del armazón) queda pendiente.
 - Telemetría de MediaPipe bloqueada en cliente (`lib/mediapipeTelemetry.js`):
   el POST a `odml.pa.googleapis.com/v1/log` respondía 403 y ensuciaba la consola;
   ahora se corta con un `Response` 200 vacío sin abrir conexión (privacidad).
 - `test:pose`: **14/14**.
 - `validate:glb`: **8/8** modelos CC BY 4.0.
 - Flujo principal (2026-11-01): asistente de **3 pasos**. Escaneo 1 sin monturas →
-  tres cards (informe · monturas · escaneo con montura) → escaneo 2 obligatorio con
-  la montura puesta. El informe del escaneo 2 mide **el ajuste de esa montura**
-  (score, veredicto, centrado PD/IPD y motivos), no se compara con el escaneo 1.
+  cuatro cards (informe · monturas · escaneo con montura · probador virtual) →
+  escaneo 2 obligatorio con la montura puesta. El informe del escaneo 2 mide **el
+  ajuste de esa montura** (score, veredicto, centrado PD/IPD y motivos), no se
+  compara con el escaneo 1.
+- Probador virtual independiente (`TryOnStudio.jsx`): 4.ª card opcional y servicio
+  alterno. Pestaña de **cámara en vivo** con armazón 3D siguiendo el rostro y
+  pestaña de **foto subida o capturada** con selector explícito 2D/3D, cambio de
+  montura, opacidad, comparar original, zoom, guardado HD y evidencia JSON. No
+  requiere análisis facial ni recomendaciones; solo el catálogo (`GET /frames`).
+  Si el consentimiento compartido aún no se aceptó, muestra su propio gate.
 - Informe membreteado (`ScanReport.jsx`): logo y nombre, folio, fecha, tipo de
   rostro, composición, medidas y **% por forma, material, color y tipo de lente**.
   Descarga como PDF (impresión del navegador) y JSON. Se genera en el cliente.

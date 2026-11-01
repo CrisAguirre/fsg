@@ -35,6 +35,7 @@ export function useLiveCameraTryOn({ tryRef, onError }) {
     landmarkerRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
     smoothLmRef.current = null;
     try {
       arLiveRef.current?.clear();

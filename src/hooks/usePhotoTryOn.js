@@ -24,6 +24,7 @@ export function usePhotoTryOn({
   showOriginal,
   frames,
   setArOk,
+  use3D,
 }) {
   const photoCanvasRef = useRef(null);
   const photoImgRef = useRef(null);
@@ -40,6 +41,19 @@ export function usePhotoTryOn({
   useEffect(() => {
     if (!preview) return;
     let dead = false;
+    // Estado del probador derivado de las props (no del ref): los efectos del
+    // hijo corren antes que el del padre que actualiza `tryRef`, y un toggle
+    // 2D/3D se quedaría un render atrás.
+    const frame = (frames ?? []).find((f) => f.id === tryId) ?? (frames ?? [])[0] ?? null;
+    const t = {
+      on: tryOn && !showOriginal,
+      forma: frame?.forma ?? "rectangular",
+      frame,
+      metrics,
+      alpha: tryOpacity,
+      tint: tryLens,
+      use3D,
+    };
     (async () => {
       setPhotoWarn("");
       try {
@@ -90,7 +104,7 @@ export function usePhotoTryOn({
         ctx.clearRect(0, 0, cnv.width, cnv.height);
         ctx.drawImage(img, 0, 0, cnv.width, cnv.height);
         const light = sampleBrightness(cnv);
-        if (!tryRef.current.on) {
+        if (!t.on) {
           setFitInfo(null);
           lastPhotoLmRef.current = null;
           try {
@@ -114,7 +128,6 @@ export function usePhotoTryOn({
           );
           return;
         }
-        const t = tryRef.current;
         // Prioridad 3D: geometría, pose y profundidad reales del GLB. El
         // recorte 2D queda como respaldo si el GLB no carga o no hay WebGL.
         const matrix = res?.facialTransformationMatrixes?.[0]?.data ?? null;
@@ -238,7 +251,7 @@ export function usePhotoTryOn({
       dead = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preview, tryId, tryOn, metrics, tryOpacity, tryLens, showOriginal, frames]);
+  }, [preview, tryId, tryOn, metrics, tryOpacity, tryLens, showOriginal, frames, use3D]);
 
   // El canvas 3D de la foto se desmonta con la página: liberar su contexto WebGL.
   useEffect(() => {

@@ -1,5 +1,6 @@
-// Informe membreteado del escaneo (descargable como PDF con Ctrl+P / Guardar
-// como PDF). Se genera en el cliente: no se envía ni se guarda la foto.
+// Informe membreteado del escaneo: documento maquetado (portada, resumen, KPIs,
+// secciones numeradas y gráficos) que se ve igual en pantalla y en A4 impreso.
+// Se genera en el cliente: no se envía ni se guarda la foto.
 import { useEffect, useMemo } from "react";
 import logoBlack from "../../assets/logoblack.png";
 import {
@@ -41,14 +42,28 @@ function buildReport({ mode, metrics, detectedShape, recs, frames, scanMeta, fra
       };
     });
 
+  const forma = formaLabel(metrics?.face_shape);
+  const simetria = Math.round(Number(metrics?.symmetry_index ?? 0));
+  const mejorForma = formas[0];
+  const mejorMaterial = materiales[0];
+  const mejorColor = colores[0];
+  const mejorLente = lentes[0];
+  const ajuste = mode === "fit" && frame ? fitAssessment(metrics, frame, fitRec) : null;
+
+  const resumen =
+    mode === "fit" && frame
+      ? `Escaneo con la montura "${frame.nombre}" puesta. El ajuste global es del ${ajuste.overall}% sobre un rostro ${forma.toLowerCase()} con simetría del ${simetria}%.`
+      : `Rostro ${forma.toLowerCase()} con simetría del ${simetria}%. La forma de montura que mejor te favorece es ${mejorForma?.valor ?? "—"} (${mejorForma?.pct ?? 0}%)${mejorLente ? `, con lente ${mejorLente.valor} (${mejorLente.pct}%)` : ""}.`;
+
   return {
     documento: mode === "fit" ? "informe_ajuste_montura" : "informe_escaneo_facial",
     folio: folioOf(at),
     fecha: at,
     origen: scanMeta?.source ?? "—",
     forma_detectada: formaLabel(detectedShape || metrics?.face_shape),
-    forma_confirmada: formaLabel(metrics?.face_shape),
-    simetria_pct: Math.round(Number(metrics?.symmetry_index ?? 0)),
+    forma_confirmada: forma,
+    simetria_pct: simetria,
+    resumen,
     medidas: {
       ipd_mm: Number(metrics?.ipd_mm_est) || null,
       ancho_temporal_mm: Number(metrics?.temporal_est) || null,
@@ -60,12 +75,8 @@ function buildReport({ mode, metrics, detectedShape, recs, frames, scanMeta, fra
       valor: r.valor,
       lectura: r.texto,
     })),
-    compatibilidad: {
-      forma: formas,
-      material: materiales,
-      color: colores,
-      lente: lentes,
-    },
+    compatibilidad: { forma: formas, material: materiales, color: colores, lente: lentes },
+    destacados: { forma: mejorForma, material: mejorMaterial, color: mejorColor, lente: mejorLente },
     top_monturas: top,
     montura_evaluada:
       mode === "fit" && frame
@@ -81,37 +92,57 @@ function buildReport({ mode, metrics, detectedShape, recs, frames, scanMeta, fra
             ancho_total_mm: frame.ancho_total_mm,
           }
         : null,
-    ajuste:
-      mode === "fit" && frame
-        ? fitAssessment(metrics, frame, fitRec)
-        : null,
+    ajuste,
     advertencias: metrics?.warnings ?? [],
     aviso:
       "Resultado orientativo generado por el motor experto de Grupo Prisma Visión. No sustituye la valoración de un optómetra. La imagen se procesa solo para este análisis y no se almacena en el servidor (Ley 1581 de 2012).",
   };
 }
 
-function Bars({ title, rows, suffix = "" }) {
+function Section({ n, title, children, className = "" }) {
+  return (
+    <section className={`report__section ${className}`}>
+      <h3>
+        <span className="report__num" aria-hidden="true">{n}</span>
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function Kpi({ label, value, note }) {
+  return (
+    <div className="report__kpi">
+      <span className="report__kpi-label">{label}</span>
+      <b className="report__kpi-value">{value}</b>
+      {note && <span className="report__kpi-note">{note}</span>}
+    </div>
+  );
+}
+
+function Bars({ title, rows }) {
   if (!rows?.length) return null;
+  const top = rows.slice(0, 5);
   return (
     <div className="report__block">
       <h4>{title}</h4>
       <ul className="report__bars">
-        {rows.map((r) => (
+        {top.map((r) => (
           <li key={r.valor}>
             <span className="report__bar-label">{r.valor}</span>
             <span className="report__bar-track">
               <span className="report__bar-fill" style={{ width: `${r.pct}%` }} />
             </span>
-            <span className="report__bar-value">
-              {r.pct}%{suffix}
-            </span>
+            <span className="report__bar-value">{r.pct}%</span>
           </li>
         ))}
       </ul>
     </div>
   );
 }
+
+const VERDICT_LABEL = { compatible: "Compatible", parcial: "Parcial", incompatible: "Incompatible" };
 
 export default function ScanReport({
   mode = "scan",
@@ -129,6 +160,14 @@ export default function ScanReport({
     [mode, metrics, detectedShape, recs, frames, scanMeta, frame, fitRec],
   );
 
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   function downloadJson() {
     try {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -143,24 +182,25 @@ export default function ScanReport({
   }
 
   const cen = mode === "fit" && frame ? centering(metrics, frame) : null;
-
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose?.();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const esAjuste = mode === "fit" && !!data.montura_evaluada;
 
   return (
     <div className="report-overlay" role="dialog" aria-modal="true" aria-label="Informe del escaneo">
       <div className="report-toolbar">
-        <b>{mode === "fit" ? "Informe de ajuste" : "Informe del escaneo"}</b>
+        <div className="report-toolbar__title">
+          <b>{esAjuste ? "Informe de ajuste" : "Informe del escaneo"}</b>
+          <small>En PDF: elige “Guardar como PDF” en el diálogo de impresión.</small>
+        </div>
         <div className="report-toolbar__actions">
           <button type="button" className="btn btn--glass btn--sm" onClick={downloadJson}>
             ⬇ JSON
           </button>
-          <button type="button" className="btn btn--primary btn--sm" onClick={() => window.print()}>
+          <button
+            type="button"
+            className="btn btn--primary btn--sm"
+            onClick={() => window.print()}
+            title="Abre el diálogo de impresión: elige Guardar como PDF"
+          >
             ⬇ Descargar PDF
           </button>
           <button type="button" className="btn btn--glass btn--sm" onClick={onClose}>
@@ -172,9 +212,9 @@ export default function ScanReport({
       <article className="report-doc">
         <header className="report__head">
           <img src={logoBlack} alt="Grupo Prisma Visión" className="report__logo" />
-          <div className="report__head-text">
+          <div className="report__brand">
             <h1>Grupo Prisma Visión</h1>
-            <p>Informe de {mode === "fit" ? "ajuste de montura" : "análisis facial"}</p>
+            <p>Glassescanner 3D · Asesoría óptica asistida</p>
           </div>
           <div className="report__folio">
             <span>Folio</span>
@@ -183,8 +223,39 @@ export default function ScanReport({
           </div>
         </header>
 
-        <section className="report__section">
-          <h2>1. Datos del escaneo</h2>
+        <div className="report__title">
+          <span className="report__eyebrow">
+            {esAjuste ? "Segundo escaneo · montura puesta" : "Primer escaneo · sin monturas"}
+          </span>
+          <h2>{esAjuste ? "Informe de ajuste de montura" : "Informe de análisis facial"}</h2>
+          <p>{data.resumen}</p>
+        </div>
+
+        <div className="report__kpis">
+          <Kpi label="Tipo de rostro" value={data.forma_confirmada} note={`Detectado: ${data.forma_detectada}`} />
+          <Kpi label="Simetría facial" value={`${data.simetria_pct}%`} note="Índice orientativo" />
+          {esAjuste ? (
+            <>
+              <Kpi label="Ajuste global" value={`${data.ajuste.overall}%`} note={`${data.ajuste.score} pts del motor`} />
+              <Kpi label="Centrado óptico" value={cen?.estado ?? "—"} note={`PD ${cen?.framePD ?? "—"} vs IPD ${cen?.ipd ?? "—"} mm`} />
+            </>
+          ) : (
+            <>
+              <Kpi
+                label="Mejor forma"
+                value={data.destacados.forma ? `${data.destacados.forma.pct}%` : "—"}
+                note={data.destacados.forma?.valor ?? "Sin catálogo"}
+              />
+              <Kpi
+                label="Mejor lente"
+                value={data.destacados.lente ? `${data.destacados.lente.pct}%` : "—"}
+                note={data.destacados.lente?.valor ?? "—"}
+              />
+            </>
+          )}
+        </div>
+
+        <Section n="1" title="Datos del escaneo">
           <table className="report__table">
             <tbody>
               <tr>
@@ -213,13 +284,12 @@ export default function ScanReport({
               </tr>
             </tbody>
           </table>
-        </section>
+        </Section>
 
-        <section className="report__section">
-          <h2>2. Composición y tipo de rostro</h2>
+        <Section n="2" title="Composición y tipo de rostro">
           <p className="report__lead">
-            Tipo de rostro definido por el sistema experto: <b>{data.forma_confirmada}</b>.
-            Las proporciones siguientes explican por qué se recomiendan unas monturas y no otras.
+            El sistema experto define un rostro <b>{data.forma_confirmada.toLowerCase()}</b>. Las
+            proporciones explican por qué unas monturas favorecen más que otras.
           </p>
           <ul className="report__insights">
             {data.composicion.map((c) => (
@@ -231,54 +301,37 @@ export default function ScanReport({
               </li>
             ))}
           </ul>
-        </section>
+        </Section>
 
-        {mode === "fit" && data.montura_evaluada ? (
-          <section className="report__section">
-            <h2>3. Montura evaluada</h2>
-            <table className="report__table">
-              <tbody>
-                <tr>
-                  <th>Montura</th>
-                  <td colSpan={3}>{data.montura_evaluada.nombre} · {data.montura_evaluada.id}</td>
-                </tr>
-                <tr>
-                  <th>Forma</th>
-                  <td>{data.montura_evaluada.forma}</td>
-                  <th>Material / color</th>
-                  <td>
-                    {data.montura_evaluada.material} · {data.montura_evaluada.color}
-                  </td>
-                </tr>
-                <tr>
-                  <th>Medidas A/B/D</th>
-                  <td>
-                    {data.montura_evaluada.A_mm} / {data.montura_evaluada.B_mm} /{" "}
-                    {data.montura_evaluada.D_mm} mm
-                  </td>
-                  <th>Ancho total</th>
-                  <td>{mm(data.montura_evaluada.ancho_total_mm)}</td>
-                </tr>
-              </tbody>
-            </table>
+        {esAjuste ? (
+          <Section n="3" title="Montura evaluada">
+            <div className="report__frame">
+              <div className="report__frame-id">
+                <span>{data.montura_evaluada.id}</span>
+                <b>{data.montura_evaluada.nombre}</b>
+              </div>
+              <dl className="report__frame-specs">
+                <div><dt>Forma</dt><dd>{data.montura_evaluada.forma}</dd></div>
+                <div><dt>Material</dt><dd>{data.montura_evaluada.material}</dd></div>
+                <div><dt>Color</dt><dd>{data.montura_evaluada.color}</dd></div>
+                <div><dt>A / B / D</dt><dd>{data.montura_evaluada.A_mm} / {data.montura_evaluada.B_mm} / {data.montura_evaluada.D_mm} mm</dd></div>
+                <div><dt>Ancho total</dt><dd>{mm(data.montura_evaluada.ancho_total_mm)}</dd></div>
+              </dl>
+            </div>
+
             <div className="report__fit">
               <div className="report__fit-score">
                 <b>{data.ajuste.overall}%</b>
                 <span>ajuste global</span>
               </div>
               <div className="report__fit-body">
-                <p>
-                  Compatibilidad del motor experto: <b>{data.ajuste.score} pts</b> ·{" "}
-                  {data.ajuste.verdict === "compatible"
-                    ? "compatible"
-                    : data.ajuste.verdict === "parcial"
-                      ? "parcial"
-                      : "incompatible"}
-                </p>
-                <p>
-                  Centrado óptico: PD montura {cen?.framePD ?? "—"} mm vs IPD {cen?.ipd ?? "—"} mm ·{" "}
-                  <b>{cen?.estado ?? "sin datos"}</b>
-                  {cen?.dif != null ? ` (${num(cen.dif, 1)} mm de diferencia)` : ""}
+                <p className="report__fit-verdict">
+                  <span className={`report__chip report__chip--${data.ajuste.verdict}`}>
+                    {VERDICT_LABEL[data.ajuste.verdict] ?? data.ajuste.verdict}
+                  </span>
+                  <b>{data.ajuste.score} pts</b> del motor experto · centrado{" "}
+                  <b>{cen?.estado}</b>
+                  {cen?.dif != null ? ` (${num(cen.dif, 1)} mm PD/IPD)` : ""}
                 </p>
                 {data.ajuste.reasons.length > 0 && (
                   <ul className="report__reasons">
@@ -289,10 +342,9 @@ export default function ScanReport({
                 )}
               </div>
             </div>
-          </section>
+          </Section>
         ) : (
-          <section className="report__section">
-            <h2>3. Monturas mejor valoradas</h2>
+          <Section n="3" title="Monturas mejor valoradas">
             <table className="report__table report__table--list">
               <thead>
                 <tr>
@@ -310,31 +362,35 @@ export default function ScanReport({
                     <td>{t.nombre}</td>
                     <td>{t.forma}</td>
                     <td>{t.score} pts</td>
-                    <td>{t.verdict}</td>
+                    <td>
+                      <span className={`report__chip report__chip--${t.verdict}`}>
+                        {VERDICT_LABEL[t.verdict] ?? t.verdict}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </section>
+          </Section>
         )}
 
-        <section className="report__section">
-          <h2>4. Compatibilidad por tipo de montura</h2>
-          <Bars title="Forma de montura" rows={data.compatibilidad.forma} />
-          <Bars title="Material" rows={data.compatibilidad.material} />
-          <Bars title="Color" rows={data.compatibilidad.color} />
-          <Bars title="Tipo de lente" rows={data.compatibilidad.lente} />
-        </section>
+        <Section n="4" title="Compatibilidad por tipo de montura">
+          <div className="report__bars-grid">
+            <Bars title="Forma de montura" rows={data.compatibilidad.forma} />
+            <Bars title="Material" rows={data.compatibilidad.material} />
+            <Bars title="Color" rows={data.compatibilidad.color} />
+            <Bars title="Tipo de lente" rows={data.compatibilidad.lente} />
+          </div>
+        </Section>
 
         {data.advertencias.length > 0 && (
-          <section className="report__section">
-            <h2>Observaciones del análisis</h2>
+          <Section n="5" title="Observaciones del análisis">
             <ul className="report__reasons">
               {data.advertencias.map((w) => (
                 <li key={w}>{w}</li>
               ))}
             </ul>
-          </section>
+          </Section>
         )}
 
         <footer className="report__foot">

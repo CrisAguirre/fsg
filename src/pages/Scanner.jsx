@@ -34,6 +34,8 @@ export default function Scanner() {
   const [searchParams] = useSearchParams();
   const initialFrame = searchParams.get("frameId");
   const initialFrameRef = useRef(initialFrame);
+  /** @type {import("react").MutableRefObject<File | null>} */
+  const lastScanFileRef = useRef(null);
 
   // Fase del asistente.
   const [phase, setPhase] = useState("start"); // start|consent|capture|hub|report|catalog|captureFit|fitReport|tryon
@@ -155,6 +157,12 @@ export default function Scanner() {
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
   useEffect(() => () => { if (fitPreview) URL.revokeObjectURL(fitPreview); }, [fitPreview]);
 
+  useEffect(() => {
+    if (phase === "captureFit" && tab === "camara") {
+      startCamera();
+    }
+  }, [phase, tab, startCamera]);
+
   function go(next) {
     if (["start", "consent", "hub", "report", "fitReport", "tryon"].includes(next)) stopCamera();
     if (next === "report" || next === "fitReport") setLiveOn(false);
@@ -192,7 +200,12 @@ export default function Scanner() {
   function capture(mode) {
     const v = videoRef.current;
     if (!v || !v.videoWidth) {
-      setError("Cámara aún no lista. Espera 1 s e intenta de nuevo.");
+      if (tab === "camara") {
+        setError("Iniciando cámara… espera un momento e intenta de nuevo.");
+        startCamera();
+      } else {
+        setError("Cámara aún no lista. Espera 1 s e intenta de nuevo.");
+      }
       return;
     }
     const c = document.createElement("canvas");
@@ -206,6 +219,7 @@ export default function Scanner() {
           return;
         }
         const captured = new File([b], `captura-${mode}.jpg`, { type: "image/jpeg" });
+        lastScanFileRef.current = captured;
         if (mode === "fit") {
           setFitPreview(URL.createObjectURL(b));
         } else {
@@ -231,6 +245,7 @@ export default function Scanner() {
     try {
       const normalized = await normalizeImageFile(f);
       chosen = normalized.file;
+      lastScanFileRef.current = chosen;
       if (mode === "fit") {
         setFitPreview(normalized.previewUrl);
       } else {
@@ -241,6 +256,7 @@ export default function Scanner() {
       }
     } catch {
       chosen = f;
+      lastScanFileRef.current = chosen;
       const url = URL.createObjectURL(f);
       if (mode === "fit") {
         setFitPreview(url);
@@ -293,7 +309,7 @@ export default function Scanner() {
     }
   }
 
-  async function runAnalysis(target, mode = "scan") {
+  async function runAnalysis(target, mode = "scan", targetFrameId = null) {
     if (!consent) {
       setError("Debes aceptar el tratamiento de datos biométricos (Ley 1581) para continuar.");
       return;
@@ -319,9 +335,11 @@ export default function Scanner() {
       const r = await recommend(m, null);
       const sorted = r.sort((a, b) => b.score - a.score);
       if (mode === "fit") {
+        const effectiveId = targetFrameId || fitFrameId || tryId || recs[0]?.frame_id || frames[0]?.id || "";
+        if (effectiveId && !fitFrameId) setFitFrameId(effectiveId);
         setFitMetrics(m);
         setFitRecs(sorted);
-        setFitRec(sorted.find((x) => x.frame_id === fitFrameId) ?? null);
+        setFitRec(sorted.find((x) => x.frame_id === effectiveId) ?? sorted[0] ?? null);
         setFitMeta({ at: new Date().toISOString(), source: sourceLabel(tab) });
         setPhase("fitReport");
       } else {
@@ -345,7 +363,21 @@ export default function Scanner() {
     }
   }
 
+  async function handleScanFit(customFile = null) {
+    const targetId = fitFrameId || tryId || recs[0]?.frame_id || frames[0]?.id || "";
+    if (targetId && !fitFrameId) {
+      setFitFrameId(targetId);
+    }
+    const file = customFile || lastScanFileRef.current;
+    if (file) {
+      await runAnalysis(file, "fit", targetId);
+    } else {
+      go("captureFit");
+    }
+  }
+
   function erasePhoto() {
+    lastScanFileRef.current = null;
     if (preview) URL.revokeObjectURL(preview);
     if (fitPreview) URL.revokeObjectURL(fitPreview);
     setPreview(null); setMetrics(null); setRecs([]); setError(""); setZoomed(false); setShowOriginal(false);
@@ -355,7 +387,7 @@ export default function Scanner() {
     setFitFrameId("");
     resetPhotoTryOn();
     try { sessionStorage.removeItem("gs_last_scan"); } catch { /* noop */ }
-    fetch(`${API_URL}/analyze/photo`, { method: "DELETE" }).catch(() => {});
+    fetch(`${API_URL}/analyze/photo`, { method: "DELETE" }).catch(() => { });
     setPhase("start");
   }
 
@@ -458,13 +490,26 @@ export default function Scanner() {
         {phase === "captureFit" && (
           <>
             <div className="glass scanner__fitbar">
-              <b>Escaneo con montura</b>
-              <span>
-                Ponte <b>{fitFrame?.nombre ?? "la montura"}</b> y mira de frente. La foto se usa solo para medir el ajuste.
-              </span>
-              <button type="button" className="btn btn--glass btn--sm" onClick={() => go("catalog")}>
-                Cambiar montura
-              </button>
+              <div>
+                <b>Escaneo con montura</b>
+                <p style={{ margin: ".25rem 0 0", fontSize: ".88rem" }}>
+                  Ponte <b>{fitFrame?.nombre ?? tryFrame?.nombre ?? "la montura"}</b> y mira de frente. La foto se usa para medir el ajuste biométrico.
+                </p>
+              </div>
+              <div className="scanner__row" style={{ marginTop: ".4rem" }}>
+                {lastScanFileRef.current && (
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={() => handleScanFit(lastScanFileRef.current)}
+                  >
+                    ⚡ Escanear con foto actual
+                  </button>
+                )}
+                <button type="button" className="btn btn--glass btn--sm" onClick={() => go("catalog")}>
+                  Cambiar montura
+                </button>
+              </div>
             </div>
             <ScanCapture
               tab={tab}
@@ -478,6 +523,7 @@ export default function Scanner() {
               onCapture={() => capture("fit")}
               onUpload={(e) => onUpload(e, "fit")}
               hint="Con la montura puesta, de frente: el sistema medirá centrado, apoyo y compatibilidad."
+              captureLabel="Escanear con montura"
             />
           </>
         )}
@@ -489,7 +535,7 @@ export default function Scanner() {
               fitFrameName={fitFrame?.nombre ?? ""}
               onReport={() => go("report")}
               onCatalog={() => { setTryOn(true); go("catalog"); }}
-              onFitScan={() => go("captureFit")}
+              onFitScan={() => handleScanFit()}
               onTryOn={() => go("tryon")}
             />
             <ScannerMetrics metrics={metrics} loading={loading} onChangeShape={changeShape} />
@@ -540,7 +586,7 @@ export default function Scanner() {
             recs={fitRecs}
             frames={frames}
             scanMeta={fitMeta}
-            frame={fitFrame}
+            frame={fitFrame || frames.find((x) => x.id === (fitRec?.frame_id || tryId)) || null}
             fitRec={fitRec}
             onClose={() => go("hub")}
           />

@@ -12,6 +12,7 @@ export default function ScanCapture({
   onCapture,
   onUpload,
   hint,
+  captureLabel = "Capturar rostro",
   children = null,
 }) {
   return (
@@ -58,7 +59,7 @@ export default function ScanCapture({
               Activar cámara
             </button>
             <button type="button" className="btn btn--primary" onClick={onCapture}>
-              Capturar rostro
+              {captureLabel}
             </button>
             {arOk === false && <span className="tag">Probador 2D</span>}
           </div>

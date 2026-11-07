@@ -66,6 +66,16 @@ export default function StepCards({
           >
             Escanear con montura
           </button>
+          {!fitReady && (
+            <button
+              type="button"
+              className="btn btn--glass btn--sm"
+              style={{ marginTop: ".5rem" }}
+              onClick={onCatalog}
+            >
+              Elegir montura en Paso 2 →
+            </button>
+          )}
         </article>
 
         <article className="scanner__stepcard glass scanner__stepcard--4 scanner__stepcard--alt">

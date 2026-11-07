@@ -155,11 +155,11 @@ Definición de terminado:
 - [ ] Documentación actualizada.
 - [ ] Sin fotos ni claves reales en el diff.
 
-## 4. Estado verificado (2026-11-01)
+## 4. Estado verificado (2026-11-06)
 
-- Frontend: build OK en ~0.5 s. `Scanner` = **81.8 kB** (antes 64.4 kB; el
-  probador autónomo añade ~17 kB). `Three.js` se descarga solo al activar el 3D
-  (chunks 45/246/352 kB).
+- Frontend: build OK en ~0.45 s. `Scanner` = **82.8 kB** (antes 81.8 kB; la
+  lógica de re-escaneo con montura añade ~1 kB). `Three.js` se descarga solo al
+  activar el 3D (chunks 45/246/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
 - `test`: **48/48**; `test:e2e`: **10/10**.
 - El E2E del probador en vivo usa la cámara falsa de Chromium
@@ -171,7 +171,21 @@ Definición de terminado:
   ahora se corta con un `Response` 200 vacío sin abrir conexión (privacidad).
 - `test:pose`: **14/14**.
 - `validate:glb`: **8/8** modelos CC BY 4.0.
-- Flujo principal (2026-11-01): asistente de **3 pasos**. Escaneo 1 sin monturas →
+- **CSP enforcing (2026-11-06):** `vercel.json` ahora usa `Content-Security-Policy`
+  (antes era `Content-Security-Policy-Report-Only`). Verificar en producción que no
+  bloquea recursos legítimos tras el próximo deploy a Vercel.
+- **Escaneo con montura corregido (2026-11-06):** el botón "Escanear con montura"
+  (paso 3) no emitía ninguna petición de red porque:
+  1. `StepCards` tenía `disabled={!fitReady}` y tras el paso 1 `fitFrameId` era
+     `""`, dejando el botón deshabilitado.
+  2. `onFitScan` solo navegaba a `captureFit` sin invocar backend.
+  3. La cámara se detenía (`stopCamera()`) al navegar y no se reiniciaba.
+  4. La foto del escaneo 1 se descartaba de memoria.
+  Se resolvió con: `lastScanFileRef` para persistir la foto, `handleScanFit()`
+  que invoca `POST /analyze` + `POST /recommend`, auto-inicio de cámara en
+  `captureFit`, botón `⚡ Escanear con foto actual` y fallback de navegación
+  directa en `StepCards`.
+- Flujo principal (2026-11-06): asistente de **3 pasos**. Escaneo 1 sin monturas →
   cuatro cards (informe · monturas · escaneo con montura · probador virtual) →
   escaneo 2 obligatorio con la montura puesta. El informe del escaneo 2 mide **el
   ajuste de esa montura** (score, veredicto, centrado PD/IPD y motivos), no se
@@ -193,6 +207,15 @@ Definición de terminado:
 - Registro del escaneo: forma detectada/confirmada, simetría, IPD, ancho temporal,
   puente nasal, proporciones, cejas, advertencias y top-1; se puede descargar en
   JSON. Es local: no se envía ni se guarda la foto.
+- **Backend — Tie-breaker geométrico (2026-11-06):** `POST /recommend` ordenaba
+  empates (scores 95-100) solo por ID alfabético → `F01` dominaba el top-1.
+  Ahora usa desviación acumulada en mm (`|ancho-temporal| + |A+D-IPD| + |D-puente|`)
+  como criterio secundario: la montura con mejor calce ergonómico sube al top-1
+  sin alterar el esquema de la API.
+- **Backend — MediaPipe dual (2026-11-06):** `geometry.py` intenta primero
+  `mediapipe.tasks.python.vision.FaceLandmarker` si `app/models/face_landmarker.task`
+  existe; si falla o no está, usa `mp.solutions.face_mesh.FaceMesh` (estable).
+  No cambia dependencias: `protobuf 4.25.9` sigue como riesgo aceptado.
 - Backend: **38/38 tests**, cobertura **91 %**; Ruff, mypy y bandit sin
   hallazgos. Único riesgo aceptado: `protobuf 4.25.9` (`pip-audit`).
 - ML de forma facial: el reentrenamiento con ground truth real **no se desplegó**
@@ -211,6 +234,12 @@ Definición de terminado:
 6. Validar en hardware real la cámara en vivo: escala inicial del armazón,
    permisos HTTPS y seguimiento con MediaPipe/WebGL (el E2E los mockea).
 7. Limpiar el historial de commits (los mensajes actuales no son descriptivos).
+8. **Verificar CSP enforcing en producción:** tras deploy a Vercel, confirmar en
+   DevTools → Console que `Content-Security-Policy` no bloquea recursos legítimos.
+   Si rompe algo, revertir a `Content-Security-Policy-Report-Only` en `vercel.json`.
+9. **Spike MediaPipe Tasks API:** descargar `face_landmarker.task` a
+   `Glassescanner-backend/app/models/`, comparar métricas contra los 30 rostros
+   ground-truth en `piloto-rostros/` antes de hacer bump de `protobuf` a `>=5.29`.
 
 ## 6. Riesgos que no se deben reintroducir
 
@@ -230,3 +259,8 @@ Definición de terminado:
 - Duplicar `FORMAS`/`FORMA_LABEL`: viven en `lib/faceLabels.js`.
 - Habilitar el escaneo con montura sin confirmar la prueba física: el paso 3 es
   obligatorio y debe seguir bloqueado hasta que el cliente se ponga la montura.
+- Ordenar `POST /recommend` solo por `(-score, frame_id)`: los empates deben usar
+  el tie-breaker geométrico (`dev_prop + dev_pd + dev_bridge`) para que el top-1
+  refleje el mejor calce real.
+- Descartar la foto del escaneo 1: `lastScanFileRef` la mantiene en memoria para
+  re-análisis inmediato en el escaneo con montura; no borrarla antes de ese paso.

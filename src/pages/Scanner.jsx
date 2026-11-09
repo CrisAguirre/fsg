@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Navbar from "../components/layout/Navbar.jsx";
 import Footer from "../components/layout/Footer.jsx";
-import { analyzePhoto, recommend, listFrames, API_URL } from "../lib/api.js";
+import { analyzePhoto, recommend, listFrames, health, API_URL } from "../lib/api.js";
 import { normalizeImageFile } from "../lib/imageUtils.js";
 import { lensCompatibility } from "../lib/lensCompatibility.js";
 import FeedbackBox from "../components/scanner/FeedbackBox.jsx";
@@ -150,7 +150,9 @@ export default function Scanner() {
   } = useReportTryOn();
 
   useEffect(() => {
-    fetch(`${API_URL}/health`).then(() => setBackendOk(true)).catch(() => setBackendOk(false));
+    health()
+      .then(() => setBackendOk(true))
+      .catch(() => setBackendOk(false));
     listFrames()
       .then((list) => {
         setFrames(list);

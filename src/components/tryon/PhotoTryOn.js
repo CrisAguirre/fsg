@@ -8,6 +8,12 @@ import { frameColorHex } from "./frameStyle.js";
 const ASSET_BASE = "/tryon";
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+// Assets que no sirven para superposición frontal. El de cat-eye se recortó de
+// una foto en 3/4 con la patilla extendida: al escalarlo sobre los ojos queda
+// alto, torcido y con un gancho sobre la sien. Hasta tener un recorte frontal
+// limpio, esa forma usa el render vectorial de GlassesOverlay.
+const VECTOR_ONLY_KEYS = new Set(["cat-eye"]);
+
 let manifestPromise = null;
 const imageCache = new Map();
 const tintCache = new Map();
@@ -106,6 +112,7 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
     if (f.includes("-")) keys.push(f.replace(/-/g, ""));
     if (f.includes("_")) keys.push(f.replace(/_/g, "-"));
   }
+  if (keys.some((key) => VECTOR_ONLY_KEYS.has(key))) return null;
   let asset = null;
   for (const key of keys) {
     const meta = manifest[key];
@@ -202,6 +209,7 @@ export async function preloadPhotoTryOn(frame) {
     if (f.includes("-")) keys.push(f.replace(/-/g, ""));
     if (f.includes("_")) keys.push(f.replace(/_/g, "-"));
   }
+  if (keys.some((key) => VECTOR_ONLY_KEYS.has(key))) return false;
   for (const key of keys) {
     const meta = manifest[key];
     if (meta?.frame) {

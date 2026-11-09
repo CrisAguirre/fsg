@@ -77,7 +77,7 @@ fsg/
 │   │   ├── usePhotoTryOn.js       # MediaPipe IMAGE + try-on foto + descarga HD
 │   │   └── useReportTryOn.js      # montajes del informe con estados de carga/error
 │   ├── lib/
-│   │   ├── api.js                 # health, analyze (timeout 12s), recommend, frames, feedback, CRUD
+│   │   ├── api.js                 # health, analyze (timeout 45s), recommend, frames con caché, feedback, CRUD
 │   │   ├── faceLandmarker.js      # landmarker IMAGE compartido (GPU con fallback a CPU)
 │   │   ├── tryOnSnapshot.js       # top-2 monturas + montajes JPEG para el informe
 │   │   ├── imageUtils.js          # brillo y normalización de fotos
@@ -255,6 +255,22 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   **Tamaño físico:** el `scale` del manifest solo se aplica cuando faltan medidas reales (IPD + `ancho_total_mm`); con medidas, el ancho lo fija el producto (F01 140 mm vs F04 150 mm se distinguen).
     *   **Sombra de contacto:** clase `scanner__overlay--3d` con `drop-shadow` sobre el canvas transparente para que la montura no parezca flotar.
     *   **Regresión:** `test:pose` sube a **14/14** con casos de matriz identidad, pitch, yaw, roll y entrada inválida.
+16. **Informe con registro visual + fix de cat-eye (2026-11-09):**
+    *   **Galería del informe:** tras el primer escaneo, el informe muestra primero la foto original y después los montajes de las dos monturas con mejor score (`pickTopFrames` + `renderTryOnSnapshots`), en JPEG en memoria que no se persisten ni se envían. Incluye estados de carga, error, reintento y aviso de rostro no detectado (`hooks/useReportTryOn.js`).
+    *   **Landmarker compartido:** `lib/faceLandmarker.js` centraliza el FaceLandmarker IMAGE (GPU → CPU, timeout de 20 s) para que las dos monturas usen los mismos landmarks.
+    *   **Excepción cat-eye:** el asset `public/tryon/cat-eye-frame.webp` se recortó de una foto en 3/4 con la patilla extendida; al escalarlo sobre los ojos quedaba alto, torcido y con un gancho sobre la sien. `PhotoTryOn.js` declara `VECTOR_ONLY_KEYS = new Set(["cat-eye"])` y devuelve `null`/`false`, de modo que el informe y el probador usan el render vectorial de `GlassesOverlay.js`, que sí queda simétrico y centrado. Se mantiene hasta disponer de un recorte frontal limpio.
+17. **Resiliencia HTTP (2026-11-09):**
+    *   **Timeouts:** `lib/api.js` envuelve `fetch` con `AbortController`: GET 12 s, mutaciones 20 s y `POST /analyze` 45 s. Un timeout ya no deja la UI colgada.
+    *   **Reintentos solo GET:** `health`, `listFrames` y `getFeedbackStats` reintentan una vez ante red caída, timeout o 5xx (espera 500 ms y 1.5 s). Las mutaciones no se reintentan para no duplicar análisis, feedback ni escrituras.
+    *   **`health()` real:** `Scanner.jsx` dejó de usar `fetch` crudo y ahora llama a `health()`, que valida `r.ok`; un 404/5xx ya no marca el backend como en línea.
+    *   **Caché de catálogo:** `listFrames` guarda el último catálogo bueno en `localStorage` (`gpv.frames.v1`, por `optica_id`) y lo devuelve si la red sigue caída tras el reintento. La app sigue mostrando monturas durante un cold start de Render o una caída puntual.
+
+## Verificación técnica 2026-11-09
+*   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
+*   `npm test` → **59/59** (incluye 7 de resiliencia HTTP); `npm run test:e2e` → **10/10**.
+*   `npm run build` → OK (`Scanner` 87.91 kB, `Three.js` diferido en chunks de 45/246/352 kB).
+*   `npm run test:pose` → **14/14**; `npm run validate:glb` → **8/8**.
+*   Grilla de las 8 formas y montajes de dos cat-eye sobre `piloto-rostros/casos/caso-01.jpg`: cat-eye ya usa el vectorial, alineado y con tinte correcto (negro y rojo).
 
 ## Verificación técnica 2026-10-29
 *   Frontend `npm run lint` → **0 warnings**.

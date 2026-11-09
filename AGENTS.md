@@ -57,7 +57,7 @@ src/
 │   ├── usePhotoTryOn.js           # MediaPipe IMAGE + GLB 3D + recorte 2D + descarga HD
 │   └── useReportTryOn.js          # montajes del informe (carga/error, respuestas obsoletas)
 ├── lib/
-│   ├── api.js                     # cliente HTTP (timeout, health, analyze, recommend, CRUD)
+│   ├── api.js                     # cliente HTTP (timeouts, reintentos GET, caché de catálogo)
 │   ├── compatibility.js           # % por forma/material/color/lente + centrado + ajuste
 │   ├── faceLabels.js              # formas y etiquetas faciales (fuente única)
 │   ├── faceLandmarker.js          # landmarker IMAGE compartido (GPU → CPU)
@@ -83,7 +83,7 @@ src/
     ├── Frame3D.js                 # GlassesAR: pose + armazón procedural/GLB
     ├── GlassesGLB.js              # carga, normalización y tintado de GLB
     ├── GlassesOverlay.js          # try-on vectorial 2D (fallback)
-    └── PhotoTryOn.js              # recorte 2D fotorrealista (respaldo del 3D en foto)
+    └── PhotoTryOn.js              # recorte 2D fotorrealista (cat-eye usa respaldo vectorial)
 ```
 
 ### 2.3 Pasos para un refactor
@@ -123,7 +123,7 @@ npm run lint          # 0 warnings
 npm run lint:eslint   # accesibilidad + hooks (0)
 npm run lint:css      # stylelint (0)
 npm run typecheck     # tsc --checkJs (0)
-npm test              # vitest (48)
+npm test              # vitest (59)
 npm run test:e2e      # playwright (10; `npx playwright install chromium` la primera vez)
 npm run build         # 0 errores y ningún chunk > 500 kB
 npm run test:pose     # 14/14 verificaciones numéricas
@@ -165,13 +165,25 @@ Definición de terminado:
   añade la galería y los montajes). `Three.js` se descarga solo al activar el 3D
   (chunks 45/246/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
-- `test`: **52/52**; `test:e2e`: **10/10**.
+- `test`: **59/59**; `test:e2e`: **10/10**.
 - **Informe con registro visual (2026-11-09):** tras el primer escaneo, el informe
   muestra primero la foto original y después los montajes de las dos monturas con
   mejor score (`pickTopFrames` + `renderTryOnSnapshots`). Usa el recorte 2D
   fotorrealista con respaldo vectorial, un único landmarker IMAGE compartido
   (`lib/faceLandmarker.js`) y JPEG en memoria que **no** entran al JSON ni al
   servidor. Estados de carga, error y aviso de rostro no detectado incluidos.
+- **Excepción cat-eye (2026-11-09):** el asset `public/tryon/cat-eye-frame.webp`
+  proviene de una foto en 3/4 con la patilla extendida y queda alto/torcido al
+  superponerlo. `PhotoTryOn.js` usa `VECTOR_ONLY_KEYS = new Set(["cat-eye"])` y
+  cae al render vectorial de `GlassesOverlay.js`, que sí queda simétrico y
+  centrado sobre los ojos. Aplica al informe y al probador; se retirará cuando
+  exista un recorte frontal limpio.
+- **Resiliencia HTTP (2026-11-09):** `lib/api.js` usa `AbortController` (GET 12 s,
+  mutaciones 20 s, `/analyze` 45 s) y reintenta una sola vez los GET
+  (`health`, `listFrames`, `getFeedbackStats`) ante red caída, timeout o 5xx.
+  Las mutaciones no se reintentan. `health()` valida `r.ok` y `listFrames` guarda
+  el último catálogo bueno en `localStorage` (`gpv.frames.v1`, por `optica_id`)
+  como respaldo ante cold start de Render o caída puntual.
 - El E2E del probador en vivo usa la cámara falsa de Chromium
   (`--use-fake-device-for-media-stream`, `--use-fake-ui-for-media-stream`);
   MediaPipe y WebGL siguen mockeados, así que la validación real en móvil
@@ -274,3 +286,7 @@ Definición de terminado:
   refleje el mejor calce real.
 - Descartar la foto del escaneo 1: `lastScanFileRef` la mantiene en memoria para
   re-análisis inmediato en el escaneo con montura; no borrarla antes de ese paso.
+- Volver a usar el asset 2D de cat-eye para superposición frontal: `VECTOR_ONLY_KEYS`
+  en `PhotoTryOn.js` lo desvía al render vectorial porque el recorte viene de una
+  foto en 3/4 y queda alto/torcido. Solo retirar la excepción con un asset frontal
+  limpio y verificado sobre un rostro real.

@@ -110,6 +110,13 @@ test("el informe se abre membreteado y con compatibilidad por tipo", async ({ pa
   await expect(doc).toContainText("Ovalado");
   await expect(doc).toContainText("Forma de montura");
   await expect(doc).toContainText("Tipo de lente");
+
+  // Registro visual: la foto original aparece primero; los montajes dependen de
+  // que MediaPipe detecte un rostro (la imagen de prueba es un producto).
+  const gallery = doc.locator(".report__visual");
+  await expect(gallery).toBeVisible();
+  await expect(gallery.getByAltText("Fotografía original del rostro escaneado")).toBeVisible();
+
   await expect(page.getByRole("button", { name: /Descargar PDF/ })).toBeVisible();
 
   await page.getByRole("button", { name: /Cerrar/ }).click();

@@ -14,6 +14,7 @@ import { analyzePhoto, recommend, listFrames, API_URL } from "../lib/api.js";
 import { normalizeImageFile } from "../lib/imageUtils.js";
 import { lensCompatibility } from "../lib/lensCompatibility.js";
 import FeedbackBox from "../components/scanner/FeedbackBox.jsx";
+import { useReportTryOn } from "../hooks/useReportTryOn.js";
 import ScannerMetrics from "../components/scanner/ScannerMetrics.jsx";
 import TryOnDetail from "../components/scanner/TryOnDetail.jsx";
 import RecommendationCard from "../components/scanner/RecommendationCard.jsx";
@@ -134,7 +135,19 @@ export default function Scanner() {
     frames,
     setArOk,
     use3D,
+    closeOnUnmount: true,
   });
+
+  // Montajes del informe (foto original + dos mejores monturas). Se generan al
+  // abrir el informe y se descartan al cerrarlo.
+  const {
+    images: reportTryOns,
+    loading: reportTryOnLoading,
+    error: reportTryOnError,
+    retryable: reportTryOnRetryable,
+    generate: generateReportTryOns,
+    reset: resetReportTryOn,
+  } = useReportTryOn();
 
   useEffect(() => {
     fetch(`${API_URL}/health`).then(() => setBackendOk(true)).catch(() => setBackendOk(false));
@@ -168,6 +181,17 @@ export default function Scanner() {
     if (next === "report" || next === "fitReport") setLiveOn(false);
     setError("");
     setPhase(next);
+  }
+
+  /** Abre el informe y lanza en paralelo los montajes de las mejores monturas. */
+  function openReport() {
+    generateReportTryOns({ photoUrl: preview, frames, recs, metrics });
+    go("report");
+  }
+
+  /** Reintenta los montajes sin cerrar el informe (CDN lento o fallo puntual). */
+  function retryReportTryOns() {
+    generateReportTryOns({ photoUrl: preview, frames, recs, metrics });
   }
 
   /** El catálogo pudo fallar al cargar (CORS, arranque de Render): reintentar. */
@@ -386,6 +410,7 @@ export default function Scanner() {
     setFitPreview(null); setFitMetrics(null); setFitMeta(null); setFitRecs([]); setFitRec(null);
     setFitFrameId("");
     resetPhotoTryOn();
+    resetReportTryOn();
     try { sessionStorage.removeItem("gs_last_scan"); } catch { /* noop */ }
     fetch(`${API_URL}/analyze/photo`, { method: "DELETE" }).catch(() => { });
     setPhase("start");
@@ -533,7 +558,7 @@ export default function Scanner() {
             <StepCards
               recsCount={recs.length}
               fitFrameName={fitFrame?.nombre ?? ""}
-              onReport={() => go("report")}
+              onReport={openReport}
               onCatalog={() => { setTryOn(true); go("catalog"); }}
               onFitScan={() => handleScanFit()}
               onTryOn={() => go("tryon")}
@@ -574,7 +599,16 @@ export default function Scanner() {
             recs={recs}
             frames={frames}
             scanMeta={scanMeta}
-            onClose={() => go("hub")}
+            photoUrl={preview}
+            tryOns={reportTryOns}
+            tryOnLoading={reportTryOnLoading}
+            tryOnError={reportTryOnError}
+            tryOnRetryable={reportTryOnRetryable}
+            onRetryTryOns={retryReportTryOns}
+            onClose={() => {
+              resetReportTryOn();
+              go("hub");
+            }}
           />
         )}
 

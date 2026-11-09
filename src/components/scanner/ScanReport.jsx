@@ -153,6 +153,12 @@ export default function ScanReport({
   scanMeta,
   frame = null,
   fitRec = null,
+  photoUrl = null,
+  tryOns = [],
+  tryOnLoading = false,
+  tryOnError = "",
+  tryOnRetryable = false,
+  onRetryTryOns = null,
   onClose,
 }) {
   const data = useMemo(
@@ -230,6 +236,58 @@ export default function ScanReport({
           <h2>{esAjuste ? "Informe de ajuste de montura" : "Informe de análisis facial"}</h2>
           <p>{data.resumen}</p>
         </div>
+
+        {photoUrl && (
+          <section className="report__visual" aria-label="Registro visual del escaneo">
+            <figure className="report__shot report__shot--original">
+              <img src={photoUrl} alt="Fotografía original del rostro escaneado" />
+              <figcaption>
+                <b>Fotografía original</b>
+                <span>Imagen analizada en este escaneo</span>
+              </figcaption>
+            </figure>
+
+            {tryOnLoading ? (
+              <>
+                <div className="report__shot report__shot--loading" aria-hidden="true">
+                  <span className="report__shot-skeleton" />
+                </div>
+                <div className="report__shot report__shot--loading" aria-hidden="true">
+                  <span className="report__shot-skeleton" />
+                </div>
+                <p className="report__visual-note" role="status">
+                  Generando los montajes con las dos monturas de mayor compatibilidad…
+                </p>
+              </>
+            ) : (
+              tryOns.map((t) => (
+                <figure key={t.id} className="report__shot">
+                  <img
+                    src={t.dataUrl}
+                    alt={`Montura ${t.nombre} sobre la fotografía original`}
+                  />
+                  <figcaption>
+                    <b>{t.nombre}</b>
+                    <span>
+                      {t.score} pts · {VERDICT_LABEL[t.verdict] ?? t.verdict}
+                    </span>
+                  </figcaption>
+                </figure>
+              ))
+            )}
+
+            {!tryOnLoading && tryOns.length === 0 && (
+              <div className="report__visual-note" role="status">
+                <span>{tryOnError || "Los montajes no están disponibles para esta foto."}</span>
+                {onRetryTryOns && tryOnRetryable && (
+                  <button type="button" className="btn btn--glass btn--sm" onClick={onRetryTryOns}>
+                    Reintentar montajes
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
         <div className="report__kpis">
           <Kpi label="Tipo de rostro" value={data.forma_confirmada} note={`Detectado: ${data.forma_detectada}`} />

@@ -54,14 +54,17 @@ src/
 ├── pages/Scanner.jsx              # asistente de 3 pasos + probador autónomo opcional (4.ª card)
 ├── hooks/
 │   ├── useLiveCameraTryOn.js      # getUserMedia + MediaPipe VIDEO + try-on 3D/2D en vivo
-│   └── usePhotoTryOn.js           # MediaPipe IMAGE + GLB 3D + recorte 2D + descarga HD
+│   ├── usePhotoTryOn.js           # MediaPipe IMAGE + GLB 3D + recorte 2D + descarga HD
+│   └── useReportTryOn.js          # montajes del informe (carga/error, respuestas obsoletas)
 ├── lib/
 │   ├── api.js                     # cliente HTTP (timeout, health, analyze, recommend, CRUD)
 │   ├── compatibility.js           # % por forma/material/color/lente + centrado + ajuste
 │   ├── faceLabels.js              # formas y etiquetas faciales (fuente única)
+│   ├── faceLandmarker.js          # landmarker IMAGE compartido (GPU → CPU)
 │   ├── imageUtils.js              # brillo y normalización de fotos
 │   ├── lensCompatibility.js       # reglas lente ↔ montura ↔ rostro
-│   └── mediapipeTelemetry.js      # corta la telemetría de MediaPipe (403)
+│   ├── mediapipeTelemetry.js      # corta la telemetría de MediaPipe (403)
+│   └── tryOnSnapshot.js           # top-2 monturas + montajes JPEG del informe
 ├── components/scanner/
 │   ├── FeedbackBox.jsx            # voto 1-5★
 │   ├── FrameStrip.jsx             # tira de monturas recomendadas sobre la foto
@@ -108,7 +111,8 @@ src/
 6. **Escaneo 2, con la montura puesta:** se analiza solo el ajuste de esa montura
    (no se compara con el escaneo 1).
 7. **Informe membreteado** descargable (PDF por impresión del navegador + JSON) con
-   tipo de rostro, composición y % por forma, material, color y tipo de lente.
+   la foto original, los montajes de las dos monturas mejor valoradas, tipo de
+   rostro, composición y % por forma, material, color y tipo de lente.
 8. Feedback del piloto. Ninguna foto se almacena; ambos escaneos son locales.
 
 ## 3. Gate de verificación
@@ -155,13 +159,19 @@ Definición de terminado:
 - [ ] Documentación actualizada.
 - [ ] Sin fotos ni claves reales en el diff.
 
-## 4. Estado verificado (2026-11-06)
+## 4. Estado verificado (2026-11-09)
 
-- Frontend: build OK en ~0.45 s. `Scanner` = **82.8 kB** (antes 81.8 kB; la
-  lógica de re-escaneo con montura añade ~1 kB). `Three.js` se descarga solo al
-  activar el 3D (chunks 45/246/352 kB).
+- Frontend: build OK en ~0.7 s. `Scanner` = **87.9 kB** (antes 81.8 kB; el informe
+  añade la galería y los montajes). `Three.js` se descarga solo al activar el 3D
+  (chunks 45/246/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
-- `test`: **48/48**; `test:e2e`: **10/10**.
+- `test`: **52/52**; `test:e2e`: **10/10**.
+- **Informe con registro visual (2026-11-09):** tras el primer escaneo, el informe
+  muestra primero la foto original y después los montajes de las dos monturas con
+  mejor score (`pickTopFrames` + `renderTryOnSnapshots`). Usa el recorte 2D
+  fotorrealista con respaldo vectorial, un único landmarker IMAGE compartido
+  (`lib/faceLandmarker.js`) y JPEG en memoria que **no** entran al JSON ni al
+  servidor. Estados de carga, error y aviso de rostro no detectado incluidos.
 - El E2E del probador en vivo usa la cámara falsa de Chromium
   (`--use-fake-device-for-media-stream`, `--use-fake-ui-for-media-stream`);
   MediaPipe y WebGL siguen mockeados, así que la validación real en móvil

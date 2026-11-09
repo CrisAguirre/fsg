@@ -10,7 +10,7 @@ import {
 } from "../components/tryon/GlassesOverlay.js";
 import { drawPhotoTryOn } from "../components/tryon/PhotoTryOn.js";
 import { loadGlassesAR } from "../components/tryon/arLoader.js";
-import { blockMediapipeTelemetry } from "../lib/mediapipeTelemetry.js";
+import { closeImageLandmarker, getImageLandmarker } from "../lib/faceLandmarker.js";
 import { sampleBrightness } from "../lib/imageUtils.js";
 
 export function usePhotoTryOn({
@@ -25,11 +25,11 @@ export function usePhotoTryOn({
   frames,
   setArOk,
   use3D,
+  closeOnUnmount = false,
 }) {
   const photoCanvasRef = useRef(null);
   const photoImgRef = useRef(null);
   const threePhotoRef = useRef(null);
-  const imgLandmarkerRef = useRef(null);
   const arPhotoRef = useRef(null);
   const lastPhotoLmRef = useRef(null);
   const lastMatrixRef = useRef(null);
@@ -57,24 +57,8 @@ export function usePhotoTryOn({
     (async () => {
       setPhotoWarn("");
       try {
-        blockMediapipeTelemetry();
-        const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
-        if (!imgLandmarkerRef.current) {
-          const fileset = await FilesetResolver.forVisionTasks(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm",
-          );
-          if (dead) return;
-          imgLandmarkerRef.current = await FaceLandmarker.createFromOptions(fileset, {
-            baseOptions: {
-              modelAssetPath:
-                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-              delegate: "GPU",
-            },
-            runningMode: "IMAGE",
-            numFaces: 1,
-            outputFacialTransformationMatrixes: true,
-          });
-        }
+        const landmarker = await getImageLandmarker();
+        if (dead) return;
         const img = photoImgRef.current;
         const cnv = photoCanvasRef.current;
         if (!img || !cnv) return;
@@ -114,7 +98,7 @@ export function usePhotoTryOn({
           }
           return;
         }
-        const res = imgLandmarkerRef.current.detect(img);
+        const res = landmarker.detect(img);
         const lm = res?.faceLandmarks?.[0];
         if (!lm) {
           setFitInfo(null);
@@ -262,14 +246,11 @@ export function usePhotoTryOn({
         /* noop */
       }
       arPhotoRef.current = null;
-      try {
-        imgLandmarkerRef.current?.close?.();
-      } catch {
-        /* noop */
-      }
-      imgLandmarkerRef.current = null;
+      // El landmarker es compartido con el informe: solo la página que lo
+      // posee lo libera, no cada consumidor que se desmonta.
+      if (closeOnUnmount) closeImageLandmarker();
     };
-  }, []);
+  }, [closeOnUnmount]);
 
   const resetPhotoTryOn = useCallback(() => {
     lastPhotoLmRef.current = null;

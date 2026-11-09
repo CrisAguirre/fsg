@@ -18,8 +18,8 @@ Este documento proporciona el contexto actual del proyecto para que otras inteli
 *   **Propósito:** Aplicación web de escaneo facial y recomendación de monturas con veredicto Compatible/Parcial/Incompatible explicado + probador virtual fotorrealista híbrido (3D GLB en foto y video / recorte 2D / 2D vectorial de respaldo).
 *   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GlassesAR 3D procedural y GLB por forma, cargado de forma diferida), Canvas 2D (PhotoTryOn con recortes transparentes y GlassesOverlay procedural), Context API para temas (`ThemeProvider` + `useTheme`). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + Random Forest + SVM ML + MongoDB Motor).
 *   **Despliegue:** Front `https://glassescanner.vercel.app/` (Vercel) · Back `https://glassescanner-backend.onrender.com` (Render, Docker `python:3.11-slim` + sysdeps para OpenCV) · Mongo Atlas (`glassescanner`, seed local de 64 marcos).
-*   **Flujo del escáner (3 pasos):** (1) “Iniciar escaneo” → consentimiento → captura sin monturas; (2) cards de **informe del rostro** (tipo, composición, medidas y % por forma/material/color/lente) y **monturas recomendadas** (probador 3D); (3) **escaneo obligatorio con la montura puesta**, habilitado solo tras confirmar la prueba física, que genera el **informe de ajuste** de esa montura (score, veredicto, centrado PD/IPD y motivos). Una **4.ª card opcional** abre el **probador virtual autónomo**: cámara en vivo con montura 3D o foto subida/capturada con modelo 2D/3D escogible, sin escaneo facial ni recomendaciones. Ambos informes se descargan en PDF (impresión del navegador) y JSON; nada se guarda en el servidor.
-*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-11-01: backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **48/48**, `npm run test:e2e` **10/10**, `npm run build` OK (`Scanner` 81.8 kB), `npm run test:pose` **14/14** y `npm run validate:glb` **8/8**.
+*   **Flujo del escáner (3 pasos):** (1) “Iniciar escaneo” → consentimiento → captura sin monturas; (2) cards de **informe del rostro** (foto original + montajes de las dos monturas mejor puntuadas, tipo, composición, medidas y % por forma/material/color/lente) y **monturas recomendadas** (probador 3D); (3) **escaneo obligatorio con la montura puesta**, habilitado solo tras confirmar la prueba física, que genera el **informe de ajuste** de esa montura (score, veredicto, centrado PD/IPD y motivos). Una **4.ª card opcional** abre el **probador virtual autónomo**: cámara en vivo con montura 3D o foto subida/capturada con modelo 2D/3D escogible, sin escaneo facial ni recomendaciones. Ambos informes se descargan en PDF (impresión del navegador) y JSON; nada se guarda en el servidor.
+*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-11-09: backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **52/52**, `npm run test:e2e` **10/10**, `npm run build` OK (`Scanner` 87.2 kB), `npm run test:pose` **14/14** y `npm run validate:glb` **8/8**.
 
 ## Identidad Corporativa y Diseño (Design System)
 El diseño combina **Minimalismo Corporativo Prémium** con **Aeroglass / Glassmorphism** de alta gama óptica.
@@ -74,9 +74,12 @@ fsg/
 │   │   └── useTheme.js            # hook de consumo
 │   ├── hooks/
 │   │   ├── useLiveCameraTryOn.js  # getUserMedia + MediaPipe VIDEO + try-on en vivo
-│   │   └── usePhotoTryOn.js       # MediaPipe IMAGE + try-on foto + descarga HD
+│   │   ├── usePhotoTryOn.js       # MediaPipe IMAGE + try-on foto + descarga HD
+│   │   └── useReportTryOn.js      # montajes del informe con estados de carga/error
 │   ├── lib/
 │   │   ├── api.js                 # health, analyze (timeout 12s), recommend, frames, feedback, CRUD
+│   │   ├── faceLandmarker.js      # landmarker IMAGE compartido (GPU con fallback a CPU)
+│   │   ├── tryOnSnapshot.js       # top-2 monturas + montajes JPEG para el informe
 │   │   ├── imageUtils.js          # brillo y normalización de fotos
 │   │   └── lensCompatibility.js   # reglas lente ↔ montura ↔ rostro
 │   ├── pages/
@@ -159,6 +162,9 @@ Front: `VITE_API_URL` (en `.env` local ignorado; configurar en Vercel). Back: `E
 - `Scanner.jsx`: **1011 → 421 líneas**. Conserva consentimiento, estado del flujo, análisis y composición; ya no contiene cámara, MediaPipe ni descarga HD.
 - `hooks/useLiveCameraTryOn.js`: `getUserMedia`, FaceLandmarker en modo VIDEO, suavizado de landmarks, try-on 3D/2D y limpieza de stream/WebGL.
 - `hooks/usePhotoTryOn.js`: FaceLandmarker en modo IMAGE, prioridad GLB 3D → recorte 2D → vectorial, pose por matriz facial, métricas de ajuste y descarga HD a resolución natural.
+- `hooks/useReportTryOn.js`: genera al abrir el informe la foto original y los montajes de las dos monturas con mejor score; expone `loading`/`error`, invalida respuestas obsoletas y se resetea al cerrar o borrar la foto.
+- `lib/faceLandmarker.js`: singleton del FaceLandmarker en modo IMAGE compartido por el probador y el informe (evita duplicar el modelo en memoria), con fallback GPU → CPU y telemetría bloqueada.
+- `lib/tryOnSnapshot.js`: `pickTopFrames` (ordena por score, deduplica y valida contra el catálogo) y `renderTryOnSnapshots` (recorte 2D fotorrealista con respaldo vectorial; JPEG en memoria, sin persistencia).
 - `components/scanner/`: `FeedbackBox`, `LenteDot`, `ScannerMetrics`, `TryOnDetail`, `RecommendationCard`.
 - `lib/imageUtils.js`: brillo de referencia y normalización de fotos (≤1280 px, JPEG 0.88).
 - `lib/lensCompatibility.js`: reglas lente ↔ montura ↔ rostro.
@@ -172,7 +178,7 @@ Front: `VITE_API_URL` (en `.env` local ignorado; configurar en Vercel). Back: `E
 
 | Chunk | Tamaño |
 |---|---:|
-| `Scanner-*.js` (antes 651 kB) | **81.80 kB** |
+| `Scanner-*.js` (antes 651 kB) | **87.85 kB** |
 | `Frame3D-*.js` | 12.47 kB |
 | `three-*.js` + fragmentos | 45.29 / 246.23 / 352.36 kB |
 | `vision_bundle-*.js` | 153.20 kB |

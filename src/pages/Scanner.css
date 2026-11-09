@@ -224,6 +224,9 @@
   .report__table th { width: auto; }
   .report__head { flex-wrap: wrap; }
   .report__folio { justify-items: start; text-align: left; }
+  .report__visual { grid-template-columns: 1fr 1fr; }
+  .report__shot--original { grid-column: 1 / -1; }
+  .report__shot--original img { aspect-ratio: 16 / 10; }
 }
 
 @media print {
@@ -237,6 +240,12 @@
   .report__logo { height: 46px; }
   .report__title { margin-top: .8rem; }
   .report__title h2 { font-size: 1.18rem; }
+  .report__visual { margin-top: .7rem; gap: .4rem; }
+  .report__shot img, .report__shot-skeleton { max-height: 54mm; }
+  .report__shot figcaption { padding: .25rem .35rem; font-size: .6rem; }
+  .report__shot figcaption b { font-size: .66rem; }
+  .report__visual-note { padding: .35rem .45rem; font-size: .64rem; }
+  .report__visual-note .btn { display: none; }
   .report__kpis { margin-top: .7rem; }
   .report__kpi { padding: .45rem .55rem; }
   .report__kpi-value { font-size: 1.02rem; }
@@ -343,3 +352,16 @@ button.lente-tag:hover { filter: brightness(1.25); }
 }
 
 .scanner__recs-more { display: flex; justify-content: center; }
+
+/* ── Registro visual del informe: foto original + dos montajes ── */
+.report__visual { margin-top: 1rem; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; align-items: start; }
+.report__shot { margin: 0; border: 1px solid #cfdae5; border-radius: 10px; overflow: hidden; background: #f4f8fb; display: grid; grid-template-rows: 1fr auto; break-inside: avoid; }
+.report__shot img, .report__shot-skeleton { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; object-position: center; background: #e8eef4; }
+.report__shot figcaption { padding: .4rem .5rem .45rem; display: grid; gap: .05rem; border-top: 1px solid #e1e9f1; font-size: .72rem; color: #33475b; }
+.report__shot figcaption b { font-size: .78rem; color: #0b2a3d; }
+.report__shot figcaption span { color: #5a6b7d; }
+.report__shot--original figcaption b { color: #0f6f9c; }
+.report__shot--loading .report__shot-skeleton { animation: report-pulse 1.1s ease-in-out infinite; }
+.report__visual-note { grid-column: 1 / -1; margin: 0; padding: .5rem .6rem; border: 1px dashed #cfdae5; border-radius: 8px; background: #fbfdff; font-size: .74rem; color: #5a6b7d; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+
+@keyframes report-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }

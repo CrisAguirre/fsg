@@ -13,8 +13,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:pwa": "npm run build && playwright test --config=playwright.pwa.config.js",
     "audit:deps": "npm audit --omit=dev",
     "validate:glb": "node scripts/validate_glb_manifest.mjs",
+    "validate:pwa": "node scripts/validate_pwa.mjs",
     "test:pose": "node scripts/verify_pose.mjs",
     "preview": "vite preview"
   },

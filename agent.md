@@ -81,7 +81,8 @@ fsg/
 │   │   ├── faceLandmarker.js      # landmarker IMAGE compartido (GPU con fallback a CPU)
 │   │   ├── tryOnSnapshot.js       # top-2 monturas + montajes JPEG para el informe
 │   │   ├── imageUtils.js          # brillo y normalización de fotos
-│   │   └── lensCompatibility.js   # reglas lente ↔ montura ↔ rostro
+│   │   ├── lensCompatibility.js   # reglas lente ↔ montura ↔ rostro
+│   │   └── pwa.js                 # registro del service worker (solo producción)
 │   ├── pages/
 │   │   ├── Scanner.jsx/.css       # orquestador: consentimiento, flujo de 3 pasos + probador (729 líneas)
 │   │   ├── Catalogo.jsx/.css      # catálogo público con filtros por forma/género/estilo/talla/precio/lente
@@ -93,11 +94,15 @@ fsg/
 ├── public/
 │   ├── frames/                    # fotos base de catálogo (aviador.jpg, cat-eye.jpg, etc.)
 │   ├── tryon/                     # recortes transparentes (*-frame.webp, *-lens.webp, manifest.json)
-│   └── glasses/                   # 8 GLB por forma + manifest.json + LICENSES.md + README.md
+│   ├── glasses/                   # 8 GLB por forma + manifest.json + LICENSES.md + README.md
+│   ├── icons/                     # iconos PWA 192/512/maskable + apple-touch-icon
+│   ├── manifest.webmanifest       # manifiesto instalable (standalone + atajos)
+│   └── sw.js                      # service worker (shell offline + caché de assets)
 ├── scripts/
 │   ├── build_tryon_assets.py      # pipeline rembg + OpenCV para extraer marcos y cristales simétricos
 │   ├── verify_pose.mjs            # verificación numérica de pose/escala (npm run test:pose)
-│   └── validate_glb_manifest.mjs  # GLB ↔ manifest ↔ licencias (npm run validate:glb)
+│   ├── validate_glb_manifest.mjs  # GLB ↔ manifest ↔ licencias (npm run validate:glb)
+│   └── validate_pwa.mjs           # manifiesto + iconos + SW (npm run validate:pwa)
 ├── SCANNER_SPEC.md
 └── agent.md (este archivo)
 
@@ -264,12 +269,19 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   **Reintentos solo GET:** `health`, `listFrames` y `getFeedbackStats` reintentan una vez ante red caída, timeout o 5xx (espera 500 ms y 1.5 s). Las mutaciones no se reintentan para no duplicar análisis, feedback ni escrituras.
     *   **`health()` real:** `Scanner.jsx` dejó de usar `fetch` crudo y ahora llama a `health()`, que valida `r.ok`; un 404/5xx ya no marca el backend como en línea.
     *   **Caché de catálogo:** `listFrames` guarda el último catálogo bueno en `localStorage` (`gpv.frames.v1`, por `optica_id`) y lo devuelve si la red sigue caída tras el reintento. La app sigue mostrando monturas durante un cold start de Render o una caída puntual.
+18. **PWA + service worker (2026-11-09):**
+    *   **Manifiesto instalable:** `public/manifest.webmanifest` con `display: standalone`, `start_url`/`scope` en `/`, iconos 192/512 y maskable en `public/icons/`, y atajos a `/scanner` y `/catalogo`.
+    *   **Service worker:** `public/sw.js` sirve la navegación con red-primero y respaldo al `index.html` cacheado; `/assets/*` (hash inmutable) va caché-primero; imágenes, try-on, GLB y manifiesto van caché-primero con refresco en segundo plano. No intercepta la API ni los CDN.
+    *   **Registro:** `lib/pwa.js` registra `/sw.js` solo en producción; en dev se desactiva para no interferir con el HMR. Si una versión nueva toma el control y la pestaña ya tenía SW, recarga una sola vez para no mezclar assets.
+    *   **Deploy:** `vercel.json` sirve `/sw.js` con `Cache-Control: max-age=0` y `Service-Worker-Allowed: /`; el CSP existente ya permite `worker-src 'self' blob:`.
+    *   **Verificación:** `npm run validate:pwa` valida manifiesto, iconos y SW; `npm run test:pwa` hace build, comprueba el registro y recarga la app sin red con `vite preview`.
 
 ## Verificación técnica 2026-11-09
 *   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
-*   `npm test` → **59/59** (incluye 7 de resiliencia HTTP); `npm run test:e2e` → **10/10**.
+*   `npm test` → **60/60** (incluye 7 de resiliencia HTTP y 1 de registro PWA); `npm run test:e2e` → **10/10**.
 *   `npm run build` → OK (`Scanner` 87.91 kB, `Three.js` diferido en chunks de 45/246/352 kB).
 *   `npm run test:pose` → **14/14**; `npm run validate:glb` → **8/8**.
+*   `npm run validate:pwa` → OK; `npm run test:pwa` → **1/1** (SW registrado y shell servido sin red).
 *   Grilla de las 8 formas y montajes de dos cat-eye sobre `piloto-rostros/casos/caso-01.jpg`: cat-eye ya usa el vectorial, alineado y con tinte correcto (negro y rojo).
 
 ## Verificación técnica 2026-10-29

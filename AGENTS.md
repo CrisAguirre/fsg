@@ -64,6 +64,7 @@ src/
 │   ├── imageUtils.js              # brillo y normalización de fotos
 │   ├── lensCompatibility.js       # reglas lente ↔ montura ↔ rostro
 │   ├── mediapipeTelemetry.js      # corta la telemetría de MediaPipe (403)
+│   ├── pwa.js                     # registro del service worker (solo producción)
 │   └── tryOnSnapshot.js           # top-2 monturas + montajes JPEG del informe
 ├── components/scanner/
 │   ├── FeedbackBox.jsx            # voto 1-5★
@@ -123,11 +124,13 @@ npm run lint          # 0 warnings
 npm run lint:eslint   # accesibilidad + hooks (0)
 npm run lint:css      # stylelint (0)
 npm run typecheck     # tsc --checkJs (0)
-npm test              # vitest (59)
+npm test              # vitest (60)
 npm run test:e2e      # playwright (10; `npx playwright install chromium` la primera vez)
 npm run build         # 0 errores y ningún chunk > 500 kB
 npm run test:pose     # 14/14 verificaciones numéricas
 npm run validate:glb  # 8/8 formas con GLB y atribución
+npm run validate:pwa  # manifest, iconos y service worker
+npm run test:pwa      # build + SW registrado + shell offline (vite preview)
 
 # Backend
 cd ..\Glassescanner-backend
@@ -154,7 +157,8 @@ Definición de terminado:
 - [ ] `npm test` en verde.
 - [ ] `npm run test:e2e` en verde (flujo foto → análisis → montura).
 - [ ] `build` sin warnings de tamaño (Three.js queda en chunks diferidos).
-- [ ] `test:pose` y `validate:glb` en verde.
+- [ ] `test:pose`, `validate:glb` y `validate:pwa` en verde.
+- [ ] `npm run test:pwa` en verde si se tocó el service worker o el manifiesto.
 - [ ] `pytest` en verde si se tocó backend (38/38, cobertura ≥90 %).
 - [ ] Documentación actualizada.
 - [ ] Sin fotos ni claves reales en el diff.
@@ -184,6 +188,14 @@ Definición de terminado:
   Las mutaciones no se reintentan. `health()` valida `r.ok` y `listFrames` guarda
   el último catálogo bueno en `localStorage` (`gpv.frames.v1`, por `optica_id`)
   como respaldo ante cold start de Render o caída puntual.
+- **PWA (2026-11-09):** `public/manifest.webmanifest` (standalone, iconos
+  192/512/maskable y atajos a `/scanner` y `/catalogo`), iconos en
+  `public/icons/`, y `public/sw.js` con navegación red-primero + shell cacheado,
+  `/assets/*` caché-primero e imágenes/GLB caché-primero con refresco en segundo
+  plano. `lib/pwa.js` registra el SW solo en producción; en dev se desactiva para
+  no interferir con HMR. La API y los CDN no se cachean en el SW. `vercel.json`
+  sirve `/sw.js` con `max-age=0` y `Service-Worker-Allowed: /`.
+  `npm run test:pwa` verifica registro + recarga offline con `vite preview`.
 - El E2E del probador en vivo usa la cámara falsa de Chromium
   (`--use-fake-device-for-media-stream`, `--use-fake-ui-for-media-stream`);
   MediaPipe y WebGL siguen mockeados, así que la validación real en móvil
@@ -290,3 +302,8 @@ Definición de terminado:
   en `PhotoTryOn.js` lo desvía al render vectorial porque el recorte viene de una
   foto en 3/4 y queda alto/torcido. Solo retirar la excepción con un asset frontal
   limpio y verificado sobre un rostro real.
+- Cachear la API o los CDN dentro del service worker: `public/sw.js` solo maneja
+  recursos estáticos del mismo origen. El catálogo ya tiene caché en `localStorage`
+  y los CDN cambian de versión; interceptarlos produce respuestas obsoletas.
+- Registrar el SW en desarrollo: `lib/pwa.js` solo lo hace en producción para no
+  romper el HMR de Vite.

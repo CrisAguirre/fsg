@@ -200,17 +200,18 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
       }
       // 7) Detalles por forma
       if (forma === "wayfarer") {
-        // barra superior gruesa característica + remaches
+        // barra superior gruesa característica + remaches (sobre el aro, no
+        // cruzando el cristal)
         ctx.beginPath();
         ctx.strokeStyle = rimDark;
         ctx.lineWidth = edge * 1.15;
-        ctx.moveTo(-W / 2, -H * 0.42);
-        ctx.lineTo(W / 2, -H * 0.42);
+        ctx.moveTo(-W / 2, -H * 0.9);
+        ctx.lineTo(W / 2, -H * 0.9);
         ctx.stroke();
         ctx.fillStyle = "rgba(255,255,255,.5)";
-        for (const sx of [-W * 0.34, W * 0.34]) {
+        for (const sx of [-W * 0.38, W * 0.38]) {
           ctx.beginPath();
-          ctx.arc(sx, -H * 0.1, Math.max(1.2, edge * 0.22), 0, Math.PI * 2);
+          ctx.arc(sx, -H * 0.55, Math.max(1.2, edge * 0.22), 0, Math.PI * 2);
           ctx.fill();
         }
       } else if (forma === "aviador") {

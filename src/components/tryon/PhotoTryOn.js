@@ -8,15 +8,34 @@ import { frameColorHex } from "./frameStyle.js";
 const ASSET_BASE = "/tryon";
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-// Assets que no sirven para superposición frontal. El de cat-eye se recortó de
-// una foto en 3/4 con la patilla extendida: al escalarlo sobre los ojos queda
-// alto, torcido y con un gancho sobre la sien. Hasta tener un recorte frontal
-// limpio, esa forma usa el render vectorial de GlassesOverlay.
-const VECTOR_ONLY_KEYS = new Set(["cat-eye"]);
+// Recortes 2D que sirven para superposición frontal. El resto de los assets
+// salió de fotos de producto en 3/4 con patillas extendidas: al montarlos sobre
+// un rostro quedan torcidos y con las patillas cruzando la cara. Esas formas
+// usan el GLB 3D (frontal por construcción) y, si WebGL falla, el vectorial.
+const FRONTAL_KEYS = new Set(["rectangular", "rimless"]);
 
 let manifestPromise = null;
 const imageCache = new Map();
 const tintCache = new Map();
+
+/** Claves de asset candidatas para una montura (tryon_key + forma). */
+function assetKeys(frame) {
+  const keys = [];
+  if (frame?.tryon_key) keys.push(String(frame.tryon_key).toLowerCase().trim());
+  if (frame?.forma) {
+    const f = String(frame.forma).toLowerCase().trim();
+    keys.push(f);
+    if (f.includes("-")) keys.push(f.replace(/-/g, ""));
+    if (f.includes("_")) keys.push(f.replace(/_/g, "-"));
+  }
+  return keys;
+}
+
+/** true si la montura tiene un recorte 2D frontal utilizable. */
+export function hasFrontalPhotoAsset(frame) {
+  if (!frame) return false;
+  return assetKeys(frame).some((key) => FRONTAL_KEYS.has(key));
+}
 
 async function loadManifest() {
   if (!manifestPromise) {
@@ -102,17 +121,10 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
   if (!ctx || !lm || !frame) return null;
   const m = measureGlasses(lm, cw, ch);
   if (!m) return null;
+  if (!hasFrontalPhotoAsset(frame)) return null;
 
   const manifest = await loadManifest();
-  const keys = [];
-  if (frame.tryon_key) keys.push(String(frame.tryon_key));
-  if (frame.forma) {
-    const f = String(frame.forma).toLowerCase().trim();
-    keys.push(f);
-    if (f.includes("-")) keys.push(f.replace(/-/g, ""));
-    if (f.includes("_")) keys.push(f.replace(/_/g, "-"));
-  }
-  if (keys.some((key) => VECTOR_ONLY_KEYS.has(key))) return null;
+  const keys = assetKeys(frame);
   let asset = null;
   for (const key of keys) {
     const meta = manifest[key];
@@ -199,17 +211,9 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
 
 /** Precarga el asset para que el primer cambio de montura no parpadee. */
 export async function preloadPhotoTryOn(frame) {
-  if (!frame) return false;
+  if (!hasFrontalPhotoAsset(frame)) return false;
   const manifest = await loadManifest();
-  const keys = [];
-  if (frame.tryon_key) keys.push(String(frame.tryon_key));
-  if (frame.forma) {
-    const f = String(frame.forma).toLowerCase().trim();
-    keys.push(f);
-    if (f.includes("-")) keys.push(f.replace(/-/g, ""));
-    if (f.includes("_")) keys.push(f.replace(/_/g, "-"));
-  }
-  if (keys.some((key) => VECTOR_ONLY_KEYS.has(key))) return false;
+  const keys = assetKeys(frame);
   for (const key of keys) {
     const meta = manifest[key];
     if (meta?.frame) {

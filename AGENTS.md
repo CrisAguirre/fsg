@@ -86,7 +86,7 @@ src/
     ├── GlassesGLB.js              # carga, normalización y tintado de GLB
     ├── landmarks.js               # anclas oculares compartidas (iris 478 → esquinas)
     ├── GlassesOverlay.js          # try-on vectorial 2D (fallback)
-    └── PhotoTryOn.js              # recorte 2D fotorrealista (cat-eye usa respaldo vectorial)
+    └── PhotoTryOn.js              # recorte 2D solo si es frontal (rectangular/rimless)
 ```
 
 ### 2.3 Pasos para un refactor
@@ -126,7 +126,7 @@ npm run lint          # 0 warnings
 npm run lint:eslint   # accesibilidad + hooks (0)
 npm run lint:css      # stylelint (0)
 npm run typecheck     # tsc --checkJs (0)
-npm test              # vitest (76)
+npm test              # vitest (80)
 npm run test:e2e      # playwright (10; `npx playwright install chromium` la primera vez)
 npm run build         # 0 errores y ningún chunk > 500 kB
 npm run test:pose     # 14/14 verificaciones numéricas
@@ -166,14 +166,21 @@ Definición de terminado:
 - [ ] Documentación actualizada.
 - [ ] Sin fotos ni claves reales en el diff.
 
-## 4. Estado verificado (2026-11-11)
+## 4. Estado verificado (2026-11-12)
 
-- Frontend: build OK en ~0.7 s. `Scanner` = **90.3 kB** (antes 87.9 kB; las anclas
-  de iris y la galería del informe suman código). `Three.js` se descarga solo al
-  activar el 3D (chunks 45/246/352 kB).
+- Frontend: build OK en ~0.7 s. `Scanner` = **90.7 kB**. `Three.js` se descarga
+  solo al activar el 3D o al generar un montaje 3D del informe (chunks
+  45/246/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
-- `test`: **76/76**; `test:e2e`: **10/10**; `test:pose`: **14/14**;
+- `test`: **80/80**; `test:e2e`: **10/10**; `test:pose`: **14/14**;
   `test:alignment`: **19/19**.
+- **Montaje del informe corregido (2026-11-12):** la causa de la desviación no era
+  el ancla sino los assets: solo `rectangular` y `rimless` son recortes frontales;
+  `aviador`, `cuadrado`, `oval`, `redondo`, `wayfarer` y `cat-eye` salieron de
+  fotos en 3/4 con patillas extendidas. `renderTryOnSnapshots` ahora usa el recorte
+  2D solo si `hasFrontalPhotoAsset(frame)` es true; para el resto renderiza el GLB
+  3D con la pose real de MediaPipe y, si WebGL/GLB fallan, cae al vectorial. El
+  cat-eye ya no depende de la excepción vectorial.
 - **Anclas oculares con iris (2026-11-11):** `components/tryon/landmarks.js` es la
   fuente única de `FACE_IDX` y `eyeAnchors`. `lc`/`rc` son los centroides de iris
   (468–477) cuando la malla trae 478 puntos y la IPD de iris supera el 2 % del
@@ -184,10 +191,10 @@ Definición de terminado:
   `measureGlasses.test.js` y `scripts/verify_alignment.mjs`.
 - **Informe con registro visual (2026-11-09):** tras el primer escaneo, el informe
   muestra primero la foto original y después los montajes de las dos monturas con
-  mejor score (`pickTopFrames` + `renderTryOnSnapshots`). Usa el recorte 2D
-  fotorrealista con respaldo vectorial, un único landmarker IMAGE compartido
-  (`lib/faceLandmarker.js`) y JPEG en memoria que **no** entran al JSON ni al
-  servidor. Estados de carga, error y aviso de rostro no detectado incluidos.
+  mejor score (`pickTopFrames` + `renderTryOnSnapshots`). Usa un único landmarker
+  IMAGE compartido (`lib/faceLandmarker.js`) y JPEG en memoria que **no** entran al
+  JSON ni al servidor. Estados de carga, error y aviso de rostro no detectado
+  incluidos.
 - **Variedad y galería del informe (2026-11-10):** `lib/frameRanking.js` ordena
   las recomendaciones y `pickTopFrames` prioriza una **forma distinta** para la
   segunda foto; si no hay otra forma, completa por score. La sección 3 del
@@ -195,12 +202,16 @@ Definición de terminado:
   (no montada sobre la foto del cliente). Las miniaturas viven en
   `public/frames/thumbs/` (~10 kB cada una; script `scripts/build_frame_thumbs.py`)
   y caen a `imagen_url` si faltan. Aplica solo a `mode="scan"`.
-- **Excepción cat-eye (2026-11-09):** el asset `public/tryon/cat-eye-frame.webp`
-  proviene de una foto en 3/4 con la patilla extendida y queda alto/torcido al
-  superponerlo. `PhotoTryOn.js` usa `VECTOR_ONLY_KEYS = new Set(["cat-eye"])` y
-  cae al render vectorial de `GlassesOverlay.js`, que sí queda simétrico y
-  centrado sobre los ojos. Aplica al informe y al probador; se retirará cuando
-  exista un recorte frontal limpio.
+- **Recortes 2D frontales vs. fotos 3/4 (2026-11-12):** solo
+  `public/tryon/rectangular-*` y `public/tryon/rimless-*` son recortes frontales.
+  Los assets de `aviador`, `cuadrado`, `oval`, `redondo`, `wayfarer` y `cat-eye`
+  salieron de fotos de producto en 3/4 con las patillas extendidas: al escalarlos
+  sobre un rostro quedan torcidos, altos y con la patilla cruzando la sien.
+  `PhotoTryOn.js` expone `hasFrontalPhotoAsset(frame)` y
+  `renderTryOnSnapshots` usa esta prioridad: **recorte 2D solo si es frontal →
+  GLB 3D con la pose real → vectorial de `GlassesOverlay.js` como último recurso**.
+  Aplica al informe y al probador de foto. El cat-eye ya no tiene una excepción
+  propia: sigue la misma regla que el resto de formas 3/4.
 - **Resiliencia HTTP (2026-11-09):** `lib/api.js` usa `AbortController` (GET 12 s,
   mutaciones 20 s, `/analyze` 45 s) y reintenta una sola vez los GET
   (`health`, `listFrames`, `getFeedbackStats`) ante red caída, timeout o 5xx.
@@ -320,10 +331,12 @@ Definición de terminado:
   refleje el mejor calce real.
 - Descartar la foto del escaneo 1: `lastScanFileRef` la mantiene en memoria para
   re-análisis inmediato en el escaneo con montura; no borrarla antes de ese paso.
-- Volver a usar el asset 2D de cat-eye para superposición frontal: `VECTOR_ONLY_KEYS`
-  en `PhotoTryOn.js` lo desvía al render vectorial porque el recorte viene de una
-  foto en 3/4 y queda alto/torcido. Solo retirar la excepción con un asset frontal
-  limpio y verificado sobre un rostro real.
+- Usar un recorte 2D en 3/4 para superponerlo sobre un rostro frontal: los assets
+  de `aviador`, `cuadrado`, `oval`, `redondo`, `wayfarer` y `cat-eye` vienen de
+  fotos de producto con patilla extendida y quedan torcidos. `hasFrontalPhotoAsset`
+  en `PhotoTryOn.js` limita el 2D a `rectangular` y `rimless`; el resto va al GLB
+  3D y, si falla, al vectorial. Solo ampliar esa lista con recortes frontales
+  verificados sobre un rostro real.
 - Cachear la API o los CDN dentro del service worker: `public/sw.js` solo maneja
   recursos estáticos del mismo origen. El catálogo ya tiene caché en `localStorage`
   y los CDN cambian de versión; interceptarlos produce respuestas obsoletas.

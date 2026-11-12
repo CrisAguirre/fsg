@@ -3,7 +3,8 @@
 // Usa el mismo motor que el probador (recorte fotorrealista + respaldo vectorial)
 // y un único landmarker de imagen para ambas monturas.
 import { drawGlasses } from "../components/tryon/GlassesOverlay.js";
-import { drawPhotoTryOn } from "../components/tryon/PhotoTryOn.js";
+import { drawPhotoTryOn, hasFrontalPhotoAsset } from "../components/tryon/PhotoTryOn.js";
+import { loadGlassesAR } from "../components/tryon/arLoader.js";
 import { getImageLandmarker } from "./faceLandmarker.js";
 import { pickDiverseFrames } from "./frameRanking.js";
 import { sampleBrightness } from "./imageUtils.js";
@@ -87,9 +88,13 @@ export async function renderTryOnSnapshots({ photoUrl, frames, recs, metrics, li
   const height = Math.round(img.naturalHeight * scale);
 
   // Los landmarks son independientes de la montura: se detectan una sola vez.
+  // La matriz facial permite al 3D respetar la pose real (yaw/pitch/roll).
   let landmarks = null;
+  let faceMatrix = null;
   try {
-    landmarks = landmarker.detect(img)?.faceLandmarks?.[0] ?? null;
+    const detection = landmarker.detect(img);
+    landmarks = detection?.faceLandmarks?.[0] ?? null;
+    faceMatrix = detection?.facialTransformationMatrixes?.[0]?.data ?? null;
   } catch {
     return { images: [], reason: "model" };
   }
@@ -104,50 +109,94 @@ export async function renderTryOnSnapshots({ photoUrl, frames, recs, metrics, li
   const light = sampleBrightness(base);
 
   const images = [];
-  for (const { frame, rec } of picks) {
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) continue;
-    ctx.drawImage(base, 0, 0);
+  let ar = null;
+  try {
+    for (const { frame, rec } of picks) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+      ctx.drawImage(base, 0, 0);
 
-    let drew = false;
-    try {
-      drew = !!(await drawPhotoTryOn(ctx, landmarks, width, height, frame, metrics, {
-        alpha: 1,
-        light,
-      }));
-    } catch {
-      drew = false;
-    }
-    if (!drew) {
-      try {
-        drew = !!drawGlasses(
-          ctx,
-          landmarks,
-          width,
-          height,
-          width,
-          height,
-          frame?.forma ?? "rectangular",
-          undefined,
-          { frame, metrics, alpha: 1, light },
-        );
-      } catch {
-        drew = false;
+      let drew = false;
+
+      // 1) Recorte 2D fotorrealista solo si el asset es frontal. Los recortes
+      // en 3/4 (aviador, cuadrado, oval, redondo, wayfarer, cat-eye) quedan
+      // torcidos sobre un rostro frontal, así que no se usan.
+      if (hasFrontalPhotoAsset(frame)) {
+        try {
+          drew = !!(await drawPhotoTryOn(ctx, landmarks, width, height, frame, metrics, {
+            alpha: 1,
+            light,
+          }));
+        } catch {
+          drew = false;
+        }
       }
-    }
-    // Si ningún motor pudo dibujar, no se muestra una foto repetida como montaje.
-    if (!drew) continue;
 
-    images.push({
-      id: frame.id,
-      nombre: frame.nombre ?? frame.id,
-      score: Number(rec?.score) || 0,
-      verdict: rec?.verdict ?? "",
-      dataUrl: canvas.toDataURL("image/jpeg", JPEG_QUALITY),
-    });
+      // 2) GLB 3D: frontal por construcción y con la pose real de la foto.
+      if (!drew) {
+        try {
+          if (!ar) {
+            const GlassesAR = await loadGlassesAR();
+            const arCanvas = document.createElement("canvas");
+            arCanvas.width = width;
+            arCanvas.height = height;
+            ar = new GlassesAR(arCanvas);
+          }
+          ar.setModel(frame, "monofocal", metrics);
+          await ar.whenReady(1500);
+          const pose = ar.render(
+            landmarks,
+            width,
+            height,
+            faceMatrix ? { matrix: faceMatrix } : null,
+          );
+          if (pose) {
+            ctx.drawImage(ar.canvas, 0, 0, width, height);
+            drew = true;
+          }
+        } catch {
+          drew = false;
+        }
+      }
+
+      // 3) Vectorial como último recurso (sin WebGL o sin GLB válido).
+      if (!drew) {
+        try {
+          drew = !!drawGlasses(
+            ctx,
+            landmarks,
+            width,
+            height,
+            width,
+            height,
+            frame?.forma ?? "rectangular",
+            undefined,
+            { frame, metrics, alpha: 1, light },
+          );
+        } catch {
+          drew = false;
+        }
+      }
+      // Si ningún motor pudo dibujar, no se muestra una foto repetida como montaje.
+      if (!drew) continue;
+
+      images.push({
+        id: frame.id,
+        nombre: frame.nombre ?? frame.id,
+        score: Number(rec?.score) || 0,
+        verdict: rec?.verdict ?? "",
+        dataUrl: canvas.toDataURL("image/jpeg", JPEG_QUALITY),
+      });
+    }
+  } finally {
+    try {
+      ar?.dispose?.();
+    } catch {
+      /* noop */
+    }
   }
 
   return { images, reason: images.length > 0 ? null : "render" };

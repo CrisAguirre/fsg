@@ -19,7 +19,7 @@ Este documento proporciona el contexto actual del proyecto para que otras inteli
 *   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GlassesAR 3D procedural y GLB por forma, cargado de forma diferida), Canvas 2D (PhotoTryOn con recortes transparentes y GlassesOverlay procedural), Context API para temas (`ThemeProvider` + `useTheme`). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + Random Forest + SVM ML + MongoDB Motor).
 *   **Despliegue:** Front `https://glassescanner.vercel.app/` (Vercel) · Back `https://glassescanner-backend.onrender.com` (Render, Docker `python:3.11-slim` + sysdeps para OpenCV) · Mongo Atlas (`glassescanner`, seed local de 64 marcos).
 *   **Flujo del escáner (3 pasos):** (1) “Iniciar escaneo” → consentimiento → captura sin monturas; (2) cards de **informe del rostro** (foto original + montajes de las dos monturas mejor puntuadas, tipo, composición, medidas y % por forma/material/color/lente) y **monturas recomendadas** (probador 3D); (3) **escaneo obligatorio con la montura puesta**, habilitado solo tras confirmar la prueba física, que genera el **informe de ajuste** de esa montura (score, veredicto, centrado PD/IPD y motivos). Una **4.ª card opcional** abre el **probador virtual autónomo**: cámara en vivo con montura 3D o foto subida/capturada con modelo 2D/3D escogible, sin escaneo facial ni recomendaciones. Ambos informes se descargan en PDF (impresión del navegador) y JSON; nada se guarda en el servidor.
-*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-11-09: backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **52/52**, `npm run test:e2e` **10/10**, `npm run build` OK (`Scanner` 87.2 kB), `npm run test:pose` **14/14** y `npm run validate:glb` **8/8**.
+*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-11-11: backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **76/76**, `npm run test:e2e` **10/10**, `npm run build` OK (`Scanner` 90.28 kB), `npm run test:pose` **14/14**, `npm run test:alignment` **19/19** y `npm run validate:glb` **8/8**.
 
 ## Identidad Corporativa y Diseño (Design System)
 El diseño combina **Minimalismo Corporativo Prémium** con **Aeroglass / Glassmorphism** de alta gama óptica.
@@ -67,6 +67,7 @@ fsg/
 │   │       ├── PhotoTryOn.js      # try-on 2D fotorrealista (recortes webp) para modo foto
 │   │       ├── Frame3D.js         # armazón 3D procedural Three.js (GlassesAR)
 │   │       ├── GlassesOverlay.js  # probador 2D vectorial procedural 8 formas
+│   │       ├── landmarks.js       # anclas oculares compartidas (iris 478 → fallback esquinas)
 │   │       └── GlassesGLB.js      # carga, normalización y tintado de GLB
 │   ├── context/
 │   │   ├── ThemeContext.jsx       # ThemeProvider
@@ -79,6 +80,7 @@ fsg/
 │   ├── lib/
 │   │   ├── api.js                 # health, analyze (timeout 45s), recommend, frames con caché, feedback, CRUD
 │   │   ├── faceLandmarker.js      # landmarker IMAGE compartido (GPU con fallback a CPU)
+│   │   ├── frameRanking.js        # ranking + diversidad por forma para el informe
 │   │   ├── tryOnSnapshot.js       # top-2 monturas + montajes JPEG para el informe
 │   │   ├── imageUtils.js          # brillo y normalización de fotos
 │   │   ├── lensCompatibility.js   # reglas lente ↔ montura ↔ rostro
@@ -93,6 +95,7 @@ fsg/
 │   └── index.css
 ├── public/
 │   ├── frames/                    # fotos base de catálogo (aviador.jpg, cat-eye.jpg, etc.)
+│   │   └── thumbs/                # miniaturas 480x360 para la galería del informe
 │   ├── tryon/                     # recortes transparentes (*-frame.webp, *-lens.webp, manifest.json)
 │   ├── glasses/                   # 8 GLB por forma + manifest.json + LICENSES.md + README.md
 │   ├── icons/                     # iconos PWA 192/512/maskable + apple-touch-icon
@@ -100,7 +103,9 @@ fsg/
 │   └── sw.js                      # service worker (shell offline + caché de assets)
 ├── scripts/
 │   ├── build_tryon_assets.py      # pipeline rembg + OpenCV para extraer marcos y cristales simétricos
+│   ├── build_frame_thumbs.py      # miniaturas 4:3 de public/frames para el informe
 │   ├── verify_pose.mjs            # verificación numérica de pose/escala (npm run test:pose)
+│   ├── verify_alignment.mjs       # anclas 2D/3D con iris/fallback (npm run test:alignment)
 │   ├── validate_glb_manifest.mjs  # GLB ↔ manifest ↔ licencias (npm run validate:glb)
 │   └── validate_pwa.mjs           # manifiesto + iconos + SW (npm run validate:pwa)
 ├── SCANNER_SPEC.md
@@ -275,6 +280,30 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   **Registro:** `lib/pwa.js` registra `/sw.js` solo en producción; en dev se desactiva para no interferir con el HMR. Si una versión nueva toma el control y la pestaña ya tenía SW, recarga una sola vez para no mezclar assets.
     *   **Deploy:** `vercel.json` sirve `/sw.js` con `Cache-Control: max-age=0` y `Service-Worker-Allowed: /`; el CSP existente ya permite `worker-src 'self' blob:`.
     *   **Verificación:** `npm run validate:pwa` valida manifiesto, iconos y SW; `npm run test:pwa` hace build, comprueba el registro y recarga la app sin red con `vite preview`.
+19. **Variedad y galería del informe (2026-11-10):**
+    *   **Diversidad por forma:** `lib/frameRanking.js` centraliza el orden por score, el filtro de catálogo y la deduplicación. `pickTopFrames` elige primero una montura por forma; si las dos mejores comparten forma, la segunda pasa a la mejor de otra forma. Si no hay formas suficientes, completa por score. Así las dos fotos montadas del informe no repiten tipo de montura ni asset 2D.
+    *   **Galería de 10 monturas:** la sección 3 del informe (`mode="scan"`) muestra las 10 primeras recomendaciones con foto de producto independiente, nombre, forma, material, color, score y veredicto. No se montan sobre la foto del cliente y no entran en la imagen ni en el JSON como datos biométricos.
+    *   **Miniaturas:** `public/frames/thumbs/<forma>.jpg` (480×360, ~10 kB) se generan con `scripts/build_frame_thumbs.py` a partir de las fotos de 1200×896. El informe las usa con `loading="eager"` para que la impresión no salga con huecos y cae a `imagen_url` si falta una miniatura. En impresión la galería va a 5 columnas y 2 filas.
+    *   **Límite de datos:** el catálogo actual tiene 64 monturas pero solo 8 fotos de producto (una por forma); las 10 tarjetas pueden repetir foto cuando coinciden varias monturas de la misma forma. Es una limitación del seed, no del render.
+20. **Anclas oculares con iris (2026-11-11):**
+    *   **Fuente única:** `components/tryon/landmarks.js` centraliza `FACE_IDX` y `eyeAnchors`. `lc`/`rc` son los centroides de iris (468–477) cuando la malla trae 478 puntos y la IPD de iris supera el 2 % del ancho; si faltan o son placeholder, cae al punto medio de las esquinas oculares. La asignación izquierda/derecha usa la x de la imagen, no la convención del modelo.
+    *   **2D:** `measureGlasses` consume `eyeAnchors` y expone `anchor` (`"iris"`/`"corner"`), `irisL/R`, `cornerL/R`, `cornerIpdPx`, `cornerAng` y `bridge` en píxeles, además de las métricas previas.
+    *   **3D:** `estimatePose` usa la misma ancla y corrige el roll con la relación de aspecto (`cw`/`ch`) para que coincida con el motor 2D; `render` protege una pose nula.
+    *   **Regresión:** `landmarks.test.js` (8 casos) y `measureGlasses.test.js` (+2) cubren sin iris, iris degenerado, prioridad, orden por x, roll y puente. `scripts/verify_alignment.mjs` (`npm run test:alignment`, 19/19) valida 2D y 3D con casos sintéticos frontales, con roll y con/sin iris.
+
+## Verificación técnica 2026-11-11
+*   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
+*   `npm test` → **76/76** (8 de anclas y 2 de iris en `measureGlasses`).
+*   `npm run test:pose` → **14/14**; `npm run test:alignment` → **19/19**.
+*   `npm run test:e2e` → **10/10**; `npm run validate:glb` → **8/8**; `npm run validate:pwa` → OK.
+*   `npm run build` → OK (`Scanner` 90.28 kB, `Frame3D` 12.41 kB diferido, Three.js en 45/246/352 kB).
+
+## Verificación técnica 2026-11-10
+*   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
+*   `npm test` → **66/66** (10 de ranking/diversidad); `npm run test:e2e` → **10/10**.
+*   `npm run build` → OK (`Scanner` 89.22 kB; miniaturas copiadas a `dist/frames/thumbs`).
+*   `npm run test:pose` → **14/14**; `npm run validate:glb` → **8/8**; `npm run validate:pwa` → OK; `npm run test:pwa` → **1/1**.
+*   Informe con 10 monturas sobre el catálogo real: 10 tarjetas, **0 miniaturas rotas** y captura de impresión a 5 columnas × 2 filas.
 
 ## Verificación técnica 2026-11-09
 *   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.

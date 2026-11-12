@@ -18,6 +18,7 @@
     "validate:glb": "node scripts/validate_glb_manifest.mjs",
     "validate:pwa": "node scripts/validate_pwa.mjs",
     "test:pose": "node scripts/verify_pose.mjs",
+    "test:alignment": "node scripts/verify_alignment.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

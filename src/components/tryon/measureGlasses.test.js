@@ -45,6 +45,33 @@ describe("measureGlasses", () => {
     expect(m.ipdPx).toBeLessThan(200 * 0.08);
     expect(m.warnings.join(" ")).toMatch(/lejos/i);
   });
+
+  it("usa los centros de iris cuando la malla los trae", () => {
+    const lm = face();
+    for (const i of [468, 469, 470, 471, 472]) set(lm, i, 0.35, 0.4);
+    for (const i of [473, 474, 475, 476, 477]) set(lm, i, 0.65, 0.4);
+    const m = measureGlasses(lm, 200, 100);
+    expect(m.anchor).toBe("iris");
+    expect(m.lc.x).toBeCloseTo(70, 6);
+    expect(m.lc.y).toBeCloseTo(40, 6);
+    expect(m.rc.x).toBeCloseTo(130, 6);
+    expect(m.rc.y).toBeCloseTo(40, 6);
+    expect(m.ipdPx).toBeCloseTo(60, 6);
+    expect(m.cornerIpdPx).toBeCloseTo(80, 6);
+    expect(m.angDeg).toBeCloseTo(0, 6);
+    expect(m.bridge.x).toBeCloseTo(100, 6);
+    expect(m.bridge.y).toBeCloseTo(50, 6);
+    expect(m.warnings).toEqual([]);
+  });
+
+  it("cae a las esquinas si los iris son placeholder", () => {
+    // face() deja los iris en (0.5, 0.5): IPD de iris nula → fallback.
+    const m = measureGlasses(face(), 200, 100);
+    expect(m.anchor).toBe("corner");
+    expect(m.ipdPx).toBeCloseTo(80, 6);
+    expect(m.irisL).toBeNull();
+    expect(m.irisR).toBeNull();
+  });
 });
 
 describe("pupilDecentration", () => {

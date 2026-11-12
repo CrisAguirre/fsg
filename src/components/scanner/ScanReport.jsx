@@ -11,6 +11,7 @@ import {
   ratioInsights,
 } from "../../lib/compatibility.js";
 import { formaLabel } from "../../lib/faceLabels.js";
+import { rankFrames } from "../../lib/frameRanking.js";
 
 const mm = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? `${Number(v).toFixed(1)} mm` : "—");
 const num = (v, d = 2) => (Number.isFinite(Number(v)) ? Number(v).toFixed(d) : "—");
@@ -22,25 +23,30 @@ function folioOf(iso) {
   return `GPV-${stamp}-${hhmm}`;
 }
 
+/** Miniatura de producto por forma; el informe cae a `imagen_url` si falta. */
+function thumbOf(frame) {
+  const key = String(frame?.forma ?? "").trim().toLowerCase();
+  return key ? `/frames/thumbs/${key}.jpg` : "";
+}
+
 function buildReport({ mode, metrics, detectedShape, recs, frames, scanMeta, frame, fitRec }) {
   const at = scanMeta?.at ?? new Date().toISOString();
   const formas = attrPercentages(recs, frames, "forma");
   const materiales = attrPercentages(recs, frames, "material");
   const colores = attrPercentages(recs, frames, "color");
   const lentes = lensPercentages(recs, frames);
-  const top = [...(recs ?? [])]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
-    .map((r) => {
-      const f = (frames ?? []).find((x) => x.id === r.frame_id);
-      return {
-        id: r.frame_id,
-        nombre: f?.nombre ?? r.frame_id,
-        forma: f?.forma ?? "—",
-        score: r.score,
-        verdict: r.verdict,
-      };
-    });
+  const top = rankFrames(recs, frames, 10).map(({ frame: f, rec }, index) => ({
+    rank: index + 1,
+    id: f.id,
+    nombre: f.nombre ?? f.id,
+    forma: f.forma ?? "—",
+    material: f.material ?? "—",
+    color: f.color ?? "—",
+    score: Number(rec?.score) || 0,
+    verdict: rec?.verdict ?? "",
+    imagen_url: f.imagen_url || `/frames/${f.forma || "rectangular"}.jpg`,
+    thumb_url: thumbOf(f),
+  }));
 
   const forma = formaLabel(metrics?.face_shape);
   const simetria = Math.round(Number(metrics?.symmetry_index ?? 0));
@@ -403,32 +409,54 @@ export default function ScanReport({
           </Section>
         ) : (
           <Section n="3" title="Monturas mejor valoradas">
-            <table className="report__table report__table--list">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Montura</th>
-                  <th>Forma</th>
-                  <th>Score</th>
-                  <th>Veredicto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.top_monturas.map((t, i) => (
-                  <tr key={t.id}>
-                    <td>{i + 1}</td>
-                    <td>{t.nombre}</td>
-                    <td>{t.forma}</td>
-                    <td>{t.score} pts</td>
-                    <td>
-                      <span className={`report__chip report__chip--${t.verdict}`}>
-                        {VERDICT_LABEL[t.verdict] ?? t.verdict}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {data.top_monturas.length === 0 ? (
+              <p className="report__visual-note" role="status">
+                No hay monturas recomendadas para este escaneo.
+              </p>
+            ) : (
+              <>
+                <p className="report__lead">
+                  Las {data.top_monturas.length} monturas con mayor compatibilidad
+                  del catálogo. Las fotos son de producto y no están montadas sobre
+                  tu fotografía.
+                </p>
+                <ul className="report__frames">
+                  {data.top_monturas.map((t) => (
+                    <li key={t.id} className="report__frame-card">
+                      <div className="report__frame-photo">
+                        <img
+                          src={t.thumb_url || t.imagen_url}
+                          alt={`Montura ${t.nombre}`}
+                          decoding="async"
+                          loading="eager"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (img.dataset.fallback === "1" || !t.imagen_url) return;
+                            img.dataset.fallback = "1";
+                            img.src = t.imagen_url;
+                          }}
+                        />
+                        <span className="report__frame-rank" aria-hidden="true">
+                          {t.rank}
+                        </span>
+                      </div>
+                      <div className="report__frame-body">
+                        <b>{t.nombre}</b>
+                        <span>
+                          {t.forma} · {t.material} · {t.color}
+                        </span>
+                        <div className="report__frame-foot">
+                          <span className={`report__chip report__chip--${t.verdict}`}>
+                            {VERDICT_LABEL[t.verdict] ?? t.verdict}
+                          </span>
+                          <b>{t.score} pts</b>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </Section>
         )}
 

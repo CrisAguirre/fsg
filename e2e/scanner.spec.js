@@ -110,6 +110,13 @@ test("el informe se abre membreteado y con compatibilidad por tipo", async ({ pa
   await expect(doc).toContainText("Ovalado");
   await expect(doc).toContainText("Forma de montura");
   await expect(doc).toContainText("Tipo de lente");
+  await expect(doc).toContainText("monturas con mayor compatibilidad");
+
+  // Galería de producto: fotos independientes, no montadas sobre la foto.
+  const productGallery = doc.locator(".report__frames");
+  await expect(productGallery).toBeVisible();
+  await expect(productGallery.locator(".report__frame-card")).toHaveCount(2);
+  await expect(productGallery.locator("img").first()).toBeVisible();
 
   // Registro visual: la foto original aparece primero; los montajes dependen de
   // que MediaPipe detecte un rostro (la imagen de prueba es un producto).

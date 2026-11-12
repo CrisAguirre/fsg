@@ -61,6 +61,7 @@ src/
 │   ├── compatibility.js           # % por forma/material/color/lente + centrado + ajuste
 │   ├── faceLabels.js              # formas y etiquetas faciales (fuente única)
 │   ├── faceLandmarker.js          # landmarker IMAGE compartido (GPU → CPU)
+│   ├── frameRanking.js            # ranking + diversidad por forma del informe
 │   ├── imageUtils.js              # brillo y normalización de fotos
 │   ├── lensCompatibility.js       # reglas lente ↔ montura ↔ rostro
 │   ├── mediapipeTelemetry.js      # corta la telemetría de MediaPipe (403)
@@ -72,7 +73,7 @@ src/
 │   ├── LenteDot.jsx               # muestra de tinte
 │   ├── ScanCapture.jsx            # cámara/foto reutilizable en ambos escaneos
 │   ├── ScanRecord.jsx             # registro visible + descarga JSON del escaneo
-│   ├── ScanReport.jsx             # informe membreteado imprimible (PDF) + JSON
+│   ├── ScanReport.jsx             # informe imprimible (PDF) + JSON + galería top-10
 │   ├── ScannerMetrics.jsx         # panel morfométrico + corrección de forma
 │   ├── StepCards.jsx              # las 4 cards del paso 2 (la 3.ª obligatoria; la 4.ª alterna)
 │   ├── TryOnStudio.jsx            # probador autónomo: cámara en vivo 3D o foto 2D/3D
@@ -83,6 +84,7 @@ src/
     ├── arLoader.js                # import() único de Frame3D/Three.js
     ├── Frame3D.js                 # GlassesAR: pose + armazón procedural/GLB
     ├── GlassesGLB.js              # carga, normalización y tintado de GLB
+    ├── landmarks.js               # anclas oculares compartidas (iris 478 → esquinas)
     ├── GlassesOverlay.js          # try-on vectorial 2D (fallback)
     └── PhotoTryOn.js              # recorte 2D fotorrealista (cat-eye usa respaldo vectorial)
 ```
@@ -124,10 +126,11 @@ npm run lint          # 0 warnings
 npm run lint:eslint   # accesibilidad + hooks (0)
 npm run lint:css      # stylelint (0)
 npm run typecheck     # tsc --checkJs (0)
-npm test              # vitest (60)
+npm test              # vitest (76)
 npm run test:e2e      # playwright (10; `npx playwright install chromium` la primera vez)
 npm run build         # 0 errores y ningún chunk > 500 kB
 npm run test:pose     # 14/14 verificaciones numéricas
+npm run test:alignment # 19/19 anclas 2D/3D (iris + fallback)
 npm run validate:glb  # 8/8 formas con GLB y atribución
 npm run validate:pwa  # manifest, iconos y service worker
 npm run test:pwa      # build + SW registrado + shell offline (vite preview)
@@ -157,25 +160,41 @@ Definición de terminado:
 - [ ] `npm test` en verde.
 - [ ] `npm run test:e2e` en verde (flujo foto → análisis → montura).
 - [ ] `build` sin warnings de tamaño (Three.js queda en chunks diferidos).
-- [ ] `test:pose`, `validate:glb` y `validate:pwa` en verde.
+- [ ] `test:pose`, `test:alignment`, `validate:glb` y `validate:pwa` en verde.
 - [ ] `npm run test:pwa` en verde si se tocó el service worker o el manifiesto.
 - [ ] `pytest` en verde si se tocó backend (38/38, cobertura ≥90 %).
 - [ ] Documentación actualizada.
 - [ ] Sin fotos ni claves reales en el diff.
 
-## 4. Estado verificado (2026-11-09)
+## 4. Estado verificado (2026-11-11)
 
-- Frontend: build OK en ~0.7 s. `Scanner` = **87.9 kB** (antes 81.8 kB; el informe
-  añade la galería y los montajes). `Three.js` se descarga solo al activar el 3D
-  (chunks 45/246/352 kB).
+- Frontend: build OK en ~0.7 s. `Scanner` = **90.3 kB** (antes 87.9 kB; las anclas
+  de iris y la galería del informe suman código). `Three.js` se descarga solo al
+  activar el 3D (chunks 45/246/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
-- `test`: **59/59**; `test:e2e`: **10/10**.
+- `test`: **76/76**; `test:e2e`: **10/10**; `test:pose`: **14/14**;
+  `test:alignment`: **19/19**.
+- **Anclas oculares con iris (2026-11-11):** `components/tryon/landmarks.js` es la
+  fuente única de `FACE_IDX` y `eyeAnchors`. `lc`/`rc` son los centroides de iris
+  (468–477) cuando la malla trae 478 puntos y la IPD de iris supera el 2 % del
+  ancho; si faltan, son placeholder o la malla es de 468, cae al punto medio de
+  las esquinas oculares. `measureGlasses` y `estimatePose` consumen la misma
+  ancla; el 3D corrige el roll con la relación de aspecto (`cw`/`ch`) para
+  coincidir con el 2D. Los casos sintéticos están en `landmarks.test.js`,
+  `measureGlasses.test.js` y `scripts/verify_alignment.mjs`.
 - **Informe con registro visual (2026-11-09):** tras el primer escaneo, el informe
   muestra primero la foto original y después los montajes de las dos monturas con
   mejor score (`pickTopFrames` + `renderTryOnSnapshots`). Usa el recorte 2D
   fotorrealista con respaldo vectorial, un único landmarker IMAGE compartido
   (`lib/faceLandmarker.js`) y JPEG en memoria que **no** entran al JSON ni al
   servidor. Estados de carga, error y aviso de rostro no detectado incluidos.
+- **Variedad y galería del informe (2026-11-10):** `lib/frameRanking.js` ordena
+  las recomendaciones y `pickTopFrames` prioriza una **forma distinta** para la
+  segunda foto; si no hay otra forma, completa por score. La sección 3 del
+  informe muestra las **10 primeras monturas** con foto de producto independiente
+  (no montada sobre la foto del cliente). Las miniaturas viven en
+  `public/frames/thumbs/` (~10 kB cada una; script `scripts/build_frame_thumbs.py`)
+  y caen a `imagen_url` si faltan. Aplica solo a `mode="scan"`.
 - **Excepción cat-eye (2026-11-09):** el asset `public/tryon/cat-eye-frame.webp`
   proviene de una foto en 3/4 con la patilla extendida y queda alto/torcido al
   superponerlo. `PhotoTryOn.js` usa `VECTOR_ONLY_KEYS = new Set(["cat-eye"])` y
@@ -203,7 +222,7 @@ Definición de terminado:
 - Telemetría de MediaPipe bloqueada en cliente (`lib/mediapipeTelemetry.js`):
   el POST a `odml.pa.googleapis.com/v1/log` respondía 403 y ensuciaba la consola;
   ahora se corta con un `Response` 200 vacío sin abrir conexión (privacidad).
-- `test:pose`: **14/14**.
+- `test:pose`: **14/14**; `test:alignment`: **19/19**.
 - `validate:glb`: **8/8** modelos CC BY 4.0.
 - **CSP enforcing (2026-11-06):** `vercel.json` ahora usa `Content-Security-Policy`
   (antes era `Content-Security-Policy-Report-Only`). Verificar en producción que no
@@ -279,6 +298,9 @@ Definición de terminado:
 
 - Importar `three` o `Frame3D` estáticamente en `Scanner.jsx`: rompe el code-splitting.
 - Duplicar `frameColorHex` o la clasificación de tintes en cada motor.
+- Recalcular las anclas oculares por motor: `components/tryon/landmarks.js`
+  (`eyeAnchors`) es la fuente única; el 2D y el 3D deben usar los mismos centros
+  de iris y el mismo fallback a esquinas.
 - Subir a producción un clasificador ML sin validación externa.
 - Añadir un GLB sin licencia comercial y sin atribución.
 - Guardar fotos o datos biométricos sin consentimiento explícito.

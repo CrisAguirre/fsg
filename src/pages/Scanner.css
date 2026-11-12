@@ -188,6 +188,18 @@
 .report__frame-specs div { display: grid; gap: 0; }
 .report__frame-specs dt { font-size: .6rem; text-transform: uppercase; letter-spacing: .08em; color: #6b7f92; }
 .report__frame-specs dd { margin: 0; font-size: .8rem; color: #0b2a3d; text-transform: capitalize; }
+
+/* Galería de las 10 monturas recomendadas (foto de producto, sin montar) */
+.report__frames { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .5rem; }
+.report__frame-card { border: 1px solid #cfdae5; border-radius: 10px; overflow: hidden; background: #fbfdff; display: grid; grid-template-rows: auto 1fr; break-inside: avoid; }
+.report__frame-photo { position: relative; background: #fff; border-bottom: 1px solid #e1e9f1; }
+.report__frame-photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #fff; }
+.report__frame-rank { position: absolute; top: .3rem; left: .3rem; min-width: 1.2rem; height: 1.2rem; padding: 0 .3rem; display: inline-grid; place-items: center; border-radius: 999px; background: #0f6f9c; color: #fff; font-size: .58rem; font-weight: 700; }
+.report__frame-body { padding: .35rem .45rem .45rem; display: grid; gap: .1rem; font-size: .68rem; color: #5a6b7d; }
+.report__frame-body b { color: #0b2a3d; font-size: .74rem; line-height: 1.15; }
+.report__frame-body > span { text-transform: capitalize; }
+.report__frame-foot { display: flex; align-items: center; justify-content: space-between; gap: .3rem; margin-top: .15rem; }
+.report__frame-foot b { font-size: .72rem; color: #0f6f9c; }
 .report__fit { display: flex; gap: 1rem; align-items: flex-start; margin-top: .6rem; padding: .7rem; border-radius: 10px; border: 1px solid #cfdae5; }
 .report__fit-score { display: grid; justify-items: center; min-width: 92px; }
 .report__fit-score b { font-size: 1.9rem; color: #0f6f9c; line-height: 1; }
@@ -220,6 +232,7 @@
   .report-doc { padding: 1.1rem 1rem 1rem; }
   .report__kpis { grid-template-columns: repeat(2, 1fr); }
   .report__bars-grid { grid-template-columns: 1fr; }
+  .report__frames { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .report__bars li { grid-template-columns: 80px 1fr 40px; }
   .report__table th { width: auto; }
   .report__head { flex-wrap: wrap; }
@@ -240,6 +253,11 @@
   .report__logo { height: 46px; }
   .report__title { margin-top: .8rem; }
   .report__title h2 { font-size: 1.18rem; }
+  .report__frames { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .3rem; }
+  .report__frame-body { padding: .25rem .3rem .3rem; font-size: .56rem; }
+  .report__frame-body b { font-size: .62rem; }
+  .report__frame-foot b { font-size: .6rem; }
+  .report__frame-rank { top: .2rem; left: .2rem; min-width: 1rem; height: 1rem; font-size: .5rem; }
   .report__visual { margin-top: .7rem; gap: .4rem; }
   .report__shot img, .report__shot-skeleton { max-height: 54mm; }
   .report__shot figcaption { padding: .25rem .35rem; font-size: .6rem; }

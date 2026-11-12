@@ -6,10 +6,9 @@
 import * as THREE from "three";
 import { buildGlbGroup, loadGlb } from "./GlassesGLB.js";
 import { frameColorHex, lensKind, LENS_KIND } from "./frameStyle.js";
+import { eyeAnchors, FACE_IDX } from "./landmarks.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-
-const IDX = { lo: 33, li: 133, ri: 362, ro: 263, nose: 168, fore: 10, chin: 152 };
 
 function glassTintMaterial(tint = "monofocal") {
   // Opacidades con salto visible entre tipos (antes 0.16–0.55, imperceptible).
@@ -231,20 +230,29 @@ export function frameDims(frame, metrics) {
   };
 }
 
-export function estimatePose(lm) {
-  const P = (i) => lm[i];
-  const eyeL = { x: (P(IDX.lo).x + P(IDX.li).x) / 2, y: (P(IDX.lo).y + P(IDX.li).y) / 2 };
-  const eyeR = { x: (P(IDX.ri).x + P(IDX.ro).x) / 2, y: (P(IDX.ri).y + P(IDX.ro).y) / 2 };
-  const nose = P(IDX.nose), fore = P(IDX.fore), chin = P(IDX.chin);
+export function estimatePose(lm, cw = 1, ch = 1) {
+  // Ancla compartida con el motor 2D: iris cuando la malla trae 478 puntos y
+  // los centros son utilizables; si no, punto medio de las esquinas oculares.
+  const anchors = eyeAnchors(lm, 1, 1);
+  if (!anchors) return null;
+  const eyeL = anchors.lc;
+  const eyeR = anchors.rc;
+  const nose = lm[FACE_IDX.nose], fore = lm[FACE_IDX.forehead], chin = lm[FACE_IDX.chin];
   const cx = (eyeL.x + eyeR.x) / 2, cy = (eyeL.y + eyeR.y) / 2;
-  const ipd = Math.hypot(eyeR.x - eyeL.x, eyeR.y - eyeL.y);
-  const roll = Math.atan2(eyeR.y - eyeL.y, eyeR.x - eyeL.x);
+  const ipd = anchors.ipdPx;
+  // Los landmarks vienen normalizados por ancho (x) y alto (y). El roll visual
+  // debe calcularse en píxeles: sin la relación de aspecto, una foto vertical
+  // duplicaba el ángulo respecto al motor 2D.
+  const roll = Math.atan2(
+    (anchors.rc.y - anchors.lc.y) * (ch || 1),
+    (anchors.rc.x - anchors.lc.x) * (cw || 1),
+  );
   const dl = Math.hypot(nose.x - eyeL.x, nose.y - eyeL.y) || 1e-6;
   const dr = Math.hypot(nose.x - eyeR.x, nose.y - eyeR.y) || 1e-6;
   const yaw = clamp(((dr - dl) / (dr + dl)) * 2.4, -0.65, 0.65);
   const faceH = Math.hypot(chin.x - fore.x, chin.y - fore.y) || 1e-6;
   const pitch = clamp((((nose.y - cy) / faceH) - 0.14) * 3.2, -0.38, 0.38);
-  return { cx, cy, ipd, roll, yaw, pitch };
+  return { cx, cy, ipd, roll, yaw, pitch, anchor: anchors.source };
 }
 
 /**
@@ -375,7 +383,8 @@ export class GlassesAR {
     // La posición y la escala salen de los landmarks (centro de ojos e IPD en
     // píxeles). La rotación puede venir de la matriz facial de MediaPipe, que
     // es una pose real y no una heurística de la punta de la nariz.
-    const base = estimatePose(lm);
+    const base = estimatePose(lm, cw, ch);
+    if (!base) return null;
     const override = poseOverride?.matrix ? poseFromMatrix(poseOverride.matrix) : poseOverride;
     const pose = override
       ? {

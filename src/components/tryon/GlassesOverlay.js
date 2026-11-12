@@ -3,8 +3,7 @@
 // y en foto (imagen capturada). v1.1: reemplazar por GLB en public/glasses/.
 // v2: ajuste real por marco (A/B/D/ancho_total) + métricas (temporal/ipd).
 import { frameColorHex, lensKind, LENS_KIND } from "./frameStyle.js";
-
-const IDX = { leftOuter: 33, leftInner: 133, rightInner: 362, rightOuter: 263, nose: 168 };
+import { eyeAnchors } from "./landmarks.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -13,25 +12,53 @@ export { frameColorHex };
 // Estilo por material: el grosor sale del IPD medido (no fijo).
 
 export function measureGlasses(lm, cw, ch) {
-  if (!lm || lm.length < 400) return null;
-  const X = (p) => p.x * cw;
-  const Y = (p) => p.y * ch;
-  const lo = lm[IDX.leftOuter], li = lm[IDX.leftInner];
-  const ri = lm[IDX.rightInner], ro = lm[IDX.rightOuter];
-  const lc = { x: (X(lo) + X(li)) / 2, y: (Y(lo) + Y(li)) / 2 };
-  const rc = { x: (X(ri) + X(ro)) / 2, y: (Y(ri) + Y(ro)) / 2 };
-  const eyeWL = Math.hypot(X(li) - X(lo), Y(li) - Y(lo));
-  const eyeWR = Math.hypot(X(ri) - X(ro), Y(ri) - Y(ro));
-  const eyeW = (eyeWL + eyeWR) / 2;
-  const ipdPx = Math.hypot(rc.x - lc.x, rc.y - lc.y);
-  const ang = Math.atan2(rc.y - lc.y, rc.x - lc.x);
+  const a = eyeAnchors(lm, cw, ch);
+  if (!a) return null;
+  const {
+    lc,
+    rc,
+    source,
+    irisL,
+    irisR,
+    cornerL,
+    cornerR,
+    eyeW,
+    eyeWL,
+    eyeWR,
+    ipdPx,
+    ang,
+    cornerIpdPx,
+    cornerAng,
+    bridge,
+    nose,
+  } = a;
   const angDeg = Math.abs((ang * 180) / Math.PI);
   const asym = eyeW > 1 ? Math.abs(eyeWL - eyeWR) / eyeW : 0;
   const warnings = [];
   if (angDeg > 15) warnings.push(`Rostro rotado ${angDeg.toFixed(0)}° (máx 15°) — mira de frente`);
   if (asym > 0.25) warnings.push("Asimetría alta entre ojos — centra el rostro y mejora la luz");
   if (ipdPx < cw * 0.08) warnings.push("Rostro muy lejos — acércate a la cámara");
-  return { lc, rc, eyeW, eyeWL, eyeWR, ipdPx, ang, angDeg, asym, warnings, nose: lm[IDX.nose] };
+  return {
+    lc,
+    rc,
+    eyeW,
+    eyeWL,
+    eyeWR,
+    ipdPx,
+    ang,
+    angDeg,
+    asym,
+    warnings,
+    nose,
+    bridge,
+    anchor: source,
+    irisL,
+    irisR,
+    cornerL,
+    cornerR,
+    cornerIpdPx,
+    cornerAng,
+  };
 }
 
 // Suavizado exponencial anti-temblor para vivo (prev=null en primer frame).

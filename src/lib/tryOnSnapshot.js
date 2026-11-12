@@ -5,6 +5,7 @@
 import { drawGlasses } from "../components/tryon/GlassesOverlay.js";
 import { drawPhotoTryOn } from "../components/tryon/PhotoTryOn.js";
 import { getImageLandmarker } from "./faceLandmarker.js";
+import { pickDiverseFrames } from "./frameRanking.js";
 import { sampleBrightness } from "./imageUtils.js";
 
 const MAX_SIDE = 1000;
@@ -38,26 +39,15 @@ export const SNAPSHOT_REASON_MESSAGE = {
 };
 
 /**
- * Elige las monturas mejor puntuadas que existan en el catálogo, sin repetir.
+ * Elige las monturas mejor puntuadas que existan en el catálogo, sin repetir y
+ * priorizando formas distintas para que los dos montajes del informe no sean
+ * dos variantes del mismo tipo. Si no hay formas suficientes, completa por score.
  * @param {Array<{frame_id: string, score: number}>} recs
- * @param {Array<{id: string}>} frames
+ * @param {Array<{id: string, forma?: string}>} frames
  * @param {number} limit
  */
 export function pickTopFrames(recs, frames, limit = 2) {
-  const catalog = new Map((frames ?? []).map((frame) => [frame.id, frame]));
-  const seen = new Set();
-  const picked = [];
-  const sorted = [...(recs ?? [])].sort(
-    (a, b) => (Number(b?.score) || 0) - (Number(a?.score) || 0),
-  );
-  for (const rec of sorted) {
-    const frame = catalog.get(rec?.frame_id);
-    if (!frame || seen.has(frame.id)) continue;
-    seen.add(frame.id);
-    picked.push({ frame, rec });
-    if (picked.length >= limit) break;
-  }
-  return picked;
+  return pickDiverseFrames(recs, frames, limit);
 }
 
 function loadPhoto(url) {

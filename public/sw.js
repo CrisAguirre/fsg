@@ -6,7 +6,7 @@
 //   - API y CDN (otro origen): no se interceptan; la app ya maneja timeouts,
 //     reintentos y caché de catálogo en localStorage.
 // Suba VERSION cuando quiera invalidar todas las cachés del cliente.
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `gpv-shell-${VERSION}`;
 const RUNTIME_CACHE = `gpv-runtime-${VERSION}`;
 const CURRENT_CACHES = new Set([SHELL_CACHE, RUNTIME_CACHE]);

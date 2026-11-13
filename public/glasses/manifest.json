@@ -3,7 +3,7 @@
   "rectangular": {
     "file": "rectangular.glb",
     "rot": [1, 0, 0],
-    "y": -0.02,
+    "y": 0,
     "scale": 0.76,
     "lensMaterials": ["Material.001"],
     "lensOpacity": 0.14,
@@ -19,7 +19,7 @@
   "cuadrado": {
     "file": "cuadrado.glb",
     "rot": [4, 0, 0],
-    "y": -0.005,
+    "y": 0,
     "scale": 0.77,
     "lensMaterials": ["Glass"],
     "lensOpacity": 0.16,
@@ -35,7 +35,7 @@
   "redondo": {
     "file": "redondo.glb",
     "rot": [1, 0, 0],
-    "y": -0.05,
+    "y": 0,
     "scale": 0.8,
     "lensMaterials": ["Glass__Solid__White", "Glass__Solid__White1", "Glass__Solid__White2", "Glass__Solid__White__1", "Glass__Solid__White__11"],
     "lensOpacity": 0.16,
@@ -67,8 +67,9 @@
   "aviador": {
     "file": "aviador.glb",
     "rot": [9, 0, 0],
-    "y": -0.05,
+    "y": 0,
     "scale": 0.73,
+    "lensMaterials": ["lense"],
     "frameMaterials": ["frame"],
     "frameColor": "#333a42",
     "source": "glasses (27).glb",
@@ -83,7 +84,7 @@
   "wayfarer": {
     "file": "wayfarer.glb",
     "rot": [3, 0, 0],
-    "y": -0.035,
+    "y": 0,
     "scale": 0.79,
     "lensMaterials": ["Glasses_glass"],
     "lensOpacity": 0.16,
@@ -99,7 +100,7 @@
   "cat-eye": {
     "file": "cat-eye.glb",
     "rot": [0, 0, 0],
-    "y": -0.065,
+    "y": 0,
     "scale": 0.74,
     "lensMaterials": ["Material.001"],
     "lensOpacity": 0.14,
@@ -115,7 +116,7 @@
   "rimless": {
     "file": "rimless.glb",
     "rot": [4, 90, 0],
-    "y": -0.025,
+    "y": 0,
     "scale": 0.74,
     "source": "glasses_project.glb",
     "title": "Glasses Project",

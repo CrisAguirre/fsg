@@ -49,13 +49,13 @@ const innerL = 0.5 - (lensCX - lensW / 2) * p1.ipd; // borde interno lente izq
 const outerL = 0.5 - (lensCX + lensW / 2) * p1.ipd; // borde externo lente izq
 check("lente cubre pupila", outerL < 0.4 && 0.4 < innerL, `pupila_izq=0.40 dentro de [${outerL.toFixed(3)},${innerL.toFixed(3)}]`);
 
-// Caso 4: matriz facial de MediaPipe (column-major, como THREE.Matrix4.fromArray).
+// Caso 4: matriz facial de MediaPipe (row-major, orden fila).
 // Antes el pitch salía del heurístico de la nariz (-22° en una foto frontal) y
 // hundía las patillas; con la matriz la montura respeta la pose real.
 const near = (a, b, tol = 0.01) => Math.abs(a - b) < tol;
-const rotX = (a) => { const c = Math.cos(a), s = Math.sin(a); return [1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1]; };
-const rotY = (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1]; };
-const rotZ = (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]; };
+const rotX = (a) => { const c = Math.cos(a), s = Math.sin(a); return [1, 0, 0, 0, 0, c, -s, 0, 0, s, c, 0, 0, 0, 0, 1]; };
+const rotY = (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, 0, s, 0, 0, 1, 0, 0, -s, 0, c, 0, 0, 0, 0, 1]; };
+const rotZ = (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, -s, 0, 0, s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]; };
 
 const pId = poseFromMatrix([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 check("matriz identidad → pose 0", pId && near(pId.yaw, 0) && near(pId.pitch, 0) && near(pId.roll, 0), `yaw/pitch/roll=${pId ? [pId.yaw, pId.pitch, pId.roll].map((v) => v.toFixed(4)).join("/") : "null"}`);

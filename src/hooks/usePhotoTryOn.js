@@ -127,6 +127,7 @@ export function usePhotoTryOn({
             if (dead) return;
             if (!arPhotoRef.current) arPhotoRef.current = new GlassesAR(arCanvas);
             const ar = arPhotoRef.current;
+            ar.clipBack = true;
             ar.setModel(t.frame, t.tint, t.metrics);
             await ar.whenReady(1400);
             if (dead) return;

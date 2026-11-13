@@ -144,6 +144,9 @@ export async function renderTryOnSnapshots({ photoUrl, frames, recs, metrics, li
             arCanvas.width = width;
             arCanvas.height = height;
             ar = new GlassesAR(arCanvas);
+            // Foto estática: recorta las patillas que se proyectarían sobre
+            // las mejillas al aplicar la pose.
+            ar.clipBack = true;
           }
           ar.setModel(frame, "monofocal", metrics);
           await ar.whenReady(1500);

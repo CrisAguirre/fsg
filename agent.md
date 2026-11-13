@@ -297,6 +297,19 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   **Cat-eye:** deja de depender de la excepción vectorial `VECTOR_ONLY_KEYS`; sigue la misma regla que el resto de formas 3/4. También se corrigió el wayfarer vectorial (barra superior y remaches) para el fallback.
     *   **Validación real:** sobre `piloto-rostros/casos/caso-01.jpg` con MediaPipe real, el recorte 2D frontal y el GLB 3D quedan centrados en las 8 formas. El pipeline exacto del informe generó F01 por 2D y F02 por 3D alineados.
     *   **Pruebas:** `PhotoTryOn.test.js` cubre las 4 reglas de frontalidad (acepta rectangular/rimless, rechaza las 6 formas 3/4, normaliza mayúsculas/`tryon_key` y tolera montura nula).
+22. **Calibración fina del montaje 3D (2026-11-13):**
+    *   **Causa raíz del giro:** MediaPipe entrega `facialTransformationMatrixes[0].data` en **orden fila (row-major)** y `THREE.Matrix4.fromArray` la interpreta en **orden columna**. Sin transponer, yaw/pitch/roll salían invertidos y la montura giraba hasta ~20° al revés en fotos con inclinación. `poseFromMatrix` ahora hace `new THREE.Matrix4().fromArray(data).transpose()`.
+    *   **Centro óptico:** `buildGlbGroup` centraba la caja completa del GLB, incluidas patillas y tornillos, y eso desplazaba la montura hasta 0,48 IPD. Ahora centra por la caja de los cristales: `findLensMeshes` (materiales declarados en `lensMaterials`) + `mainLensMeshes` (descarta tornillos/bordes < 40 % del cristal más ancho) + `boxOfMeshes`. Si el GLB no declara cristales, cae a la caja completa.
+    *   **Manifest:** los `y` de las 8 formas quedan en `0` porque el centro de los cristales ya coincide con la línea de los ojos; `aviador` declara `lensMaterials: ["lense"]`.
+    *   **Patillas en el informe:** `GlassesAR` gana `clipBack`/`clipBackZ` (plano local `z = -0.15` aplicado con la pose). El informe (`tryOnSnapshot.js`) y el probador de foto (`usePhotoTryOn.js`) lo activan; la cámara en vivo lo mantiene apagado.
+    *   **Medición:** sobre 8 rostros reales (`caso-01/03/05/08/12/15/18/20`) el centro de cristales queda en ±0,03 IPD de la línea de ojos y el ángulo <1° salvo `caso-08` (~4° con yaw ~27°, esperado).
+    *   **Pruebas:** `pose.test.js` y `scripts/verify_pose.mjs` generan las matrices de prueba en row-major (transponiendo la salida de Three.js) para reflejar la entrada real de MediaPipe.
+
+## Verificación técnica 2026-11-13
+*   Frontend `npm run lint`, `lint:eslint`, `typecheck` → **0 hallazgos**.
+*   `npm test` → **80/80**; `test:pose` → **14/14**; `test:alignment` → **19/19**.
+*   `npm run test:e2e` → **10/10**; `validate:glb` → **8/8**; `build` → OK (`Scanner` 90.76 kB, `Frame3D` 13.31 kB diferido).
+*   Validación visual del pipeline exacto (`renderTryOnSnapshots`) sobre `caso-01` (frontal), `caso-08` (3/4, yaw ~27°) y `caso-20`: 2D frontal y GLB 3D centrados; las 6 formas 3D conservan el aro completo y sin patillas sobre las mejillas.
 
 ## Verificación técnica 2026-11-12
 *   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.

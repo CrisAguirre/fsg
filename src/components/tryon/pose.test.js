@@ -15,10 +15,14 @@ const frontal = () => {
   return lm;
 };
 
-const matrixFor = (euler) =>
-  new THREE.Matrix4()
-    .makeRotationFromEuler(new THREE.Euler(euler.x || 0, euler.y || 0, euler.z || 0, "YXZ"))
-    .toArray();
+const matrixFor = (euler) => {
+  const m = new THREE.Matrix4().makeRotationFromEuler(
+    new THREE.Euler(euler.x || 0, euler.y || 0, euler.z || 0, "YXZ"),
+  );
+  // MediaPipe entrega la matriz en orden fila; `toArray()` de Three.js es
+  // columna, así que se transpone para probar la misma entrada real.
+  return m.transpose().toArray();
+};
 
 describe("poseFromMatrix", () => {
   it("rechaza entradas incompletas", () => {

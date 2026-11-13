@@ -174,6 +174,17 @@ Definición de terminado:
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
 - `test`: **80/80**; `test:e2e`: **10/10**; `test:pose`: **14/14**;
   `test:alignment`: **19/19**.
+- **Calibración fina del montaje 3D (2026-11-13):** el giro invertido venía de la
+  matriz facial de MediaPipe, que llega en **orden fila** mientras
+  `THREE.Matrix4.fromArray` lee **orden columna**; `poseFromMatrix` ahora
+  transpone. El desplazamiento venía de centrar la caja completa del GLB
+  (patillas y tornillos incluidos); `buildGlbGroup` centra por la caja de los
+  cristales (`findLensMeshes` + `mainLensMeshes` + `boxOfMeshes`) y el manifest
+  deja `y: 0` en las 8 formas. El informe y el probador de foto activan
+  `ar.clipBack = true` (plano local `z = -0.15`) para recortar las patillas
+  proyectadas sobre las mejillas; la cámara en vivo lo mantiene apagado. Medido
+  sobre 8 rostros reales: centro de cristales a ±0,03 IPD de la línea de ojos y
+  giro <1° salvo un rostro con yaw ~27° (~4°, esperado).
 - **Montaje del informe corregido (2026-11-12):** la causa de la desviación no era
   el ancla sino los assets: solo `rectangular` y `rimless` son recortes frontales;
   `aviador`, `cuadrado`, `oval`, `redondo`, `wayfarer` y `cat-eye` salieron de
@@ -337,6 +348,14 @@ Definición de terminado:
   en `PhotoTryOn.js` limita el 2D a `rectangular` y `rimless`; el resto va al GLB
   3D y, si falla, al vectorial. Solo ampliar esa lista con recortes frontales
   verificados sobre un rostro real.
+- Pasar la matriz facial de MediaPipe a `Matrix4.fromArray` sin transponer:
+  llega en orden fila y Three.js la lee en columna, así que yaw/pitch/roll salen
+  invertidos y la montura gira al revés (hasta ~20°). `poseFromMatrix` transpone
+  siempre; los tests de pose deben construir matrices row-major.
+- Centrar el GLB por la caja completa (patillas, tornillos): desplaza el centro
+  óptico hasta 0,48 IPD. Se centra por la caja de los cristales y se descartan
+  los meshes pequeños con `mainLensMeshes`; si no hay cristales declarados, se
+  conserva la caja completa como respaldo.
 - Cachear la API o los CDN dentro del service worker: `public/sw.js` solo maneja
   recursos estáticos del mismo origen. El catálogo ya tiene caché en `localStorage`
   y los CDN cambian de versión; interceptarlos produce respuestas obsoletas.

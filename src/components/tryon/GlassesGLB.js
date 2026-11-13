@@ -175,6 +175,49 @@ function applyFrameTint(root, entry) {
   });
 }
 
+/** Meshes cuyos materiales están declarados como cristal en el manifest. */
+function findLensMeshes(root, entry) {
+  const wanted = new Set(entry?.lensMaterials || []);
+  if (!wanted.size) return [];
+  const meshes = [];
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    if (mats.some((m) => m && wanted.has(m.name))) meshes.push(o);
+  });
+  return meshes;
+}
+
+/**
+ * Caja de un conjunto de mallas en el espacio local de `root`.
+ * `Box3.setFromObject` incluye hijos; las mallas de cristal no los tienen.
+ */
+function boxOfMeshes(meshes) {
+  const box = new THREE.Box3();
+  for (const mesh of meshes) {
+    mesh.updateWorldMatrix(true, false);
+    box.union(new THREE.Box3().setFromObject(mesh));
+  }
+  return box;
+}
+
+/**
+ * Algunos GLB declaran como cristal tornillos o bordes pequeños. Si entran en
+ * la caja de centrado, desplazan la montura. Se conservan las superficies que
+ * miden al menos el 40 % del cristal más ancho.
+ */
+function mainLensMeshes(meshes) {
+  if (meshes.length < 2) return meshes;
+  const widths = meshes.map((mesh) => {
+    mesh.updateWorldMatrix(true, false);
+    const box = new THREE.Box3().setFromObject(mesh);
+    return box.isEmpty() ? 0 : box.max.x - box.min.x;
+  });
+  const max = Math.max(...widths);
+  if (!(max > 0)) return meshes;
+  return meshes.filter((_, i) => widths[i] >= max * 0.4);
+}
+
 /**
  * Construye un grupo listo para GlassesAR:
  * raíz con transform identidad, hijo normalizado a `targetWidth` unidades IPD.
@@ -209,7 +252,14 @@ export function buildGlbGroup(scene, { targetWidth = DEFAULT_WIDTH, entry = null
   outer.updateMatrixWorld(true);
 
   box = new THREE.Box3().setFromObject(outer);
-  const center = box.getCenter(new THREE.Vector3());
+  // Centrar por los cristales, no por la caja completa: las patillas y los
+  // tornillos pueden desplazar el centro óptico varios píxeles. Si el GLB no
+  // declara cristales, se mantiene el centrado por la caja completa.
+  const lensMeshes = mainLensMeshes(findLensMeshes(outer, entry));
+  const lensBox = lensMeshes.length ? boxOfMeshes(lensMeshes) : null;
+  const center = lensBox && !lensBox.isEmpty()
+    ? lensBox.getCenter(new THREE.Vector3())
+    : box.getCenter(new THREE.Vector3());
   outer.position.x -= center.x;
   outer.position.y -= center.y - (Number(entry?.y) || 0);
   outer.position.z -= box.max.z; // plano frontal en z=0; patillas hacia -z

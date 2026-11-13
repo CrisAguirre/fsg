@@ -263,7 +263,11 @@ export function estimatePose(lm, cw = 1, ch = 1) {
  */
 export function poseFromMatrix(data) {
   if (!data || data.length < 16) return null;
-  const m = new THREE.Matrix4().fromArray(data);
+  // MediaPipe entrega la matriz 4x4 en orden fila (row-major); Three.js
+  // `fromArray` la interpreta en orden columna. Sin transponer, yaw/pitch/roll
+  // salen invertidos y la montura gira al revés que la cabeza (hasta ~20° en
+  // fotos con inclinación).
+  const m = new THREE.Matrix4().fromArray(data).transpose();
   const q = new THREE.Quaternion().setFromRotationMatrix(m);
   const e = new THREE.Euler().setFromQuaternion(q, "YXZ");
   if (![e.x, e.y, e.z].every(Number.isFinite)) return null;
@@ -295,6 +299,10 @@ export class GlassesAR {
     this.pendingGlbForma = "";
     this.usingGlb = false;
     this.applyEntryScale = true;
+    // En el informe la foto es frontal: las patillas del GLB se proyectan como
+    // barras sobre las mejillas. Se recortan detrás del plano frontal.
+    this.clipBack = false;
+    this.clipBackZ = -0.15;
   }
 
   setModel(frame, tint = "monofocal", metrics = null) {
@@ -401,6 +409,16 @@ export class GlassesAR {
     this.group.scale.setScalar(Math.max(1e-6, s));
     // Orden YXZ: guiño (yaw) + cabeceo (pitch) + giro (roll)
     this.group.rotation.set(pose.pitch, pose.yaw, -pose.roll, "YXZ");
+    this.group.updateMatrixWorld(true);
+    if (this.clipBack) {
+      // Plano local z = clipBackZ (negativo) transformado a mundo con la pose
+      // del grupo: conserva el frente y elimina las patillas hacia -z.
+      const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -this.clipBackZ);
+      plane.applyMatrix4(this.group.matrixWorld);
+      this.renderer.clippingPlanes = [plane];
+    } else if (this.renderer.clippingPlanes.length) {
+      this.renderer.clippingPlanes = [];
+    }
     this.renderer.render(this.scene, this.camera);
     return { yawDeg: pose.yaw * 57.3, pitchDeg: pose.pitch * 57.3, rollDeg: pose.roll * 57.3, ipdPx: pose.ipd * cw, glb: this.usingGlb };
   }

@@ -32,22 +32,22 @@ function glassTintMaterial(tint = "monofocal") {
 function frameMaterial(frame) {
   const profile = frameMaterialProfile(frame);
   const physical = profile.clearcoat >= 0.3;
-  const Material = physical ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
-  const m = new Material({
-    color: new THREE.Color(profile.color),
-    metalness: profile.metalness,
-    roughness: profile.roughness,
-    envMapIntensity: profile.envMapIntensity,
+    const baseParams = {
+      color: new THREE.Color(profile.color),
+      metalness: profile.metalness,
+      roughness: profile.roughness,
+      envMapIntensity: profile.envMapIntensity,
+    ...(profile.opacity != null ? { transparent: true, opacity: profile.opacity } : {}),
+  };
+
+if (physical) {
+  return new THREE.MeshPhysicalMaterial({
+    ...baseParams,
+    clearcoat: profile.clearcoat,
+    clearcoatRoughness: profile.clearcoatRoughness,
   });
-  if (physical) {
-    m.clearcoat = profile.clearcoat;
-    m.clearcoatRoughness = profile.clearcoatRoughness;
-  }
-  if (profile.opacity != null) {
-    m.transparent = true;
-    m.opacity = profile.opacity;
-  }
-  return m;
+}
+return new THREE.MeshStandardMaterial(baseParams);
 }
 
 function metalAccentMaterial(color = 0xdfe6ef) {
@@ -479,11 +479,11 @@ export class GlassesAR {
     const override = poseOverride?.matrix ? poseFromMatrix(poseOverride.matrix) : poseOverride;
     const pose = override
       ? {
-          ...base,
-          yaw: Number.isFinite(override.yaw) ? override.yaw : base.yaw,
-          pitch: Number.isFinite(override.pitch) ? override.pitch : base.pitch,
-          roll: Number.isFinite(override.roll) ? override.roll : base.roll,
-        }
+        ...base,
+        yaw: Number.isFinite(override.yaw) ? override.yaw : base.yaw,
+        pitch: Number.isFinite(override.pitch) ? override.pitch : base.pitch,
+        roll: Number.isFinite(override.roll) ? override.roll : base.roll,
+      }
       : base;
     const px = pose.cx * cw - cw / 2;
     const py = -(pose.cy * ch - ch / 2);

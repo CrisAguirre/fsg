@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { LENS_KIND, LENS_SWATCH, frameColorHex, lensKind } from "./frameStyle.js";
+import {
+  FRAME_FINISH,
+  LENS_KIND,
+  LENS_SWATCH,
+  frameColorHex,
+  frameFinish,
+  frameMaterialProfile,
+  isDarkColor,
+  lensKind,
+} from "./frameStyle.js";
 
 describe("frameColorHex", () => {
   it("mapea los materiales del catálogo a su hex", () => {
@@ -21,6 +30,54 @@ describe("frameColorHex", () => {
     expect(frameColorHex(undefined)).toBe("#23232a");
     expect(frameColorHex("material-inventado")).toBe("#26262b"); // contiene 'mate'
     expect(frameColorHex("sin-acabado")).toBe("#23232a");
+  });
+
+  it("acepta un hex directo del manifest", () => {
+    expect(frameColorHex("#333A42")).toBe("#333a42");
+    expect(frameColorHex("#abc")).toBe("#abc");
+  });
+});
+
+describe("frameFinish", () => {
+  it("clasifica materiales y colores del catálogo", () => {
+    expect(frameFinish({ material: "metal", color: "titanio" })).toBe(FRAME_FINISH.METAL);
+    expect(frameFinish({ material: "mixto", color: "negro/rojo" })).toBe(FRAME_FINISH.MIXED);
+    expect(frameFinish({ material: "acetato", color: "carey" })).toBe(FRAME_FINISH.CAREY);
+    expect(frameFinish({ material: "acetato", color: "negro mate" })).toBe(FRAME_FINISH.MATTE);
+    expect(frameFinish({ material: "acetato", color: "cristal" })).toBe(FRAME_FINISH.TRANSPARENT);
+    expect(frameFinish({ material: "acetato", color: "negro" })).toBe(FRAME_FINISH.ACETATE);
+  });
+
+  it("el color de carey/transparente manda sobre el material", () => {
+    expect(frameFinish({ material: "metal", color: "carey claro" })).toBe(FRAME_FINISH.CAREY);
+    expect(frameFinish({ material: "metal", color: "transparente" })).toBe(FRAME_FINISH.TRANSPARENT);
+  });
+});
+
+describe("frameMaterialProfile", () => {
+  it("da más metalness al metal que al acetato", () => {
+    const metal = frameMaterialProfile({ material: "metal", color: "dorado" });
+    const acetate = frameMaterialProfile({ material: "acetato", color: "negro" });
+    expect(metal.color).toBe("#c19a3a");
+    expect(metal.metalness).toBeGreaterThan(0.8);
+    expect(acetate.metalness).toBeLessThan(0.1);
+    expect(acetate.clearcoat).toBeGreaterThan(0.5);
+  });
+
+  it("marca el cristal como transparente y con menos tinte", () => {
+    const crystal = frameMaterialProfile({ material: "acetato", color: "cristal" });
+    expect(crystal.finish).toBe(FRAME_FINISH.TRANSPARENT);
+    expect(crystal.opacity).toBeLessThan(1);
+    expect(crystal.tintStrength).toBeLessThan(0.5);
+  });
+});
+
+describe("isDarkColor", () => {
+  it("distingue negros de colores con luminosidad", () => {
+    expect(isDarkColor("#17171a")).toBe(true);
+    expect(isDarkColor("#000")).toBe(true);
+    expect(isDarkColor("#c19a3a")).toBe(false);
+    expect(isDarkColor("")).toBe(false);
   });
 });
 

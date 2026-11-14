@@ -4,7 +4,9 @@
 
 // Color real del catálogo (nombres en español) → hex para render fotorrealista.
 export function frameColorHex(name = "") {
-  const n = String(name).toLowerCase();
+  const raw = String(name || "");
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw)) return raw.toLowerCase();
+  const n = raw.toLowerCase();
   if (n.includes("dorado rosa")) return "#d8a08a";
   if (n.includes("dorado-verde") || n.includes("dorado verde")) return "#a89a4a";
   if (n.includes("dorado")) return "#c19a3a";
@@ -21,6 +23,79 @@ export function frameColorHex(name = "") {
   if (n.includes("mate")) return "#26262b";
   if (n.includes("negro")) return "#17171a";
   return "#23232a";
+}
+
+/** true si el color es tan oscuro que un tinte plano no aportaría nada. */
+export function isDarkColor(hex = "") {
+  const h = String(hex || "").replace("#", "");
+  const v = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(v, 16);
+  if (!Number.isFinite(n)) return false;
+  return Math.max((n >> 16) & 255, (n >> 8) & 255, n & 255) < 70;
+}
+
+export const FRAME_FINISH = {
+  ACETATE: "acetate",
+  METAL: "metal",
+  MIXED: "mixed",
+  CAREY: "carey",
+  TRANSPARENT: "transparent",
+  MATTE: "matte",
+};
+
+/**
+ * Acabado real de la montura a partir del material y del nombre de color del
+ * catálogo. Es la fuente única para el 3D, el GLB y el tintado 2D.
+ */
+export function frameFinish(frame = {}) {
+  const color = String(frame?.color || "").toLowerCase();
+  if (/cristal|transparente/.test(color)) return FRAME_FINISH.TRANSPARENT;
+  if (/carey|habana|miel|tortoise|torto/.test(color)) return FRAME_FINISH.CAREY;
+  const material = String(frame?.material || "acetato").toLowerCase();
+  if (/mixto/.test(material)) return FRAME_FINISH.MIXED;
+  if (/metal|titanio|acero|aluminio/.test(material)) return FRAME_FINISH.METAL;
+  if (/mate/.test(color)) return FRAME_FINISH.MATTE;
+  return FRAME_FINISH.ACETATE;
+}
+
+// Valores PBR por acabado. El clearcoat solo se aplica cuando el material
+// admite MeshPhysicalMaterial; así el acetato/carey gana brillo de laca sin
+// convertir los metales en plástico.
+const FINISH_PROFILE = {
+  [FRAME_FINISH.METAL]: {
+    metalness: 0.92, roughness: 0.28, clearcoat: 0.12, clearcoatRoughness: 0.24,
+    envMapIntensity: 1.2, tintStrength: 0.82,
+  },
+  [FRAME_FINISH.MIXED]: {
+    metalness: 0.62, roughness: 0.32, clearcoat: 0.45, clearcoatRoughness: 0.22,
+    envMapIntensity: 1.05, tintStrength: 0.8,
+  },
+  [FRAME_FINISH.CAREY]: {
+    metalness: 0.02, roughness: 0.34, clearcoat: 0.9, clearcoatRoughness: 0.14,
+    envMapIntensity: 0.78, tintStrength: 0.9,
+  },
+  [FRAME_FINISH.TRANSPARENT]: {
+    metalness: 0, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.05,
+    envMapIntensity: 1.1, tintStrength: 0.45, opacity: 0.82,
+  },
+  [FRAME_FINISH.MATTE]: {
+    metalness: 0.02, roughness: 0.62, clearcoat: 0.12, clearcoatRoughness: 0.45,
+    envMapIntensity: 0.5, tintStrength: 0.88,
+  },
+  [FRAME_FINISH.ACETATE]: {
+    metalness: 0.04, roughness: 0.38, clearcoat: 0.72, clearcoatRoughness: 0.18,
+    envMapIntensity: 0.72, tintStrength: 0.9,
+  },
+};
+
+/** Perfil PBR completo (color incluido) para un armazón del catálogo. */
+export function frameMaterialProfile(frame = {}) {
+  const finish = frameFinish(frame);
+  return {
+    finish,
+    color: frameColorHex(frame?.color),
+    ...FINISH_PROFILE[finish],
+  };
 }
 
 // Muestras de tinte usadas por la UI del escáner y por el motor 3D.

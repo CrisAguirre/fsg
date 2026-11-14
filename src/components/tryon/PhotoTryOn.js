@@ -3,7 +3,7 @@
 // y un segundo recorte para el cristal. Si no hay asset, devuelve null y el
 // Scanner conserva el fallback procedural.
 import { measureGlasses, pupilDecentration } from "./GlassesOverlay.js";
-import { frameColorHex } from "./frameStyle.js";
+import { frameColorHex, frameMaterialProfile, isDarkColor } from "./frameStyle.js";
 import { mixLensColor, normalizeLensStyle } from "./lensStyle.js";
 
 const ASSET_BASE = "/tryon";
@@ -61,27 +61,10 @@ function loadImage(url) {
   return p;
 }
 
-function hexToRgb(hex) {
-  try {
-    const h = String(hex).replace("#", "");
-    const v = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
-    const n = parseInt(v, 16);
-    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-  } catch {
-    return null;
-  }
-}
-
-function isNearBlack(hex) {
-  const c = hexToRgb(hex);
-  return !c || Math.max(c.r, c.g, c.b) < 70;
-}
-
 function tintedFrame(asset, frame) {
-  const color = frameColorHex(frame?.color || "negro");
-  const material = String(frame?.material || "acetato").toLowerCase();
-  const transparent = /cristal|transparente/i.test(String(frame?.color || ""));
-  const key = `${asset.key}|${color}|${material}|${transparent}`;
+  const profile = frameMaterialProfile(frame);
+  const color = profile.color;
+  const key = `${asset.key}|${color}|${profile.finish}`;
   if (tintCache.has(key)) return tintCache.get(key);
 
   const img = asset.frameImg;
@@ -91,13 +74,25 @@ function tintedFrame(asset, frame) {
   const x = c.getContext("2d");
   x.drawImage(img, 0, 0);
 
-  // El recorte base suele ser negro; se tiñe solo cuando el catálogo pide
-  // otro color. Para acetatos/carey se busca un tinte cálido, no un filtro plano.
-  if (!isNearBlack(color)) {
+  // El recorte base suele ser negro con brillos. Un relleno plano los borra;
+  // en su lugar se colorea y después se recupera la luminosidad original con
+  // el blend "luminosity", que conserva vetas, biseles y reflejos.
+  if (!isDarkColor(color)) {
     x.globalCompositeOperation = "source-atop";
-    x.globalAlpha = transparent ? 0.38 : material === "metal" || material === "mixto" ? 0.42 : 0.52;
+    x.globalAlpha = profile.tintStrength;
     x.fillStyle = color;
     x.fillRect(0, 0, c.width, c.height);
+
+    x.globalCompositeOperation = "luminosity";
+    x.globalAlpha = 1;
+    x.drawImage(img, 0, 0);
+
+    if (profile.finish === "metal" || profile.finish === "mixed") {
+      // Recupera los reflejos metálicos que el color base haya oscurecido.
+      x.globalCompositeOperation = "screen";
+      x.globalAlpha = 0.16;
+      x.drawImage(img, 0, 0);
+    }
     x.globalCompositeOperation = "source-over";
     x.globalAlpha = 1;
   }
@@ -168,9 +163,9 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
   const angle = Math.atan2(m.rc.y - m.lc.y, m.rc.x - m.lc.x) - Math.atan2(p1.y - p0.y, p1.x - p0.x);
 
   const frameCanvas = tintedFrame(asset, frame);
+  const profile = frameMaterialProfile(frame);
   const alpha = clamp(opts.alpha ?? 1, 0.25, 1);
-  const transparent = /cristal|transparente/i.test(String(frame?.color || ""));
-  const frameAlpha = transparent ? alpha * 0.62 : alpha;
+  const frameAlpha = profile.finish === "transparent" ? alpha * 0.68 : alpha;
   // El slider de opacidad manda sobre el cristal; la luz de la foto solo
   // ajusta un poco para que no se vea plano en fotos oscuras.
   const lensStyle = normalizeLensStyle(opts.lensStyle, opts.tint);
@@ -189,17 +184,19 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
   ctx.translate(-pMid.x, -pMid.y);
 
   // Sombra de contacto: la montura debe "apoyarse" en la piel, no flotar.
+  // Se dibuja el armazón una vez con su sombra (sin reducir su alfa, que lo
+  // oscurecía) y se vuelve a pintar al final por encima del cristal.
   ctx.save();
-  ctx.globalAlpha = frameAlpha * 0.42;
-  ctx.shadowColor = "rgba(0,0,0,.55)";
+  ctx.globalAlpha = frameAlpha;
+  ctx.shadowColor = "rgba(0,0,0,.45)";
   ctx.shadowBlur = shadowBlur / scale;
   ctx.shadowOffsetY = shadowY / scale;
   ctx.drawImage(frameCanvas, 0, 0);
   ctx.restore();
 
   // Cristal real del recorte (reflejos incluidos) a baja opacidad para que
-  // se vean los ojos. Encima se aplica la silueta del color elegido según la
-  // intensidad; el aro se dibuja al final.
+  // se vean los ojos. La silueta del color se multiplica para teñir sin
+  // borrar los reflejos; después se recuperan los brillos con "screen".
   if (asset.lensImg) {
     ctx.save();
     ctx.globalAlpha = lensAlpha;
@@ -208,10 +205,14 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
     const silhouette = lensSilhouette(asset, lensColor);
     if (silhouette && lensStyle.intensity > 0.01) {
       ctx.save();
-      // El color ya viene mezclado con el neutro según la intensidad; la
-      // opacidad del slider manda en el alfa para no duplicar el efecto.
-      ctx.globalAlpha = lensAlpha;
+      ctx.globalCompositeOperation = "multiply";
+      ctx.globalAlpha = lensAlpha * (0.72 + lensStyle.intensity * 0.28);
       ctx.drawImage(silhouette, 0, 0);
+      ctx.restore();
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = lensAlpha * 0.2;
+      ctx.drawImage(asset.lensImg, 0, 0);
       ctx.restore();
     }
   }

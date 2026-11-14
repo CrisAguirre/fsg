@@ -4,14 +4,16 @@
 // El grupo devuelto tiene transform identidad en la raíz para que GlassesAR
 // pueda aplicarle la pose de la cabeza sin perder la normalización interna.
 import * as THREE from "three";
-import { lensKind, LENS_KIND } from "./frameStyle.js";
+import { frameColorHex, frameMaterialProfile, isDarkColor, lensKind, LENS_KIND } from "./frameStyle.js";
 import { lensPreset, mixLensColor } from "./lensStyle.js";
+import { setupStudioEnvironment, disposeStudioEnvironment } from "./studioEnvironment.js";
 
 const MANIFEST_URL = "/glasses/manifest.json";
 const DEFAULT_WIDTH = 2.1; // ancho total de montura en unidades IPD
 
 let manifestPromise = null;
 const gltfCache = new Map();
+const lumaCache = new Map();
 
 const deg = (v) => (Number(v) || 0) * Math.PI / 180;
 
@@ -36,6 +38,8 @@ export async function loadManifest() {
  * @property {number} lensOpacity
  * @property {string[]} frameMaterials
  * @property {string} frameColor
+ * @property {string} frameMaterial
+ * @property {string} frameTint
  * @property {string} source
  * @property {string} title
  * @property {string} author
@@ -59,6 +63,8 @@ function normalizeEntry(forma, raw) {
     lensOpacity: raw.lensOpacity != null ? Number(raw.lensOpacity) : 0.16,
     frameMaterials: Array.isArray(raw.frameMaterials) ? raw.frameMaterials.map(String) : [],
     frameColor: raw.frameColor || "",
+    frameMaterial: raw.frameMaterial || "",
+    frameTint: raw.frameTint || "",
     source: raw.source || "",
     title: raw.title || "",
     author: raw.author || "",
@@ -131,6 +137,80 @@ function lensTint(tint, baseOpacity) {
   }
 }
 
+/**
+ * Promedio de luminancia de una textura de color base. Sirve para decidir si
+ * el mapa horneado es casi negro: en ese caso el tinte del catálogo no se ve
+ * (multiplicar por negro da negro) y conviene reemplazarlo conservando los
+ * mapas de normal/rugosidad. Se muestrea 8×8 y se cachea por textura.
+ */
+function baseMapLuma(texture) {
+  const image = texture?.image;
+  if (!image || typeof document === "undefined") return null;
+  if (lumaCache.has(texture.uuid)) return lumaCache.get(texture.uuid);
+  let luma = null;
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 8;
+    canvas.height = 8;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(image, 0, 0, 8, 8);
+    const data = ctx.getImageData(0, 0, 8, 8).data;
+    let sum = 0;
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 8) continue;
+      sum += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      count += 1;
+    }
+    if (count) luma = sum / count / 255;
+  } catch { /* textura no legible: se conserva el mapa */ }
+  lumaCache.set(texture.uuid, luma);
+  return luma;
+}
+
+/** Convierte un material estándar en físico conservando mapas y color. */
+function ensurePhysical(material) {
+  if (material.isMeshPhysicalMaterial) return material;
+  const physical = new THREE.MeshPhysicalMaterial();
+  // copy() de MeshPhysicalMaterial espera props físicas que un estándar no
+  // tiene; el copy de MeshStandardMaterial sí copia mapas/color con seguridad.
+  THREE.MeshStandardMaterial.prototype.copy.call(physical, material);
+  physical.defines = { STANDARD: "", PHYSICAL: "" };
+  physical.name = material.name;
+  physical.userData = { ...material.userData };
+  material.dispose();
+  return physical;
+}
+
+function shouldDropBaseMap(material, colorHex, darkTarget, forceReplace) {
+  if (!material.map || !colorHex) return false;
+  if (forceReplace) return true;
+  if (darkTarget) return false; // negro sobre negro: el mapa aporta veta
+  const luma = baseMapLuma(material.map);
+  return luma != null && luma < 0.16;
+}
+
+function cloneFrameMaterial(source, profile, colorHex, dropMap) {
+  let m = source.clone();
+  if (profile.clearcoat >= 0.3) m = ensurePhysical(m);
+  if (colorHex && m.color) m.color.set(colorHex);
+  if (dropMap) m.map = null;
+  if ("metalness" in m) m.metalness = profile.metalness;
+  if ("roughness" in m) m.roughness = profile.roughness;
+  if ("clearcoat" in m) {
+    m.clearcoat = profile.clearcoat;
+    m.clearcoatRoughness = profile.clearcoatRoughness;
+  }
+  if ("envMapIntensity" in m) m.envMapIntensity = profile.envMapIntensity;
+  if (profile.opacity != null) {
+    m.transparent = true;
+    m.opacity = profile.opacity;
+  }
+  m.userData = { ...m.userData, owned: true };
+  m.needsUpdate = true;
+  return m;
+}
+
 function applyLensTint(root, entry, tint) {
   const wanted = new Set(entry?.lensMaterials || []);
   if (!wanted.size) return;
@@ -141,15 +221,27 @@ function applyLensTint(root, entry, tint) {
     let changed = false;
     const next = mats.map((m) => {
       if (!m || !wanted.has(m.name)) return m;
-      const c = m.clone();
+      let c = m.clone();
+      c = ensurePhysical(c);
       c.color?.setHex(color);
-      // El texture horneado suele ser oscuro o un reflejo fijo: se quita para
-      // que el tinte del probador mande y el cristal quede limpio.
+      // El texture horneado suele ser oscuro o un reflejo fijo: se quita el
+      // color base para que mande el tinte, pero se conserva el normal map
+      // (micro-ondulación del cristal) y el roughness map.
       c.map = null;
       c.alphaMap = null;
       c.transparent = true;
       c.opacity = opacity;
       c.depthWrite = false;
+      if ("metalness" in c) c.metalness = 0;
+      if ("roughness" in c) c.roughness = 0.06;
+      if ("clearcoat" in c) {
+        c.clearcoat = 1;
+        c.clearcoatRoughness = 0.04;
+      }
+      if ("ior" in c) c.ior = 1.5;
+      if ("specularIntensity" in c) c.specularIntensity = 1;
+      if ("envMapIntensity" in c) c.envMapIntensity = 1.15;
+      c.userData = { ...c.userData, owned: true };
       c.needsUpdate = true;
       changed = true;
       return c;
@@ -158,23 +250,37 @@ function applyLensTint(root, entry, tint) {
   });
 }
 
-function applyFrameTint(root, entry) {
+/**
+ * Aplica color y perfil PBR del catálogo a las mallas del armazón. Si el
+ * manifest no declara `frameMaterials`, se tiñen todas las mallas que no sean
+ * cristal, plaquetas ni superficies transparentes.
+ */
+function applyFrameTint(root, entry, frame) {
   const wanted = new Set(entry?.frameMaterials || []);
-  if (!wanted.size || !entry?.frameColor) return;
-  const color = new THREE.Color(entry.frameColor);
+  const auto = wanted.size === 0;
+  const colorHex = frame?.color ? frameColorHex(frame.color) : (entry?.frameColor || "");
+  if (!colorHex && !wanted.size) return;
+  const profile = frameMaterialProfile(frame || {
+    color: entry?.frameColor,
+    material: entry?.frameMaterial,
+  });
+  const darkTarget = colorHex ? isDarkColor(colorHex) : false;
+  const forceReplace = entry?.frameTint === "replace";
   root.traverse((o) => {
     if (!o.isMesh) return;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     let changed = false;
     const next = mats.map((m) => {
-      if (!m || !wanted.has(m.name)) return m;
-      const c = m.clone();
-      c.color?.copy(color);
-      if ("metalness" in c) c.metalness = 0.8;
-      if ("roughness" in c) c.roughness = 0.35;
-      c.needsUpdate = true;
+      if (!m) return m;
+      if (!auto && !wanted.has(m.name)) return m;
+      if (auto && (
+        (entry?.lensMaterials || []).includes(m.name)
+        || /nose|pad|plaqueta|tornillo|screw/i.test(String(m.name || ""))
+        || (m.transparent && (m.opacity ?? 1) < 0.5)
+      )) return m;
+      const dropMap = shouldDropBaseMap(m, colorHex, darkTarget, forceReplace);
       changed = true;
-      return c;
+      return cloneFrameMaterial(m, profile, colorHex, dropMap);
     });
     if (changed) o.material = Array.isArray(o.material) ? next : next[0];
   });
@@ -227,7 +333,7 @@ function mainLensMeshes(meshes) {
  * Construye un grupo listo para GlassesAR:
  * raíz con transform identidad, hijo normalizado a `targetWidth` unidades IPD.
  */
-export function buildGlbGroup(scene, { targetWidth = DEFAULT_WIDTH, entry = null, tint = "monofocal" } = {}) {
+export function buildGlbGroup(scene, { targetWidth = DEFAULT_WIDTH, entry = null, tint = "monofocal", frame = null } = {}) {
   const model = scene.clone(true);
   model.traverse((o) => {
     if (o.isCamera || o.isLight) o.visible = false;
@@ -269,7 +375,7 @@ export function buildGlbGroup(scene, { targetWidth = DEFAULT_WIDTH, entry = null
   outer.position.y -= center.y - (Number(entry?.y) || 0);
   outer.position.z -= box.max.z; // plano frontal en z=0; patillas hacia -z
 
-  applyFrameTint(outer, entry);
+  applyFrameTint(outer, entry, frame);
   applyLensTint(outer, entry, tint);
   // Marca las mallas de cristal para que GlassesAR pueda ajustar color y
   // opacidad en caliente desde los controles del lente.
@@ -295,16 +401,21 @@ export async function renderGLB(canvas, { forma = "rectangular", ipdPx = 100, ti
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
   renderer.setSize(W, H, false);
   const scene = new THREE.Scene();
+  const env = setupStudioEnvironment(renderer, scene);
   const cam = new THREE.OrthographicCamera(-W / 2, W / 2, H / 2, -H / 2, 1, 100);
   cam.position.set(0, 0, 10);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 1.6));
-  const dir = new THREE.DirectionalLight(0xffffff, 1.6);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 0.7));
+  const dir = new THREE.DirectionalLight(0xfff4e6, 1.8);
   dir.position.set(1.5, 2, 3);
   scene.add(dir);
+  const fill = new THREE.DirectionalLight(0xbcd2ff, 0.6);
+  fill.position.set(-2, -1, 3);
+  scene.add(fill);
   const group = buildGlbGroup(loaded.gltf.scene, { targetWidth: ipdPx, entry: loaded.entry, tint });
   group.position.set(0, 0, 0);
   scene.add(group);
   renderer.render(scene, cam);
+  disposeStudioEnvironment(scene, env);
   renderer.dispose();
   return true;
 }

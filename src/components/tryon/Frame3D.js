@@ -5,9 +5,10 @@
 //   const ar = new GlassesAR(canvas); ar.setModel(frame, tint); ar.render(lm, cw, ch, metrics)
 import * as THREE from "three";
 import { buildGlbGroup, loadGlb } from "./GlassesGLB.js";
-import { frameColorHex, lensKind, LENS_KIND } from "./frameStyle.js";
+import { frameMaterialProfile, lensKind, LENS_KIND } from "./frameStyle.js";
 import { lensStyleKey, mixLensColor, normalizeLensStyle } from "./lensStyle.js";
 import { eyeAnchors, FACE_IDX } from "./landmarks.js";
+import { setupStudioEnvironment, disposeStudioEnvironment } from "./studioEnvironment.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -22,18 +23,37 @@ function glassTintMaterial(tint = "monofocal") {
     default: break;
   }
   return new THREE.MeshPhysicalMaterial({
-    color, transparent: true, opacity, roughness: 0.06, metalness: 0,
-    clearcoat: 1, clearcoatRoughness: 0.08, side: THREE.DoubleSide,
+    color, transparent: true, opacity, roughness: 0.05, metalness: 0,
+    clearcoat: 1, clearcoatRoughness: 0.04, ior: 1.5, specularIntensity: 1,
+    envMapIntensity: 1.15, side: THREE.DoubleSide,
   });
 }
 
 function frameMaterial(frame) {
-  const m = String(frame?.material || "acetato").toLowerCase();
-  const c = new THREE.Color(frameColorHex(frame?.color));
-  if (m === "metal" || m === "mixto") {
-    return new THREE.MeshStandardMaterial({ color: c, metalness: 0.9, roughness: 0.32 });
+  const profile = frameMaterialProfile(frame);
+  const physical = profile.clearcoat >= 0.3;
+  const Material = physical ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
+  const m = new Material({
+    color: new THREE.Color(profile.color),
+    metalness: profile.metalness,
+    roughness: profile.roughness,
+    envMapIntensity: profile.envMapIntensity,
+  });
+  if (physical) {
+    m.clearcoat = profile.clearcoat;
+    m.clearcoatRoughness = profile.clearcoatRoughness;
   }
-  return new THREE.MeshStandardMaterial({ color: c, metalness: 0.15, roughness: 0.42 });
+  if (profile.opacity != null) {
+    m.transparent = true;
+    m.opacity = profile.opacity;
+  }
+  return m;
+}
+
+function metalAccentMaterial(color = 0xdfe6ef) {
+  return new THREE.MeshStandardMaterial({
+    color, metalness: 0.92, roughness: 0.28, envMapIntensity: 1.2,
+  });
 }
 
 // Contorno del lente en unidades locales (IPD = 1, ojos en x=±0.5).
@@ -126,7 +146,7 @@ export function buildGlassesGroup(frame, tint = "monofocal", dims = null) {
       const sup = new THREE.Mesh(new THREE.BoxGeometry(lensW * 0.7, 0.012, 0.012), rimMat);
       sup.position.set(side * lensCX, lensH * 0.42, 0);
       g.add(sup);
-      const mountMat = new THREE.MeshStandardMaterial({ color: 0xdfe6ef, metalness: 0.9, roughness: 0.3 });
+      const mountMat = metalAccentMaterial();
       for (const dx of [-lensW * 0.28, lensW * 0.28]) {
         const dot = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 12), mountMat);
         dot.position.set(side * lensCX + dx, -lensH * 0.05, depth * 0.5);
@@ -141,7 +161,7 @@ export function buildGlassesGroup(frame, tint = "monofocal", dims = null) {
     temple.rotation.y = side * -0.06;
     g.add(temple);
     // Bisagra
-    const hinge = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 12), new THREE.MeshStandardMaterial({ color: 0xdfe6ef, metalness: 0.9, roughness: 0.3 }));
+    const hinge = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 12), metalAccentMaterial());
     hinge.position.set(outerX, lensH * 0.28, 0);
     g.add(hinge);
   }
@@ -166,7 +186,10 @@ export function buildGlassesGroup(frame, tint = "monofocal", dims = null) {
 
   // Plaquetas en metal
   if (isMetal && !isRimless) {
-    const padMat = new THREE.MeshStandardMaterial({ color: 0xdfe6ef, roughness: 0.4, metalness: 0.1, transparent: true, opacity: 0.85 });
+    const padMat = new THREE.MeshPhysicalMaterial({
+      color: 0xdfe6ef, roughness: 0.32, metalness: 0.02, clearcoat: 0.6,
+      clearcoatRoughness: 0.2, envMapIntensity: 0.9, transparent: true, opacity: 0.85,
+    });
     for (const s of [-1, 1]) {
       const pad = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 12), padMat);
       pad.scale.set(0.6, 1, 0.4);
@@ -287,13 +310,19 @@ export class GlassesAR {
     // En ortográfica la distancia no cambia el tamaño, solo el rango visible.
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 1200);
     this.camera.position.set(0, 0, 600);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 1.5));
-    const dir = new THREE.DirectionalLight(0xffffff, 1.6);
+    // IBL neutro + ACES: los metales reflejan un estudio real y el acetato
+    // gana brillos de laca sin quemar el color del catálogo.
+    this.envTarget = setupStudioEnvironment(this.renderer, this.scene);
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 0.7));
+    const dir = new THREE.DirectionalLight(0xfff4e6, 1.8);
     dir.position.set(1.5, 2, 4);
     this.scene.add(dir);
-    const fill = new THREE.DirectionalLight(0xbcd2ff, 0.5);
+    const fill = new THREE.DirectionalLight(0xbcd2ff, 0.6);
     fill.position.set(-2, -1, 3);
     this.scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.7);
+    rim.position.set(-2, 2, -4);
+    this.scene.add(rim);
     this.group = null;
     this.key = "";
     this.glbGroups = new Map();
@@ -366,7 +395,9 @@ export class GlassesAR {
     // es físico y aplicarlo encogería la montura ~25 %. Solo se usa como
     // corrección cuando la montura no declara medidas.
     this.applyEntryScale = !(ipd > 0 && Number(frame?.ancho_total_mm) > 0);
-    const glbKey = `${forma}|${targetWidth.toFixed(3)}|${tint}|${this.applyEntryScale ? "s" : "n"}`;
+    // El color/material forma parte de la clave: el GLB se tiñe por catálogo.
+    const finishKey = `${frame?.color || ""}|${frame?.material || ""}`;
+    const glbKey = `${forma}|${targetWidth.toFixed(3)}|${tint}|${this.applyEntryScale ? "s" : "n"}|${finishKey}`;
     const cachedGlb = this.glbGroups.get(glbKey);
     if (cachedGlb) {
       // El GLB ya está normalizado y cacheado: se reutiliza sin parpadeo.
@@ -396,7 +427,9 @@ export class GlassesAR {
       const key = glbKey || `${forma}|${width.toFixed(3)}|${tint}`;
       let group = this.glbGroups.get(key);
       if (!group) {
-        group = buildGlbGroup(loaded.gltf.scene, { targetWidth: width, entry: loaded.entry, tint });
+        group = buildGlbGroup(loaded.gltf.scene, {
+          targetWidth: width, entry: loaded.entry, tint, frame,
+        });
         this.glbGroups.set(key, group);
       }
       if (token !== this.glbToken || this.pendingGlbForma !== forma) return;
@@ -415,9 +448,14 @@ export class GlassesAR {
     if (!group) return;
     this.scene?.remove(group);
     group.traverse((o) => {
-      if (o.userData?.sharedGlb) return;
-      o.geometry?.dispose?.();
       const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      if (o.userData?.sharedGlb) {
+        // La geometría pertenece al GLTF cacheado; los materiales clonados
+        // (tintados) sí son de este grupo y deben liberarse.
+        mats.forEach((m) => { if (m?.userData?.owned) m.dispose?.(); });
+        return;
+      }
+      o.geometry?.dispose?.();
       mats.forEach((m) => m.dispose?.());
     });
   }
@@ -511,6 +549,8 @@ export class GlassesAR {
     this.glbToken += 1;
     this.pendingGlbForma = "";
     this.usingGlb = false;
+    disposeStudioEnvironment(this.scene, this.envTarget);
+    this.envTarget = null;
     try {
       this.renderer?.dispose?.();
       this.renderer?.forceContextLoss?.();

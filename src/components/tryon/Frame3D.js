@@ -6,6 +6,7 @@
 import * as THREE from "three";
 import { buildGlbGroup, loadGlb } from "./GlassesGLB.js";
 import { frameColorHex, lensKind, LENS_KIND } from "./frameStyle.js";
+import { lensStyleKey, mixLensColor, normalizeLensStyle } from "./lensStyle.js";
 import { eyeAnchors, FACE_IDX } from "./landmarks.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -102,6 +103,7 @@ export function buildGlassesGroup(frame, tint = "monofocal", dims = null) {
     const shape = lensShape(forma, lensW, lensH, side);
     // Cristal
     const glass = new THREE.Mesh(new THREE.ShapeGeometry(shape, 24), glassMat);
+    glass.userData.isLens = true;
     glass.position.set(side * lensCX, 0, depth * 0.4);
     g.add(glass);
     if (!isRimless) {
@@ -303,6 +305,46 @@ export class GlassesAR {
     // barras sobre las mejillas. Se recortan detrás del plano frontal.
     this.clipBack = false;
     this.clipBackZ = -0.15;
+    // Estilo de lente (color/intensidad/opacidad) aplicado en caliente sobre
+    // los materiales ya construidos, sin reconstruir el GLB en cada slider.
+    this.lensStyle = null;
+    this.lensStyleKey = "";
+  }
+
+  /**
+   * Actualiza el cristal sin recompilar geometría: recorre las mallas de lente
+   * del grupo actual y ajusta color/opacidad. Es seguro llamarlo cada frame:
+   * si el estilo no cambió, retorna de inmediato.
+   */
+  setLensStyle(style, tint = "monofocal") {
+    if (!style) {
+      this.lensStyle = null;
+      this.lensStyleKey = "";
+      return;
+    }
+    const next = normalizeLensStyle(style, tint);
+    const key = lensStyleKey(next);
+    if (key === this.lensStyleKey) return;
+    this.lensStyle = next;
+    this.lensStyleKey = key;
+    this._applyLensStyle();
+  }
+
+  _applyLensStyle() {
+    if (!this.lensStyle || !this.group) return;
+    const color = new THREE.Color(mixLensColor(this.lensStyle.color, this.lensStyle.intensity));
+    this.group.traverse((o) => {
+      if (!o.isMesh || !o.userData?.isLens) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        if (!m) continue;
+        m.color?.copy(color);
+        m.transparent = true;
+        m.opacity = this.lensStyle.opacity;
+        m.depthWrite = false;
+        m.needsUpdate = true;
+      }
+    });
   }
 
   setModel(frame, tint = "monofocal", metrics = null) {
@@ -331,6 +373,7 @@ export class GlassesAR {
       this.group = cachedGlb;
       this.usingGlb = true;
       this.scene.add(cachedGlb);
+      this._applyLensStyle();
       return;
     }
 
@@ -338,6 +381,7 @@ export class GlassesAR {
     this.group = buildGlassesGroup(frame, tint, dims);
     this.usingGlb = false;
     this.scene.add(this.group);
+    this._applyLensStyle();
     this._loadGlb(frame, tint, targetWidth, glbKey);
   }
 
@@ -360,6 +404,7 @@ export class GlassesAR {
       this.group = group;
       this.usingGlb = true;
       this.scene.add(group);
+      this._applyLensStyle();
       if (previous && previous !== group) this._removeGroup(previous);
     }).catch(() => {
       // Sin GLB válido se conserva el procedural; no se rompe el try-on.

@@ -9,6 +9,7 @@ import {
   pupilDecentration,
 } from "../components/tryon/GlassesOverlay.js";
 import { drawPhotoTryOn } from "../components/tryon/PhotoTryOn.js";
+import { normalizeLensStyle } from "../components/tryon/lensStyle.js";
 import { loadGlassesAR } from "../components/tryon/arLoader.js";
 import { closeImageLandmarker, getImageLandmarker } from "../lib/faceLandmarker.js";
 import { sampleBrightness } from "../lib/imageUtils.js";
@@ -21,6 +22,7 @@ export function usePhotoTryOn({
   metrics,
   tryOpacity,
   tryLens,
+  lensStyle,
   showOriginal,
   frames,
   setArOk,
@@ -33,7 +35,16 @@ export function usePhotoTryOn({
   const arPhotoRef = useRef(null);
   const lastPhotoLmRef = useRef(null);
   const lastMatrixRef = useRef(null);
+  const lastLightRef = useRef(0.5);
+  const lastModeRef = useRef("2d");
+  const lensDrawRef = useRef(0);
   const photoNatRef = useRef(null);
+  // El estilo de lente se lee por ref dentro del efecto principal para no
+  // volver a ejecutar MediaPipe en cada tick de los sliders.
+  const lensStyleRef = useRef(lensStyle);
+  useEffect(() => {
+    lensStyleRef.current = lensStyle;
+  }, [lensStyle]);
   const [fitInfo, setFitInfo] = useState(null);
   const [photoWarn, setPhotoWarn] = useState("");
 
@@ -52,6 +63,7 @@ export function usePhotoTryOn({
       metrics,
       alpha: tryOpacity,
       tint: tryLens,
+      lensStyle: lensStyleRef.current,
       use3D,
     };
     (async () => {
@@ -88,6 +100,7 @@ export function usePhotoTryOn({
         ctx.clearRect(0, 0, cnv.width, cnv.height);
         ctx.drawImage(img, 0, 0, cnv.width, cnv.height);
         const light = sampleBrightness(cnv);
+        lastLightRef.current = light;
         if (!t.on) {
           setFitInfo(null);
           lastPhotoLmRef.current = null;
@@ -121,7 +134,7 @@ export function usePhotoTryOn({
         let pose3D = null;
         let drewPhoto = false;
         let fit = null;
-        if (t.use3D && t.frame && arCanvas) {
+        if (t.use3D && t.frame && t.frame.forma !== "rimless" && arCanvas) {
           try {
             const GlassesAR = await loadGlassesAR();
             if (dead) return;
@@ -129,8 +142,11 @@ export function usePhotoTryOn({
             const ar = arPhotoRef.current;
             ar.clipBack = true;
             ar.setModel(t.frame, t.tint, t.metrics);
+            ar.setLensStyle(lensStyleRef.current, t.tint);
             await ar.whenReady(1400);
             if (dead) return;
+            // El estilo pudo cambiar mientras cargaba el GLB.
+            ar.setLensStyle(lensStyleRef.current, t.tint);
             pose3D = ar.render(lm, cnv.width, cnv.height, matrix ? { matrix } : null);
             drew3D = !!pose3D;
           } catch {
@@ -142,6 +158,7 @@ export function usePhotoTryOn({
             fit = await drawPhotoTryOn(ctx, lm, cnv.width, cnv.height, t.frame, t.metrics, {
               alpha: t.alpha,
               tint: t.tint,
+              lensStyle: lensStyleRef.current,
               light,
             });
             drewPhoto = !!fit;
@@ -164,11 +181,13 @@ export function usePhotoTryOn({
               alpha: t.alpha,
               light,
               tint: t.tint,
+              lensStyle: lensStyleRef.current,
             });
           }
         }
         if (!dead) {
           lastPhotoLmRef.current = lm;
+          lastModeRef.current = drew3D ? "3d" : "2d";
           if (drewPhoto && fit) {
             setFitInfo({
               ipdPx: Math.round(fit.ipdPx),
@@ -238,6 +257,60 @@ export function usePhotoTryOn({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview, tryId, tryOn, metrics, tryOpacity, tryLens, showOriginal, frames, use3D]);
 
+  // Cambios de lente en caliente: el 3D muta los materiales del grupo actual y
+  // re-renderiza con la pose cacheada; el 2D/vectorial recompone la foto con los
+  // landmarks cacheados. No vuelve a ejecutar MediaPipe por cada tick.
+  useEffect(() => {
+    const lm = lastPhotoLmRef.current;
+    const cnv = photoCanvasRef.current;
+    if (!lm || !cnv || !tryRef.current?.on) return;
+    const frame = (frames ?? []).find((f) => f.id === tryId) ?? (frames ?? [])[0] ?? null;
+    if (!frame) return;
+    const style = normalizeLensStyle(lensStyle, tryLens);
+    const ar = arPhotoRef.current;
+    if (use3D && lastModeRef.current === "3d" && frame.forma !== "rimless" && ar && threePhotoRef.current) {
+      try {
+        ar.setLensStyle(style, tryLens);
+        ar.render(lm, cnv.width, cnv.height, lastMatrixRef.current ? { matrix: lastMatrixRef.current } : null);
+        return;
+      } catch {
+        /* cae al redibujo 2D */
+      }
+    }
+    const img = photoImgRef.current;
+    if (!img) return;
+    const token = ++lensDrawRef.current;
+    const ctx = cnv.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, cnv.width, cnv.height);
+    ctx.drawImage(img, 0, 0, cnv.width, cnv.height);
+    const light = lastLightRef.current;
+    const metricsNow = tryRef.current.metrics ?? null;
+    const alphaNow = tryRef.current.alpha ?? 1;
+    drawPhotoTryOn(ctx, lm, cnv.width, cnv.height, frame, metricsNow, {
+      alpha: alphaNow,
+      tint: tryLens,
+      lensStyle: style,
+      light,
+    })
+      .then((fit) => {
+        if (token !== lensDrawRef.current) return;
+        if (fit) return;
+        drawGlasses(ctx, lm, cnv.width, cnv.height, cnv.width, cnv.height, frame.forma ?? "rectangular", undefined, {
+          frame,
+          metrics: metricsNow,
+          alpha: alphaNow,
+          light,
+          tint: tryLens,
+          lensStyle: style,
+        });
+      })
+      .catch(() => {
+        /* conserva la foto base */
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lensStyle, tryLens]);
+
   // El canvas 3D de la foto se desmonta con la página: liberar su contexto WebGL.
   useEffect(() => {
     return () => {
@@ -286,7 +359,7 @@ export function usePhotoTryOn({
         // Misma prioridad que en pantalla: 3D primero, 2D como respaldo.
         let drew3D = false;
         const overlay = threePhotoRef.current;
-        if (t.use3D && overlay && arPhotoRef.current) {
+        if (t.use3D && t.frame?.forma !== "rimless" && overlay && arPhotoRef.current) {
           const prevW = overlay.width;
           const prevH = overlay.height;
           // Límite de textura WebGL: fotos muy grandes se renderizan a escala
@@ -297,6 +370,7 @@ export function usePhotoTryOn({
           const matrix = lastMatrixRef.current;
           try {
             arPhotoRef.current.setModel(t.frame, t.tint, t.metrics);
+            arPhotoRef.current.setLensStyle(t.lensStyle, t.tint);
             const pose = arPhotoRef.current.render(lm, rw, rh, matrix ? { matrix } : null);
             if (pose) {
               fctx.drawImage(overlay, 0, 0, nat.W, nat.H);
@@ -319,6 +393,7 @@ export function usePhotoTryOn({
             const fitPhoto = await drawPhotoTryOn(fctx, lm, nat.W, nat.H, t.frame, t.metrics, {
               alpha: 1,
               tint: t.tint,
+              lensStyle: t.lensStyle,
               light: 0.5,
             });
             drewPhoto = !!fitPhoto;
@@ -332,6 +407,7 @@ export function usePhotoTryOn({
               alpha: 1,
               light: 0.5,
               tint: t.tint,
+              lensStyle: t.lensStyle,
             });
           }
         }

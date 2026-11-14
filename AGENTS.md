@@ -36,7 +36,8 @@ Reglas de frontera:
    - UI presentacional → `src/components/scanner/`
    - `Scanner.jsx` queda como orquestador (estado de flujo y composición).
 3. **Sin duplicar constantes visuales.** Colores de armazón y familias de tinte
-   viven en `src/components/tryon/frameStyle.js`.
+   viven en `src/components/tryon/frameStyle.js`; la paleta, los presets y la
+   mezcla del lente viven en `src/components/tryon/lensStyle.js`.
 4. **Carga diferida obligatoria** de todo lo pesado: `Three.js`/`Frame3D` se
    importa con `src/components/tryon/arLoader.js`; nunca estático desde `Scanner`.
 5. **Los assets 3D no se tocan sin licencia.** Todo GLB nuevo exige entrada en
@@ -71,6 +72,7 @@ src/
 │   ├── FeedbackBox.jsx            # voto 1-5★
 │   ├── FrameStrip.jsx             # tira de monturas recomendadas sobre la foto
 │   ├── LenteDot.jsx               # muestra de tinte
+│   ├── LensControls.jsx           # panel flotante: color, intensidad y opacidad del lente
 │   ├── ScanCapture.jsx            # cámara/foto reutilizable en ambos escaneos
 │   ├── ScanRecord.jsx             # registro visible + descarga JSON del escaneo
 │   ├── ScanReport.jsx             # informe imprimible (PDF) + JSON + galería top-10
@@ -81,6 +83,7 @@ src/
 │   └── RecommendationCard.jsx     # tarjeta de recomendación
 └── components/tryon/
     ├── frameStyle.js              # color de armazón + familia de tinte (fuente única)
+    ├── lensStyle.js               # paleta, presets y mezcla color/intensidad/opacidad del lente
     ├── arLoader.js                # import() único de Frame3D/Three.js
     ├── Frame3D.js                 # GlassesAR: pose + armazón procedural/GLB
     ├── GlassesGLB.js              # carga, normalización y tintado de GLB
@@ -126,7 +129,7 @@ npm run lint          # 0 warnings
 npm run lint:eslint   # accesibilidad + hooks (0)
 npm run lint:css      # stylelint (0)
 npm run typecheck     # tsc --checkJs (0)
-npm test              # vitest (80)
+npm test              # vitest (94)
 npm run test:e2e      # playwright (10; `npx playwright install chromium` la primera vez)
 npm run build         # 0 errores y ningún chunk > 500 kB
 npm run test:pose     # 14/14 verificaciones numéricas
@@ -166,14 +169,23 @@ Definición de terminado:
 - [ ] Documentación actualizada.
 - [ ] Sin fotos ni claves reales en el diff.
 
-## 4. Estado verificado (2026-11-12)
+## 4. Estado verificado (2026-11-13)
 
-- Frontend: build OK en ~0.7 s. `Scanner` = **90.7 kB**. `Three.js` se descarga
+- Frontend: build OK en ~0.7 s. `Scanner` = **96.7 kB**. `Three.js` se descarga
   solo al activar el 3D o al generar un montaje 3D del informe (chunks
   45/246/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
-- `test`: **80/80**; `test:e2e`: **10/10**; `test:pose`: **14/14**;
+- `test`: **94/94**; `test:e2e`: **10/10**; `test:pose`: **14/14**;
   `test:alignment`: **19/19**.
+- **Controles de lente (2026-11-13):** el montaje del paso 2 y el probador
+  (cámara y foto) muestran `LensControls.jsx` sobre el preview con tres
+  controles: color (paleta fija de 8 tonos + selector nativo), intensidad y
+  opacidad tipo transitions. El tipo de lente fija un preset de
+  `lensStyle.js`; después el usuario puede ajustar los tres valores. El cambio
+  se aplica en caliente al GLB 3D (`Frame3D.setLensStyle`), al recorte 2D
+  (silueta cacheada por asset+color) y al vectorial (`lensGradient`). En
+  `rimless`, sin malla de cristal en el GLB, se prefiere 2D/vectorial. No hay
+  persistencia ni cambios en los contratos HTTP.
 - **Calibración fina del montaje 3D (2026-11-13):** el giro invertido venía de la
   matriz facial de MediaPipe, que llega en **orden fila** mientras
   `THREE.Matrix4.fromArray` lee **orden columna**; `poseFromMatrix` ahora
@@ -268,7 +280,8 @@ Definición de terminado:
 - Probador virtual independiente (`TryOnStudio.jsx`): 4.ª card opcional y servicio
   alterno. Pestaña de **cámara en vivo** con armazón 3D siguiendo el rostro y
   pestaña de **foto subida o capturada** con selector explícito 2D/3D, cambio de
-  montura, opacidad, comparar original, zoom, guardado HD y evidencia JSON. No
+  montura, **tres controles de lente** (color, intensidad y opacidad con preset
+  por tipo), comparar original, zoom, guardado HD y evidencia JSON. No
   requiere análisis facial ni recomendaciones; solo el catálogo (`GET /frames`).
   Si el consentimiento compartido aún no se aceptó, muestra su propio gate.
 - Informe membreteado (`ScanReport.jsx`): logo y nombre, folio, fecha, tipo de
@@ -320,6 +333,10 @@ Definición de terminado:
 
 - Importar `three` o `Frame3D` estáticamente en `Scanner.jsx`: rompe el code-splitting.
 - Duplicar `frameColorHex` o la clasificación de tintes en cada motor.
+- Duplicar la paleta o los presets de lente en cada motor: `lensStyle.js` es la
+  fuente única. El tipo de lente fija color/intensidad/opacidad y el usuario
+  puede ajustarlos; no reconstruir el GLB por cada cambio, usar
+  `Frame3D.setLensStyle` sobre los materiales ya cargados.
 - Recalcular las anclas oculares por motor: `components/tryon/landmarks.js`
   (`eyeAnchors`) es la fuente única; el 2D y el 3D deben usar los mismos centros
   de iris y el mismo fallback a esquinas.

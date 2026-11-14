@@ -96,7 +96,9 @@ export function useLiveCameraTryOn({ tryRef, onError }) {
             // El 3D vive en su propio canvas; el 2D queda como fallback.
             if (t.on) {
               let drew3D = false;
-              if (t.use3D && t.frame) {
+              // Rimless no tiene malla de cristal en el GLB: el recorte 2D es
+              // el único motor donde el control de lente tiene efecto visible.
+              if (t.use3D && t.frame && t.frame.forma !== "rimless") {
                 // Primer frame tras habilitar 3D: se dispara la carga y se sigue
                 // mostrando el fallback 2D hasta que el chunk esté disponible.
                 if (!glassesARClass) {
@@ -118,6 +120,7 @@ export function useLiveCameraTryOn({ tryRef, onError }) {
                     const ar = arLiveRef.current;
                     if (ar) {
                       ar.setModel(t.frame, t.tint, t.metrics);
+                      ar.setLensStyle(t.lensStyle, t.tint);
                       const mat = res?.facialTransformationMatrixes?.[0]?.data ?? null;
                       const pose = ar.render(lm, cnv.width, cnv.height, mat ? { matrix: mat } : null);
                       drew3D = !!pose;
@@ -140,6 +143,7 @@ export function useLiveCameraTryOn({ tryRef, onError }) {
                   alpha: t.alpha,
                   light: 0.55,
                   tint: t.tint,
+                  lensStyle: t.lensStyle,
                 });
               }
             } else {

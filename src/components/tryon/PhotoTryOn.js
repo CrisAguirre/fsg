@@ -4,6 +4,7 @@
 // Scanner conserva el fallback procedural.
 import { measureGlasses, pupilDecentration } from "./GlassesOverlay.js";
 import { frameColorHex } from "./frameStyle.js";
+import { mixLensColor, normalizeLensStyle } from "./lensStyle.js";
 
 const ASSET_BASE = "/tryon";
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -17,6 +18,7 @@ const FRONTAL_KEYS = new Set(["rectangular", "rimless"]);
 let manifestPromise = null;
 const imageCache = new Map();
 const tintCache = new Map();
+const lensMaskCache = new Map();
 
 /** Claves de asset candidatas para una montura (tryon_key + forma). */
 function assetKeys(frame) {
@@ -103,14 +105,27 @@ function tintedFrame(asset, frame) {
   return c;
 }
 
-function lensOpacity(tint, light = 0.5) {
-  const t = String(tint || "monofocal").toLowerCase();
-  const lightAdj = clamp(0.06 + (1 - clamp(light, 0, 1)) * 0.06, 0.06, 0.14);
-  if (t.includes("polarizado") || t.includes("sol")) return 0.5;
-  if (t.includes("fotocrom")) return 0.3;
-  if (t.includes("blue")) return 0.18;
-  if (t.includes("progresivo") || t.includes("bifocal")) return 0.16;
-  return 0.12 + lightAdj;
+/**
+ * Silueta del cristal rellena con el color ya mezclado. Se cachea por
+ * asset+color para que el slider no cree un canvas por cada paso.
+ */
+function lensSilhouette(asset, color) {
+  if (!asset.lensImg) return null;
+  const key = `${asset.key}|${color}`;
+  if (lensMaskCache.has(key)) return lensMaskCache.get(key);
+  const img = asset.lensImg;
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth || asset.meta.width;
+  c.height = img.naturalHeight || asset.meta.height;
+  const x = c.getContext("2d");
+  x.drawImage(img, 0, 0);
+  x.globalCompositeOperation = "source-in";
+  x.fillStyle = color;
+  x.fillRect(0, 0, c.width, c.height);
+  x.globalCompositeOperation = "source-over";
+  if (lensMaskCache.size > 24) lensMaskCache.clear();
+  lensMaskCache.set(key, c);
+  return c;
 }
 
 /**
@@ -156,7 +171,12 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
   const alpha = clamp(opts.alpha ?? 1, 0.25, 1);
   const transparent = /cristal|transparente/i.test(String(frame?.color || ""));
   const frameAlpha = transparent ? alpha * 0.62 : alpha;
-  const lensAlpha = lensOpacity(opts.tint, opts.light);
+  // El slider de opacidad manda sobre el cristal; la luz de la foto solo
+  // ajusta un poco para que no se vea plano en fotos oscuras.
+  const lensStyle = normalizeLensStyle(opts.lensStyle, opts.tint);
+  const lightAdj = (1 - clamp(opts.light ?? 0.5, 0, 1)) * 0.06;
+  const lensAlpha = clamp(lensStyle.opacity + lightAdj, 0.02, 1);
+  const lensColor = mixLensColor(lensStyle.color, lensStyle.intensity);
   const shadowBlur = Math.max(4, m.ipdPx * 0.07);
   const shadowY = Math.max(2, m.ipdPx * 0.018);
 
@@ -178,12 +198,22 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
   ctx.restore();
 
   // Cristal real del recorte (reflejos incluidos) a baja opacidad para que
-  // se vean los ojos. El aro se dibuja encima.
+  // se vean los ojos. Encima se aplica la silueta del color elegido según la
+  // intensidad; el aro se dibuja al final.
   if (asset.lensImg) {
     ctx.save();
     ctx.globalAlpha = lensAlpha;
     ctx.drawImage(asset.lensImg, 0, 0);
     ctx.restore();
+    const silhouette = lensSilhouette(asset, lensColor);
+    if (silhouette && lensStyle.intensity > 0.01) {
+      ctx.save();
+      // El color ya viene mezclado con el neutro según la intensidad; la
+      // opacidad del slider manda en el alfa para no duplicar el efecto.
+      ctx.globalAlpha = lensAlpha;
+      ctx.drawImage(silhouette, 0, 0);
+      ctx.restore();
+    }
   }
   ctx.globalAlpha = frameAlpha;
   ctx.drawImage(frameCanvas, 0, 0);

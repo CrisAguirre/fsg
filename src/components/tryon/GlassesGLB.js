@@ -5,6 +5,7 @@
 // pueda aplicarle la pose de la cabeza sin perder la normalización interna.
 import * as THREE from "three";
 import { lensKind, LENS_KIND } from "./frameStyle.js";
+import { lensPreset, mixLensColor } from "./lensStyle.js";
 
 const MANIFEST_URL = "/glasses/manifest.json";
 const DEFAULT_WIDTH = 2.1; // ancho total de montura en unidades IPD
@@ -117,12 +118,16 @@ export async function loadGlb(forma) {
 }
 
 function lensTint(tint, baseOpacity) {
+  const preset = lensPreset(tint);
+  const color = new THREE.Color(mixLensColor(preset.color, preset.intensity));
   switch (lensKind(tint)) {
-    case LENS_KIND.SUN: return { color: 0x22303c, opacity: 0.62 };
-    case LENS_KIND.PHOTOCHROMIC: return { color: 0x6b7280, opacity: 0.5 };
-    case LENS_KIND.BLUE: return { color: 0xd9a93f, opacity: 0.28 };
-    case LENS_KIND.PROGRESSIVE: return { color: 0x9dc0e6, opacity: 0.22 };
-    default: return { color: 0xf2f6ff, opacity: baseOpacity };
+    case LENS_KIND.SUN:
+    case LENS_KIND.PHOTOCHROMIC:
+    case LENS_KIND.BLUE:
+    case LENS_KIND.PROGRESSIVE:
+      return { color: color.getHex(), opacity: preset.opacity };
+    default:
+      return { color: color.getHex(), opacity: baseOpacity };
   }
 }
 
@@ -266,6 +271,9 @@ export function buildGlbGroup(scene, { targetWidth = DEFAULT_WIDTH, entry = null
 
   applyFrameTint(outer, entry);
   applyLensTint(outer, entry, tint);
+  // Marca las mallas de cristal para que GlassesAR pueda ajustar color y
+  // opacidad en caliente desde los controles del lente.
+  for (const mesh of findLensMeshes(outer, entry)) mesh.userData.isLens = true;
   outer.traverse((o) => {
     if (o instanceof THREE.Mesh) o.userData.sharedGlb = true; // geometría/materiales del caché
   });

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { normalizeImageFile } from "../../lib/imageUtils.js";
 import { useLiveCameraTryOn } from "../../hooks/useLiveCameraTryOn.js";
 import { usePhotoTryOn } from "../../hooks/usePhotoTryOn.js";
+import LensControls from "./LensControls.jsx";
 import TryOnDetail from "./TryOnDetail.jsx";
 
 function ConsentGate({ onConsent, onClose }) {
@@ -109,6 +110,8 @@ function FramePicker({ frames, tryId, onSelect }) {
  *   onOpacity: (v: number) => void,
  *   tryLens: string,
  *   onLens: (v: string) => void,
+ *   lensStyle: import("../../types").LensStyle,
+ *   onLensStyle: (v: import("../../types").LensStyle) => void,
  *   use3D: boolean,
  *   onUse3D: (v: boolean) => void,
  *   showOriginal: boolean,
@@ -131,6 +134,8 @@ export default function TryOnStudio({
   onOpacity,
   tryLens,
   onLens,
+  lensStyle,
+  onLensStyle,
   use3D,
   onUse3D,
   showOriginal,
@@ -178,6 +183,7 @@ export default function TryOnStudio({
     metrics,
     tryOpacity,
     tryLens,
+    lensStyle,
     showOriginal,
     frames,
     setArOk,
@@ -378,6 +384,9 @@ export default function TryOnStudio({
                     </small>
                   </div>
                 )}
+                {cameraOn && (
+                  <LensControls lensStyle={lensStyle} tint={tryLens} onChange={onLensStyle} />
+                )}
               </div>
 
               <div
@@ -491,18 +500,21 @@ export default function TryOnStudio({
                     className="scanner__preview"
                     style={{ display: "none" }}
                   />
-                  <div className={`scanner__zoomwrap ${zoomed ? "zoomed" : ""}`}>
-                    <canvas
-                      ref={photoCanvasRef}
-                      className="scanner__preview"
-                      onClick={() => setZoomed((z) => !z)}
-                      title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"}
-                    />
-                    <canvas
-                      ref={threePhotoRef}
-                      className="scanner__overlay scanner__overlay--3d"
-                      aria-hidden="true"
-                    />
+                  <div className="scanner__montage">
+                    <div className={`scanner__zoomwrap ${zoomed ? "zoomed" : ""}`}>
+                      <canvas
+                        ref={photoCanvasRef}
+                        className="scanner__preview"
+                        onClick={() => setZoomed((z) => !z)}
+                        title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"}
+                      />
+                      <canvas
+                        ref={threePhotoRef}
+                        className="scanner__overlay scanner__overlay--3d"
+                        aria-hidden="true"
+                      />
+                    </div>
+                    <LensControls lensStyle={lensStyle} tint={tryLens} onChange={onLensStyle} />
                   </div>
                   {photoWarn && <p className="scanner__warning">⚠ {photoWarn}</p>}
 

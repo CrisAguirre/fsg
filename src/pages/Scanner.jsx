@@ -19,10 +19,12 @@ import ScannerMetrics from "../components/scanner/ScannerMetrics.jsx";
 import TryOnDetail from "../components/scanner/TryOnDetail.jsx";
 import RecommendationCard from "../components/scanner/RecommendationCard.jsx";
 import FrameStrip from "../components/scanner/FrameStrip.jsx";
+import LensControls from "../components/scanner/LensControls.jsx";
 import ScanCapture from "../components/scanner/ScanCapture.jsx";
 import ScanReport from "../components/scanner/ScanReport.jsx";
 import StepCards from "../components/scanner/StepCards.jsx";
 import TryOnStudio from "../components/scanner/TryOnStudio.jsx";
+import { lensPreset, normalizeLensStyle } from "../components/tryon/lensStyle.js";
 import { useLiveCameraTryOn } from "../hooks/useLiveCameraTryOn.js";
 import { usePhotoTryOn } from "../hooks/usePhotoTryOn.js";
 import "./Scanner.css";
@@ -66,6 +68,8 @@ export default function Scanner() {
   // Probador 3D (solo en el paso de monturas).
   const [tryOpacity, setTryOpacity] = useState(0.95);
   const [tryLens, setTryLens] = useState("monofocal");
+  const [lensStyle, setLensStyle] = useState(() => lensPreset("monofocal"));
+  const lensTouchedRef = useRef(false);
   const [use3D, setUse3D] = useState(true);
   const [showOriginal, setShowOriginal] = useState(false);
   const [zoomed, setZoomed] = useState(false);
@@ -87,19 +91,34 @@ export default function Scanner() {
     tryLensRef.current = tryLens;
   }, [tryLens]);
 
+  // El tipo de lente fija los tres controles como preset; desde ahí el usuario
+  // puede ajustarlos y su elección se conserva hasta que cambie de tipo.
+  const handleLensStyle = (next) => {
+    lensTouchedRef.current = true;
+    setLensStyle(normalizeLensStyle(next, tryLens));
+  };
+  const handleSelectLens = (tipo) => {
+    lensTouchedRef.current = false;
+    setTryLens(tipo);
+    setLensStyle(lensPreset(tipo));
+  };
+
   // Al cambiar de montura se monta su lente ideal (no pelea con la elección manual).
   useEffect(() => {
     if (!tryFrame) return;
     const rec = recs.find((r) => r.frame_id === tryFrame.id) ?? null;
     const lenses = lensCompatibility(tryFrame, rec?.score ?? null);
-    if (lenses.length > 0 && lenses[0].tipo !== tryLensRef.current) setTryLens(lenses[0].tipo);
+    if (lenses.length > 0 && lenses[0].tipo !== tryLensRef.current) {
+      setTryLens(lenses[0].tipo);
+      if (!lensTouchedRef.current) setLensStyle(lensPreset(lenses[0].tipo));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tryId, frames, recs]);
 
   /** @type {import("../types").TryState} */
-  const initialTryRef = { on: true, forma: "rectangular", frame: null, metrics: null, alpha: 0.95, tint: "monofocal", use3D: true };
+  const initialTryRef = { on: true, forma: "rectangular", frame: null, metrics: null, alpha: 0.95, tint: "monofocal", lensStyle: lensPreset("monofocal"), use3D: true };
   const tryRef = useRef(initialTryRef);
-  const tryState = { on: tryOn && !showOriginal, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity, tint: tryLens, use3D };
+  const tryState = { on: tryOn && !showOriginal, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity, tint: tryLens, lensStyle, use3D };
   useEffect(() => {
     tryRef.current = tryState;
   });
@@ -131,6 +150,7 @@ export default function Scanner() {
     metrics,
     tryOpacity,
     tryLens,
+    lensStyle,
     showOriginal,
     frames,
     setArOk,
@@ -578,7 +598,9 @@ export default function Scanner() {
             tryOpacity={tryOpacity}
             onOpacity={setTryOpacity}
             tryLens={tryLens}
-            onLens={setTryLens}
+            onLens={handleSelectLens}
+            lensStyle={lensStyle}
+            onLensStyle={handleLensStyle}
             use3D={use3D}
             onUse3D={setUse3D}
             showOriginal={showOriginal}
@@ -676,9 +698,12 @@ export default function Scanner() {
                 <>
                   <h3>Vista previa + probador {arOk ? <span className="tag tag--price">3D real</span> : <span className="tag">2D</span>}</h3>
                   <img ref={photoImgRef} src={preview} alt="rostro para análisis" className="scanner__preview" style={{ display: "none" }} />
-                  <div className={`scanner__zoomwrap ${zoomed ? "zoomed" : ""}`}>
-                    <canvas ref={photoCanvasRef} className="scanner__preview" onClick={() => setZoomed((z) => !z)} title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"} />
-                    <canvas ref={threePhotoRef} className="scanner__overlay scanner__overlay--3d" aria-hidden="true" />
+                  <div className="scanner__montage">
+                    <div className={`scanner__zoomwrap ${zoomed ? "zoomed" : ""}`}>
+                      <canvas ref={photoCanvasRef} className="scanner__preview" onClick={() => setZoomed((z) => !z)} title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"} />
+                      <canvas ref={threePhotoRef} className="scanner__overlay scanner__overlay--3d" aria-hidden="true" />
+                    </div>
+                    <LensControls lensStyle={lensStyle} tint={tryLens} onChange={handleLensStyle} disabled={!tryOn} />
                   </div>
                   {photoWarn && <p className="scanner__warning">⚠ {photoWarn}</p>}
                   <FrameStrip
@@ -705,7 +730,7 @@ export default function Scanner() {
                     tryId={tryId}
                     metrics={metrics}
                     tryLens={tryLens}
-                    onSelectLens={setTryLens}
+                    onSelectLens={handleSelectLens}
                   />
                   <div className="scanner__row">
                     <label style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
@@ -768,7 +793,7 @@ export default function Scanner() {
                     isSelected={tryId === r.frame_id}
                     onSelect={(lens) => {
                       setTryId(r.frame_id);
-                      if (lens) setTryLens(lens);
+                      if (lens) handleSelectLens(lens);
                       setTryOn(true);
                       photoCanvasRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
                     }}

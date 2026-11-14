@@ -17,6 +17,9 @@
 .scanner__overlay--3d { filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.35)); }
 /* Zoomwrap de foto: misma técnica, sin max-height que aplaste el overlay */
 .scanner__zoomwrap { position: relative; overflow: hidden; border-radius: 12px; }
+/* Contenedor del montaje: el panel del lente flota sin que el zoom lo recorte */
+.scanner__montage { position: relative; }
+.scanner__montage .scanner__zoomwrap { border-radius: 12px; }
 .scanner__zoomwrap .scanner__preview { max-height: none; object-fit: fill; }
 .scanner__row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
 .scanner__error { color: #ef4444; }
@@ -69,6 +72,32 @@
 .scanner__zoomwrap.zoomed canvas { cursor: zoom-out; transform: scale(1.6); }
 .scanner__opacity { display: flex; gap: .4rem; align-items: center; font-size: .85rem; color: var(--text-secondary); }
 .scanner__opacity input[type="range"] { width: 110px; accent-color: var(--text-heading); }
+
+/* Panel flotante del lente sobre el montaje (paso 2 y probador virtual) */
+.lensctl { position: absolute; right: .7rem; bottom: .7rem; z-index: 4; display: grid; justify-items: end; gap: .4rem; font-family: var(--font-sans); }
+.lensctl__toggle { display: inline-flex; align-items: center; gap: .45rem; min-height: 38px; padding: .4rem .7rem; border-radius: 999px; border: 1px solid var(--border-glass); background: rgba(10, 14, 22, .74); color: var(--text-heading); font: inherit; font-size: .82rem; font-weight: 600; cursor: pointer; backdrop-filter: blur(10px); box-shadow: var(--shadow-sm); }
+.lensctl__toggle:hover { border-color: var(--border-accent); }
+.lensctl__dot { width: 1.05rem; height: 1.05rem; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .55); box-shadow: inset 0 0 6px rgba(0, 0, 0, .35); }
+.lensctl__chevron { font-size: .7rem; color: var(--text-muted); }
+.lensctl__panel { width: min(272px, calc(100vw - 3rem)); max-height: min(60vh, 340px); overflow-y: auto; display: grid; gap: .65rem; padding: .8rem; border-radius: 14px; border: 1px solid var(--border-glass); background: rgba(10, 14, 22, .84); backdrop-filter: blur(14px); box-shadow: 0 18px 40px rgba(0, 0, 0, .45); color: var(--text-secondary); }
+.lensctl__group { border: 0; padding: 0; margin: 0; display: grid; gap: .4rem; }
+.lensctl__group legend { padding: 0; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.lensctl__swatches { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.lensctl__swatch { width: 1.6rem; height: 1.6rem; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .25); cursor: pointer; padding: 0; transition: transform .15s ease, border-color .15s ease; }
+.lensctl__swatch:hover { transform: scale(1.08); }
+.lensctl__swatch--active { border-color: var(--text-heading); box-shadow: 0 0 0 2px rgba(255, 255, 255, .28); }
+.lensctl__custom { position: relative; width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border-radius: 50%; border: 1px dashed rgba(255, 255, 255, .45); color: var(--text-heading); font-size: .9rem; cursor: pointer; overflow: hidden; }
+.lensctl__custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.lensctl__custom:focus-within { border-color: var(--border-accent); }
+.lensctl__slider { display: grid; gap: .25rem; font-size: .78rem; }
+.lensctl__slider span { display: flex; justify-content: space-between; gap: .5rem; }
+.lensctl__slider b { color: var(--text-heading); }
+.lensctl__slider input[type="range"] { width: 100%; accent-color: var(--text-heading); }
+.lensctl__hint { color: var(--text-muted); font-size: .7rem; line-height: 1.35; }
+@media (max-width: 560px) {
+  .lensctl { right: .45rem; bottom: .45rem; }
+  .lensctl__panel { width: min(248px, calc(100vw - 2rem)); }
+}
 
 /* ── Asistente por pasos ── */
 .btn--sm { min-height: 36px; padding: .35rem .7rem; font-size: .82rem; }

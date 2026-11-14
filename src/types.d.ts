@@ -41,6 +41,16 @@ export interface TryRec {
   reasons: string[];
 }
 
+/** Estilo del lente configurable en el probador. */
+export interface LensStyle {
+  /** Color elegido en hex `#rrggbb`. */
+  color: string;
+  /** 0 = cristal neutro, 1 = color pleno. */
+  intensity: number;
+  /** 0 = casi transparente, 1 = oscuro tipo transitions. */
+  opacity: number;
+}
+
 /**
  * Estado que Scanner publica para los motores de try-on.
  * Los hooks lo leen en cada frame, por eso vive en un ref.
@@ -52,5 +62,6 @@ export interface TryState {
   metrics: TryMetrics | null;
   alpha: number;
   tint: string;
+  lensStyle: LensStyle;
   use3D: boolean;
 }

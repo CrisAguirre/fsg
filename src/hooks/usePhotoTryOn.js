@@ -27,6 +27,7 @@ export function usePhotoTryOn({
   frames,
   setArOk,
   use3D,
+  lightweight = false,
   closeOnUnmount = false,
 }) {
   const photoCanvasRef = useRef(null);
@@ -92,7 +93,9 @@ export function usePhotoTryOn({
         const W = img.naturalWidth;
         const H = img.naturalHeight;
         photoNatRef.current = { W, H };
-        const maxW = 960; // HD para zoom detalle (antes 640 precario)
+        // En modo ligero se reduce el canvas: menos memoria y menos trabajo por
+        // redibujo, a costa de algo de detalle en el zoom.
+        const maxW = lightweight ? 640 : 960; // HD para zoom detalle
         const sc = Math.min(1, maxW / W);
         cnv.width = Math.round(W * sc);
         cnv.height = Math.round(H * sc);
@@ -255,7 +258,7 @@ export function usePhotoTryOn({
       dead = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preview, tryId, tryOn, metrics, tryOpacity, tryLens, showOriginal, frames, use3D]);
+  }, [preview, tryId, tryOn, metrics, tryOpacity, tryLens, showOriginal, frames, use3D, lightweight]);
 
   // Cambios de lente en caliente: el 3D muta los materiales del grupo actual y
   // re-renderiza con la pose cacheada; el 2D/vectorial recompone la foto con los
@@ -363,8 +366,10 @@ export function usePhotoTryOn({
           const prevW = overlay.width;
           const prevH = overlay.height;
           // Límite de textura WebGL: fotos muy grandes se renderizan a escala
-          // y se componen al tamaño natural.
-          const hd = Math.min(1, 4096 / Math.max(nat.W, nat.H));
+          // y se componen al tamaño natural. En modo ligero se limita más para
+          // no reservar texturas enormes.
+          const maxTexture = lightweight ? 2048 : 4096;
+          const hd = Math.min(1, maxTexture / Math.max(nat.W, nat.H));
           const rw = Math.max(2, Math.round(nat.W * hd));
           const rh = Math.max(2, Math.round(nat.H * hd));
           const matrix = lastMatrixRef.current;
@@ -412,7 +417,7 @@ export function usePhotoTryOn({
           }
         }
         const a = document.createElement("a");
-        a.href = full.toDataURL("image/jpeg", 0.95);
+        a.href = full.toDataURL("image/jpeg", lightweight ? 0.85 : 0.95);
         a.download = `glassescanner-HD-${tryId || "montura"}.jpg`;
         a.click();
         return;
@@ -423,10 +428,10 @@ export function usePhotoTryOn({
     const cnv = photoCanvasRef.current;
     if (!cnv) return;
     const a = document.createElement("a");
-    a.href = cnv.toDataURL("image/jpeg", 0.92);
+    a.href = cnv.toDataURL("image/jpeg", lightweight ? 0.82 : 0.92);
     a.download = `glassescanner-${tryId || "montura"}.jpg`;
     a.click();
-  }, [tryId, tryRef]);
+  }, [lightweight, tryId, tryRef]);
 
   return {
     photoCanvasRef,

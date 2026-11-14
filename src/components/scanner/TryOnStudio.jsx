@@ -114,6 +114,7 @@ function FramePicker({ frames, tryId, onSelect }) {
  *   onLensStyle: (v: import("../../types").LensStyle) => void,
  *   use3D: boolean,
  *   onUse3D: (v: boolean) => void,
+ *   lightweight?: boolean,
  *   showOriginal: boolean,
  *   onShowOriginal: (v: boolean) => void,
  *   tryOn: boolean,
@@ -138,6 +139,7 @@ export default function TryOnStudio({
   onLensStyle,
   use3D,
   onUse3D,
+  lightweight = false,
   showOriginal,
   onShowOriginal,
   tryOn,
@@ -165,7 +167,7 @@ export default function TryOnStudio({
     setArOk,
     startCamera,
     stopCamera,
-  } = useLiveCameraTryOn({ tryRef, onError: setError });
+  } = useLiveCameraTryOn({ tryRef, onError: setError, lightweight });
 
   const {
     photoCanvasRef,
@@ -188,6 +190,7 @@ export default function TryOnStudio({
     frames,
     setArOk,
     use3D,
+    lightweight,
   });
 
   // La URL de la foto es local: se libera al cambiarla o al cerrar el probador.
@@ -236,7 +239,7 @@ export default function TryOnStudio({
         handleStopCamera();
       },
       "image/jpeg",
-      0.92,
+      lightweight ? 0.78 : 0.92,
     );
   }
 
@@ -246,7 +249,10 @@ export default function TryOnStudio({
     setError("");
     setLoading("Preparando tu foto…");
     try {
-      const normalized = await normalizeImageFile(f);
+      const normalized = await normalizeImageFile(
+        f,
+        lightweight ? { maxDim: 960, quality: 0.78 } : undefined,
+      );
       openPhoto(normalized.previewUrl);
     } catch {
       openPhoto(URL.createObjectURL(f));
@@ -313,6 +319,12 @@ export default function TryOnStudio({
             Pruébate el catálogo con la cámara en vivo o sobre una foto. Elige 2D o 3D.
             No requiere el escaneo facial.
           </p>
+          {lightweight ? (
+            <p>
+              <span className="tag tag--highlight">Modo ligero</span>{" "}
+              Se prioriza el 2D y se reducen las fotos para ahorrar datos. Puedes activar 3D manualmente.
+            </p>
+          ) : null}
         </div>
         <button type="button" className="btn btn--glass btn--sm" onClick={onClose}>
           ← Volver

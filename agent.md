@@ -11,7 +11,7 @@
 > (`lensStyle.js`, `LensControls.jsx`). Fase 4 del backend cerrada
 > (Ruff/mypy/bandit limpios, 38/38 tests, cobertura 91 %, Docker sin root y
 > dependencias dev separadas). El
-> probador de foto pasó a **3D GLB primero** (pose real por matriz facial de MediaPipe, ancho físico según medidas, sombra de contacto) con el recorte 2D como respaldo. Se mantiene la refactorización del escáner del 25/10, con hooks y componentes extraídos, el code-splitting de Three.js (`Scanner` = **96.66 kB**, antes 651 kB) y la unificación de la lógica 3D en `frameStyle.js`. Los 8 GLB por forma tienen manifest y licencias CC BY 4.0 (`/creditos-3d`), validador `npm run validate:glb` (8/8) y verificación numérica `npm run test:pose` (14/14). Lint sin warnings, build OK y backend 38/38. El reentrenamiento ML del 25/10 **no se desplegó** (LOO 13 % vs baseline 33 %); el modelo proxy sigue como fallback y la corrección manual de forma es el mecanismo principal. Proceso de trabajo en [`AGENTS.md`](AGENTS.md).
+> probador de foto pasó a **3D GLB primero** (pose real por matriz facial de MediaPipe, ancho físico según medidas, sombra de contacto) con el recorte 2D como respaldo. Se mantiene la refactorización del escáner del 25/10, con hooks y componentes extraídos, el code-splitting de Three.js (`Scanner` = **97.76 kB**, antes 651 kB) y la unificación de la lógica 3D en `frameStyle.js`. Los 8 GLB por forma tienen manifest y licencias CC BY 4.0 (`/creditos-3d`), validador `npm run validate:glb` (8/8) y verificación numérica `npm run test:pose` (14/14). Lint sin warnings, build OK y backend 38/38. El reentrenamiento ML del 25/10 **no se desplegó** (LOO 13 % vs baseline 33 %); el modelo proxy sigue como fallback y la corrección manual de forma es el mecanismo principal. Proceso de trabajo en [`AGENTS.md`](AGENTS.md).
 
 Este documento proporciona el contexto actual del proyecto para que otras inteligencias artificiales puedan continuar con el desarrollo.
 
@@ -22,7 +22,7 @@ Este documento proporciona el contexto actual del proyecto para que otras inteli
 *   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GlassesAR 3D procedural y GLB por forma, cargado de forma diferida), Canvas 2D (PhotoTryOn con recortes transparentes y GlassesOverlay procedural), Context API para temas (`ThemeProvider` + `useTheme`). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + Random Forest + SVM ML + MongoDB Motor).
 *   **Despliegue:** Front `https://glassescanner.vercel.app/` (Vercel) · Back `https://glassescanner-backend.onrender.com` (Render, Docker `python:3.11-slim` + sysdeps para OpenCV) · Mongo Atlas (`glassescanner`, seed local de 64 marcos).
 *   **Flujo del escáner (3 pasos):** (1) “Iniciar escaneo” → consentimiento → captura sin monturas; (2) cards de **informe del rostro** (foto original + montajes de las dos monturas mejor puntuadas, tipo, composición, medidas y % por forma/material/color/lente) y **monturas recomendadas** (probador 3D); (3) **escaneo obligatorio con la montura puesta**, habilitado solo tras confirmar la prueba física, que genera el **informe de ajuste** de esa montura (score, veredicto, centrado PD/IPD y motivos). Una **4.ª card opcional** abre el **probador virtual autónomo**: cámara en vivo con montura 3D o foto subida/capturada con modelo 2D/3D escogible, sin escaneo facial ni recomendaciones. Ambos informes se descargan en PDF (impresión del navegador) y JSON; nada se guarda en el servidor.
-*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-11-13: backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **94/94**, `npm run test:e2e` **10/10**, `npm run build` OK (`Scanner` 96.66 kB), `npm run test:pose` **14/14**, `npm run test:alignment` **19/19**, `npm run validate:glb` **8/8** y `npm run validate:pwa` OK.
+*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-11-13 (preloaders + modo ligero): backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **104/104**, `npm run test:e2e` **10/10**, `npm run test:pwa` **1/1**, `npm run build` OK (`Scanner` 97.76 kB), `npm run test:pose` **14/14**, `npm run test:alignment` **19/19**, `npm run validate:glb` **8/8** y `npm run validate:pwa` OK.
 
 ## Identidad Corporativa y Diseño (Design System)
 El diseño combina **Minimalismo Corporativo Prémium** con **Aeroglass / Glassmorphism** de alta gama óptica.
@@ -55,8 +55,9 @@ fsg/
 │   ├── assets/logo/logo.png, logowhite.png, logoblack.png
 │   ├── assets/data/               # planeación.md + 4 refs WhatsApp — rebranding Prisma Visión
 │   ├── components/
-│   │   ├── layout/ (Navbar con links Escáner/Catálogo/Piloto/Admin + selector de tema, Footer)
+│   │   ├── layout/ (Navbar con links Escáner/Catálogo/Piloto/Admin + selector de tema, Footer, HomeBoot.jsx)
 │   │   ├── ui/GlassCard.jsx
+│   │   ├── ui/AppPreloader.jsx/.css # preloader con logo (overlay/página/inline)
 │   │   ├── scanner/               # UI presentacional extraída del escáner
 │   │   │   ├── FeedbackBox.jsx    # voto 1-5★
 │   │   │   ├── LenteDot.jsx       # muestra de tinte
@@ -81,9 +82,11 @@ fsg/
 │   ├── hooks/
 │   │   ├── useLiveCameraTryOn.js  # getUserMedia + MediaPipe VIDEO + try-on en vivo
 │   │   ├── usePhotoTryOn.js       # MediaPipe IMAGE + try-on foto + descarga HD
-│   │   └── useReportTryOn.js      # montajes del informe con estados de carga/error
+│   │   ├── useReportTryOn.js      # montajes del informe con estados de carga/error
+│   │   └── useConnectionQuality.js # red lenta/ahorro de datos + data-connection
 │   ├── lib/
-│   │   ├── api.js                 # health, analyze (timeout 45s), recommend, frames con caché, feedback, CRUD
+│   │   ├── api.js                 # health, analyze (timeout 45s), recommend, frames con caché, feedback, CRUD, wakeBackend
+│   │   ├── connection.js          # detección de red lenta/ahorro de datos (pura)
 │   │   ├── faceLandmarker.js      # landmarker IMAGE compartido (GPU con fallback a CPU)
 │   │   ├── frameRanking.js        # ranking + diversidad por forma para el informe
 │   │   ├── tryOnSnapshot.js       # top-2 monturas + montajes JPEG para el informe
@@ -96,7 +99,7 @@ fsg/
 │   │   ├── AdminFrames.jsx/.css   # CRUD por optica_id con X-Admin-Key + stats feedback
 │   │   ├── Creditos3D.jsx/.css    # atribuciones de los 8 GLB desde el manifest
 │   │   └── Piloto.jsx             # registro guiado por caso (optica_id, caso_n)
-│   ├── App.jsx / App.css / AppRoutes.jsx (carga diferida de rutas) / main.jsx
+│   ├── App.jsx / App.css / AppRoutes.jsx (carga diferida de rutas + AppPreloader) / main.jsx (retira el preloader estático)
 │   └── index.css
 ├── public/
 │   ├── frames/                    # fotos base de catálogo (aviador.jpg, cat-eye.jpg, etc.)
@@ -316,6 +319,18 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   **Motores:** el GLB 3D marca los cristales con `userData.isLens` y aplica el estilo al cargar y en caliente; el recorte 2D tiñe una silueta cacheada por asset+color y la compone con la opacidad; el vectorial usa `lensGradient`. En `rimless` (GLB sin malla de cristal) se prefiere 2D/vectorial.
     *   **Estado:** `Scanner.jsx` guarda `lensStyle` + `lensTouchedRef`, aplica presets al cambiar montura/tipo y lo pasa a `TryOnStudio` y a ambos hooks. `TryState`/`LensStyle` quedan en `src/types.d.ts`; sin cambios en contratos HTTP ni persistencia.
     *   **Pruebas:** `lensStyle.test.js` (14 casos) cubre presets, normalización, mezcla, opacidad y claves de caché.
+24. **Preloaders, despertar de Render y modo ligero (2026-11-13):**
+    *   **Arranque:** `index.html` incluye un preloader estático con el logo (CSS inline; sin scripts inline por la CSP) que `main.jsx` retira tras dos frames de React. `components/ui/AppPreloader.jsx` es el preloader reutilizable (overlay/página/inline) que usan el `Suspense` de `AppRoutes.jsx` y el home.
+    *   **Despertar del backend:** `lib/api.js` expone `wakeBackend({ force })`: comparte una sola petición `GET /health` entre montajes/StrictMode, usa timeout de 60 s y recuerda el éxito 5 min. `components/layout/HomeBoot.jsx` lo dispara al entrar al home, muestra un overlay con logo (mín. 750 ms, máx. 2,8 s, botón “Continuar sin esperar”) y, si Render sigue arrancando, deja un aviso flotante con reintento. No cambia contratos HTTP.
+    *   **Modo ligero:** `lib/connection.js` detecta `saveData`, `effectiveType` (`slow-2g`/`2g`/`3g`), `downlink < 1,5 Mbps`, `rtt > 400 ms` y offline; `hooks/useConnectionQuality.js` lo hace reactivo y marca `data-connection="light"` en `<html>`. En ese modo se prioriza el 2D, se piden 640 px de cámara, se reducen fotos/canvas/JPEG, se omite el GLB del informe y no se precarga el chunk del escáner; el 3D manual sigue disponible. `index.css` apaga orbes, desenfoques y animaciones decorativas.
+    *   **Precarga:** en red rápida, `HomeBoot` descarga el chunk de `Scanner` a los 1,5 s para adelantar la navegación.
+
+## Verificación técnica 2026-11-13 (preloaders y modo ligero)
+*   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
+*   `npm test` → **104/104** (10 nuevos: 6 de `connection.test.js` y 4 de `wakeBackend`); `test:pose` → **14/14**; `test:alignment` → **19/19**.
+*   `npm run test:e2e` → **10/10**; `test:pwa` → **1/1**; `validate:glb` → **8/8**; `validate:pwa` → OK.
+*   `npm run build` → OK (`Scanner` 97.76 kB, `Frame3D` 14.00 kB diferido, Three.js en 45/246/352 kB).
+*   `connection.test.js` cubre API ausente, save-data, 3G/2G/slow-2G, downlink/RTT y offline; `api.test.js` cubre deduplicación, caché/expiración de 5 min y reintento de `wakeBackend`.
 
 ## Verificación técnica 2026-11-13 (controles de lente)
 *   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.

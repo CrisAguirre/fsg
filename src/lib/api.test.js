@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { analyzePhoto, health, listFrames, recommend } from "./api.js";
+import { analyzePhoto, health, listFrames, recommend, resetBackendWake, wakeBackend } from "./api.js";
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -23,11 +23,13 @@ describe("api resiliente", () => {
   beforeEach(() => {
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
+    resetBackendWake();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    resetBackendWake();
   });
 
   it("health valida r.ok y no acepta un 404", async () => {
@@ -81,5 +83,55 @@ describe("api resiliente", () => {
     fetchMock.mockResolvedValue(new Response("bad", { status: 400 }));
     await expect(analyzePhoto(new Blob(["x"]))).rejects.toThrow(/analyze 400/);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("wakeBackend", () => {
+  let fetchMock;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    resetBackendWake();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    resetBackendWake();
+  });
+
+  it("comparte una sola petición entre llamadas concurrentes", async () => {
+    fetchMock.mockResolvedValue(json({ ok: true }));
+    await Promise.all([wakeBackend(), wakeBackend(), wakeBackend()]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("recuerda el backend despierto durante unos minutos", async () => {
+    fetchMock.mockResolvedValue(json({ ok: true }));
+    await wakeBackend();
+    await expect(wakeBackend()).resolves.toMatchObject({ cached: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("vuelve a despertar cuando expira la caché de 5 minutos", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    fetchMock.mockImplementation(() => Promise.resolve(json({ ok: true })));
+
+    await wakeBackend();
+    now.mockReturnValue(1_000_000 + 5 * 60 * 1000 + 1);
+    await wakeBackend();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("libera la promesa si falla para permitir reintentar", async () => {
+    fetchMock
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(json({ ok: true }));
+
+    await expect(wakeBackend()).rejects.toThrow(/Failed to fetch/);
+    await expect(wakeBackend()).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -11,9 +11,13 @@ import { blockMediapipeTelemetry } from "../lib/mediapipeTelemetry.js";
 let glassesARClass = null;
 
 /**
- * @param {{ tryRef: { current: import("../types").TryState }, onError?: (msg: string) => void }} options
+ * @param {{
+ *   tryRef: { current: import("../types").TryState },
+ *   onError?: (msg: string) => void,
+ *   lightweight?: boolean,
+ * }} options
  */
-export function useLiveCameraTryOn({ tryRef, onError }) {
+export function useLiveCameraTryOn({ tryRef, onError, lightweight = false }) {
   const videoRef = useRef(null);
   const overlayRef = useRef(null);
   const threeLiveRef = useRef(null);
@@ -186,8 +190,10 @@ export function useLiveCameraTryOn({ tryRef, onError }) {
     stopCamera();
     const session = cameraSessionRef.current;
     try {
+      // En modo ligero se pide menos resolución: MediaPipe procesa menos píxeles
+      // por frame y el video consume menos datos/CPU en equipos modestos.
       const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 } },
+        video: { facingMode: "user", width: { ideal: lightweight ? 640 : 1280 } },
         audio: false,
       });
       // Si mientras se pedía permiso se cambió de pestaña o se reintentó,
@@ -208,7 +214,7 @@ export function useLiveCameraTryOn({ tryRef, onError }) {
       if (session !== cameraSessionRef.current) return;
       onError?.("No se pudo abrir la cámara (permiso, HTTPS o sin cámara). Usa la pestaña Subir foto.");
     }
-  }, [onError, startLiveLandmarks, stopCamera]);
+  }, [lightweight, onError, startLiveLandmarks, stopCamera]);
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 

@@ -20,22 +20,23 @@ export function sampleBrightness(canvas) {
   }
 }
 
-export async function normalizeImageFile(file) {
+export async function normalizeImageFile(file, { maxDim = 1280, quality = 0.88 } = {}) {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const maxDim = 1280;
+      const limit = Math.max(320, Math.min(2048, Number(maxDim) || 1280));
+      const jpegQuality = Math.max(0.5, Math.min(0.95, Number(quality) || 0.88));
       let w = img.naturalWidth || img.width || 640;
       let h = img.naturalHeight || img.height || 480;
-      if (w > maxDim || h > maxDim) {
+      if (w > limit || h > limit) {
         if (w > h) {
-          h = Math.round((h * maxDim) / w);
-          w = maxDim;
+          h = Math.round((h * limit) / w);
+          w = limit;
         } else {
-          w = Math.round((w * maxDim) / h);
-          h = maxDim;
+          w = Math.round((w * limit) / h);
+          h = limit;
         }
       }
       const canvas = document.createElement("canvas");
@@ -53,7 +54,7 @@ export async function normalizeImageFile(file) {
           }
         },
         "image/jpeg",
-        0.88,
+        jpegQuality,
       );
     };
     img.onerror = () => {

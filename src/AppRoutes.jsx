@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import App from './App.jsx'
+import AppPreloader from './components/ui/AppPreloader.jsx'
 
 // Rutas pesadas (Three.js/MediaPipe) fuera del bundle inicial.
 const Scanner = lazy(() => import('./pages/Scanner.jsx'))
@@ -11,7 +12,7 @@ const Creditos3D = lazy(() => import('./pages/Creditos3D.jsx'))
 
 export default function AppRoutes() {
   return (
-    <Suspense fallback={<div className="container" style={{ padding: '7rem 1rem' }}>Cargando…</div>}>
+    <Suspense fallback={<AppPreloader variant="page" label="Cargando Glassescanner" detail="Preparando la vista…" />}>
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/scanner" element={<Scanner />} />

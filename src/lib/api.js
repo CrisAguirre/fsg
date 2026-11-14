@@ -71,7 +71,53 @@ async function req(path, opts = {}, { timeoutMs, retries = 0 } = {}) {
   }
 }
 
-export const health = () => req("/health", {}, { retries: 1 });
+/** @param {{ timeoutMs?: number, retries?: number }} [config] */
+export const health = (config = {}) => req("/health", {}, { retries: 1, ...config });
+
+// Render entra en frío tras un periodo sin tráfico. El home llama a
+// `wakeBackend()` al montar para que el análisis no espere el arranque. La
+// promesa se comparte entre StrictMode/montajes y el resultado se recuerda unos
+// minutos; si falla, se libera para permitir un reintento manual.
+const WAKE_TIMEOUT_MS = 60000;
+const WAKE_CACHE_MS = 5 * 60 * 1000;
+let wakePromise = null;
+let wakeAt = 0;
+
+/**
+ * Despierta el backend con un timeout largo (Render puede tardar decenas de
+ * segundos en arrancar). No bloquea el home: el preloader se puede saltar.
+ * @param {{ force?: boolean }} [options]
+ */
+export function wakeBackend({ force = false } = {}) {
+  if (force) {
+    wakePromise = null;
+    wakeAt = 0;
+  }
+  if (wakeAt && Date.now() - wakeAt < WAKE_CACHE_MS) {
+    return Promise.resolve({ ok: true, cached: true });
+  }
+  if (wakePromise) return wakePromise;
+
+  wakePromise = health({ timeoutMs: WAKE_TIMEOUT_MS, retries: 0 })
+    .then((data) => {
+      wakeAt = Date.now();
+      // El éxito se recuerda con `wakeAt`; liberar la promesa permite volver a
+      // despertar al backend cuando expire la caché de 5 minutos.
+      wakePromise = null;
+      return data;
+    })
+    .catch((error) => {
+      wakePromise = null;
+      throw error;
+    });
+  return wakePromise;
+}
+
+/** Solo para pruebas: olvida el estado compartido del despertar. */
+export function resetBackendWake() {
+  wakePromise = null;
+  wakeAt = 0;
+}
 
 // Último catálogo bueno en localStorage: si Render está en frío o la red falla,
 // la app sigue mostrando monturas en vez de quedarse vacía.

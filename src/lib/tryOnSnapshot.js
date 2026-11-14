@@ -10,7 +10,9 @@ import { pickDiverseFrames } from "./frameRanking.js";
 import { sampleBrightness } from "./imageUtils.js";
 
 const MAX_SIDE = 1000;
+const LIGHT_MAX_SIDE = 720;
 const JPEG_QUALITY = 0.9;
+const LIGHT_JPEG_QUALITY = 0.78;
 const MODEL_TIMEOUT_MS = 20000;
 
 /** Rechaza si la promesa no resuelve a tiempo (CDN lento o colgado). */
@@ -64,9 +66,18 @@ function loadPhoto(url) {
 
 /**
  * Genera un JPEG por montura sobre la foto original.
+ * En modo ligero se omite el GLB 3D (evita descargar Three.js) y se reduce el
+ * tamaño/calidad del JPEG; el recorte 2D o el vectorial siguen funcionando.
  * @returns {Promise<{images: Array<object>, reason: string|null}>}
  */
-export async function renderTryOnSnapshots({ photoUrl, frames, recs, metrics, limit = 2 }) {
+export async function renderTryOnSnapshots({
+  photoUrl,
+  frames,
+  recs,
+  metrics,
+  limit = 2,
+  lightweight = false,
+}) {
   if (!photoUrl) return { images: [], reason: "no-photo" };
   const picks = pickTopFrames(recs, frames, limit);
   if (picks.length === 0) return { images: [], reason: "no-frames" };
@@ -83,7 +94,9 @@ export async function renderTryOnSnapshots({ photoUrl, frames, recs, metrics, li
     return { images: [], reason: "model" };
   }
 
-  const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+  const maxSide = lightweight ? LIGHT_MAX_SIDE : MAX_SIDE;
+  const jpegQuality = lightweight ? LIGHT_JPEG_QUALITY : JPEG_QUALITY;
+  const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
   const width = Math.round(img.naturalWidth * scale);
   const height = Math.round(img.naturalHeight * scale);
 
@@ -136,7 +149,8 @@ export async function renderTryOnSnapshots({ photoUrl, frames, recs, metrics, li
       }
 
       // 2) GLB 3D: frontal por construcción y con la pose real de la foto.
-      if (!drew) {
+      // En modo ligero se omite para no descargar Three.js ni los GLB.
+      if (!drew && !lightweight) {
         try {
           if (!ar) {
             const GlassesAR = await loadGlassesAR();
@@ -191,7 +205,7 @@ export async function renderTryOnSnapshots({ photoUrl, frames, recs, metrics, li
         nombre: frame.nombre ?? frame.id,
         score: Number(rec?.score) || 0,
         verdict: rec?.verdict ?? "",
-        dataUrl: canvas.toDataURL("image/jpeg", JPEG_QUALITY),
+        dataUrl: canvas.toDataURL("image/jpeg", jpegQuality),
       });
     }
   } finally {

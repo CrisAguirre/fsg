@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import Navbar from './components/layout/Navbar'
 import Footer from './components/layout/Footer'
+import HomeBoot from './components/layout/HomeBoot'
 import GlassCard from './components/ui/GlassCard'
 import { useTheme } from './context/useTheme'
 import './App.css'
@@ -21,6 +22,7 @@ function App() {
 
   return (
     <>
+      <HomeBoot />
       <Navbar />
 
       {/* ── Hero Section ──────────────────────────────────────── */}

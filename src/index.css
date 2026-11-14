@@ -434,3 +434,40 @@ a:hover {
 .animate-float {
   animation: float 6s ease-in-out infinite;
 }
+
+/* -- Modo ligero (red lenta / ahorro de datos) --------------- */
+/* El hook useConnectionQuality marca data-connection="light" en <html>.
+   Se apagan desenfoques, orbes y animaciones decorativas para reducir CPU/GPU
+   y evitar descargas visuales costosas. El flujo y los controles no cambian. */
+[data-connection="light"] body::before {
+  display: none;
+}
+
+[data-connection="light"] .glass,
+[data-connection="light"] .glass--heavy,
+[data-connection="light"] .precision__card,
+[data-connection="light"] .hero__logo-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-connection="light"] .hero__bg-orb,
+[data-connection="light"] .hero__grid-lines,
+[data-connection="light"] .hero__logo-glow {
+  display: none;
+}
+
+[data-connection="light"] .animate-fade-in-up,
+[data-connection="light"] .animate-fade-in,
+[data-connection="light"] .animate-float,
+[data-connection="light"] .hero__logo-card,
+[data-connection="light"] .hero__logo-ring,
+[data-connection="light"] .hero__scroll-line,
+[data-connection="light"] .home-boot {
+  animation: none;
+}
+
+[data-connection="light"] .glass,
+[data-connection="light"] .glass--heavy {
+  transition: none;
+}

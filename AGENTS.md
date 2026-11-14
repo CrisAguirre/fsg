@@ -56,10 +56,12 @@ src/
 ├── hooks/
 │   ├── useLiveCameraTryOn.js      # getUserMedia + MediaPipe VIDEO + try-on 3D/2D en vivo
 │   ├── usePhotoTryOn.js           # MediaPipe IMAGE + GLB 3D + recorte 2D + descarga HD
-│   └── useReportTryOn.js          # montajes del informe (carga/error, respuestas obsoletas)
+│   ├── useReportTryOn.js          # montajes del informe (carga/error, respuestas obsoletas)
+│   └── useConnectionQuality.js    # red lenta/ahorro de datos + data-connection
 ├── lib/
-│   ├── api.js                     # cliente HTTP (timeouts, reintentos GET, caché de catálogo)
+│   ├── api.js                     # cliente HTTP (timeouts, reintentos GET, caché de catálogo, wakeBackend)
 │   ├── compatibility.js           # % por forma/material/color/lente + centrado + ajuste
+│   ├── connection.js              # detección pura de red lenta/ahorro de datos
 │   ├── faceLabels.js              # formas y etiquetas faciales (fuente única)
 │   ├── faceLandmarker.js          # landmarker IMAGE compartido (GPU → CPU)
 │   ├── frameRanking.js            # ranking + diversidad por forma del informe
@@ -68,6 +70,8 @@ src/
 │   ├── mediapipeTelemetry.js      # corta la telemetría de MediaPipe (403)
 │   ├── pwa.js                     # registro del service worker (solo producción)
 │   └── tryOnSnapshot.js           # top-2 monturas + montajes JPEG del informe
+├── components/layout/HomeBoot.jsx # overlay con logo + wakeBackend + precarga del escáner
+├── components/ui/AppPreloader.jsx # preloader reutilizable con logo
 ├── components/scanner/
 │   ├── FeedbackBox.jsx            # voto 1-5★
 │   ├── FrameStrip.jsx             # tira de monturas recomendadas sobre la foto
@@ -129,7 +133,7 @@ npm run lint          # 0 warnings
 npm run lint:eslint   # accesibilidad + hooks (0)
 npm run lint:css      # stylelint (0)
 npm run typecheck     # tsc --checkJs (0)
-npm test              # vitest (94)
+npm test              # vitest (104)
 npm run test:e2e      # playwright (10; `npx playwright install chromium` la primera vez)
 npm run build         # 0 errores y ningún chunk > 500 kB
 npm run test:pose     # 14/14 verificaciones numéricas
@@ -171,12 +175,24 @@ Definición de terminado:
 
 ## 4. Estado verificado (2026-11-13)
 
-- Frontend: build OK en ~0.7 s. `Scanner` = **96.7 kB**. `Three.js` se descarga
+- Frontend: build OK en ~1 s. `Scanner` = **97.8 kB**. `Three.js` se descarga
   solo al activar el 3D o al generar un montaje 3D del informe (chunks
   45/246/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
-- `test`: **94/94**; `test:e2e`: **10/10**; `test:pose`: **14/14**;
-  `test:alignment`: **19/19**.
+- `test`: **104/104**; `test:e2e`: **10/10**; `test:pwa`: **1/1**;
+  `test:pose`: **14/14**; `test:alignment`: **19/19**.
+- **Preloaders, despertar de Render y modo ligero (2026-11-13):** `index.html`
+  trae un preloader estático con el logo (CSS inline, sin scripts inline por
+  CSP) que `main.jsx` retira tras el montaje; `components/ui/AppPreloader.jsx`
+  cubre rutas (`Suspense`) y el overlay del home. `lib/api.js` expone
+  `wakeBackend()` (una sola petición `GET /health` compartida, timeout 60 s,
+  caché de éxito 5 min) y `HomeBoot.jsx` lo dispara al entrar al home con
+  overlay saltable (máx. 2,8 s) + aviso flotante con reintento. `lib/connection.js`
+  + `useConnectionQuality.js` detectan save-data/2G/3G/downlink/RTT/offline y
+  marcan `data-connection="light"`: se prioriza 2D, cámara a 640 px, fotos y
+  JPEG reducidos, sin GLB en el informe ni precarga del escáner, y el CSS apaga
+  orbes/desenfoques/animaciones. El 3D manual sigue disponible. Sin cambios en
+  contratos HTTP, Ley 1581 ni persistencia de fotos.
 - **Controles de lente (2026-11-13):** el montaje del paso 2 y el probador
   (cámara y foto) muestran `LensControls.jsx` sobre el preview con tres
   controles: color (paleta fija de 8 tonos + selector nativo), intensidad y
@@ -378,3 +394,15 @@ Definición de terminado:
   y los CDN cambian de versión; interceptarlos produce respuestas obsoletas.
 - Registrar el SW en desarrollo: `lib/pwa.js` solo lo hace en producción para no
   romper el HMR de Vite.
+- Bloquear el home esperando a Render: el overlay de `HomeBoot.jsx` se puede
+  saltar y expira a los 2,8 s; el aviso flotante con reintento es la única señal
+  que debe quedar si el backend sigue frío.
+- Añadir scripts inline al preloader estático de `index.html`: la CSP de
+  `vercel.json` no los permite. El preloader usa solo CSS inline y el logo
+  `/icons/icon-192.png`.
+- Descargar GLB/Three.js o precargar `Scanner.jsx` en modo ligero: `lightweight`
+  debe omitir el 3D del informe, reducir cámara/fotos/JPEG y desactivar la
+  precarga; el 3D solo se carga si el usuario lo activa a mano.
+- Ignorar `lightweight` en los hooks de cámara/foto: `useLiveCameraTryOn` pide
+  640 px y `usePhotoTryOn` reduce canvas y calidad JPEG; mantener esos límites
+  evita volver a penalizar a los dispositivos lentos.

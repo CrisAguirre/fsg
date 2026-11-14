@@ -6,7 +6,7 @@ import { renderTryOnSnapshots, SNAPSHOT_REASON_MESSAGE } from "../lib/tryOnSnaps
 
 const EMPTY = { images: [], loading: false, error: "", retryable: false };
 
-export function useReportTryOn() {
+export function useReportTryOn({ lightweight = false } = {}) {
   const [state, setState] = useState(EMPTY);
   const runRef = useRef(0);
 
@@ -14,7 +14,7 @@ export function useReportTryOn() {
     const run = ++runRef.current;
     setState({ images: [], loading: true, error: "", retryable: false });
     try {
-      const result = await renderTryOnSnapshots({ photoUrl, frames, recs, metrics });
+      const result = await renderTryOnSnapshots({ photoUrl, frames, recs, metrics, lightweight });
       if (run !== runRef.current) return;
       setState({
         images: result.images,
@@ -34,7 +34,7 @@ export function useReportTryOn() {
         retryable: true,
       });
     }
-  }, []);
+  }, [lightweight]);
 
   const reset = useCallback(() => {
     runRef.current += 1;

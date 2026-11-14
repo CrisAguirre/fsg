@@ -25,6 +25,7 @@ import ScanReport from "../components/scanner/ScanReport.jsx";
 import StepCards from "../components/scanner/StepCards.jsx";
 import TryOnStudio from "../components/scanner/TryOnStudio.jsx";
 import { lensPreset, normalizeLensStyle } from "../components/tryon/lensStyle.js";
+import { useConnectionQuality } from "../hooks/useConnectionQuality.js";
 import { useLiveCameraTryOn } from "../hooks/useLiveCameraTryOn.js";
 import { usePhotoTryOn } from "../hooks/usePhotoTryOn.js";
 import "./Scanner.css";
@@ -37,6 +38,7 @@ export default function Scanner() {
   const [searchParams] = useSearchParams();
   const initialFrame = searchParams.get("frameId");
   const initialFrameRef = useRef(initialFrame);
+  const { lightweight, label: connectionLabel } = useConnectionQuality();
   /** @type {import("react").MutableRefObject<File | null>} */
   const lastScanFileRef = useRef(null);
 
@@ -70,7 +72,12 @@ export default function Scanner() {
   const [tryLens, setTryLens] = useState("monofocal");
   const [lensStyle, setLensStyle] = useState(() => lensPreset("monofocal"));
   const lensTouchedRef = useRef(false);
-  const [use3D, setUse3D] = useState(true);
+  const [use3D, setUse3D] = useState(() => !lightweight);
+  const use3DTouchedRef = useRef(false);
+  const handleUse3D = (value) => {
+    use3DTouchedRef.current = true;
+    setUse3D(value);
+  };
   const [showOriginal, setShowOriginal] = useState(false);
   const [zoomed, setZoomed] = useState(false);
   const [tryOn, setTryOn] = useState(true);
@@ -90,6 +97,11 @@ export default function Scanner() {
   useEffect(() => {
     tryLensRef.current = tryLens;
   }, [tryLens]);
+
+  // Si la red empeora y el usuario no eligió motor manualmente, prioriza 2D.
+  useEffect(() => {
+    if (lightweight && !use3DTouchedRef.current) setUse3D(false);
+  }, [lightweight]);
 
   // El tipo de lente fija los tres controles como preset; desde ahí el usuario
   // puede ajustarlos y su elección se conserva hasta que cambie de tipo.
@@ -132,7 +144,7 @@ export default function Scanner() {
     setArOk,
     startCamera,
     stopCamera,
-  } = useLiveCameraTryOn({ tryRef, onError: setError });
+  } = useLiveCameraTryOn({ tryRef, onError: setError, lightweight });
 
   const {
     photoCanvasRef,
@@ -155,6 +167,7 @@ export default function Scanner() {
     frames,
     setArOk,
     use3D,
+    lightweight,
     closeOnUnmount: true,
   });
 
@@ -167,7 +180,7 @@ export default function Scanner() {
     retryable: reportTryOnRetryable,
     generate: generateReportTryOns,
     reset: resetReportTryOn,
-  } = useReportTryOn();
+  } = useReportTryOn({ lightweight });
 
   useEffect(() => {
     health()
@@ -278,7 +291,7 @@ export default function Scanner() {
         if (consent) runAnalysis(captured, mode);
       },
       "image/jpeg",
-      0.88,
+      lightweight ? 0.76 : 0.88,
     );
   }
 
@@ -289,7 +302,10 @@ export default function Scanner() {
     setLoading("Cargando y optimizando imagen…");
     let chosen = null;
     try {
-      const normalized = await normalizeImageFile(f);
+      const normalized = await normalizeImageFile(
+        f,
+        lightweight ? { maxDim: 960, quality: 0.78 } : undefined,
+      );
       chosen = normalized.file;
       lastScanFileRef.current = chosen;
       if (mode === "fit") {
@@ -470,6 +486,12 @@ export default function Scanner() {
         <p className="scanner__sub">
           Análisis facial · estimaciones orientativas · Backend: <code>{API_URL}</code> · {backendOk === null ? "…" : backendOk ? "en línea ✓" : "sin conexión ✕"}
         </p>
+        {lightweight ? (
+          <p className="scanner__sub">
+            <span className="tag tag--highlight">Modo ligero</span>{" "}
+            {connectionLabel}: se prioriza el probador 2D y se reducen las fotos para ahorrar datos.
+          </p>
+        ) : null}
 
         {phase !== "tryon" && (
           <ol className="scanner__steps" aria-label="Pasos del escaneo">
@@ -602,7 +624,8 @@ export default function Scanner() {
             lensStyle={lensStyle}
             onLensStyle={handleLensStyle}
             use3D={use3D}
-            onUse3D={setUse3D}
+            onUse3D={handleUse3D}
+            lightweight={lightweight}
             showOriginal={showOriginal}
             onShowOriginal={setShowOriginal}
             tryOn={tryOn}
@@ -679,7 +702,7 @@ export default function Scanner() {
                   <div className="scanner__row">
                     <button type="button" className="btn btn--glass" onClick={startCamera}>Activar cámara</button>
                     <label style={{ display: "flex", gap: ".4rem", alignItems: "center" }}>
-                      <input type="checkbox" checked={use3D} onChange={(e) => setUse3D(e.target.checked)} />
+                      <input type="checkbox" checked={use3D} onChange={(e) => handleUse3D(e.target.checked)} />
                       Armazón 3D real
                     </label>
                   </div>

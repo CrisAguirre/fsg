@@ -39,7 +39,7 @@ export default function ScanCapture({
       {tab === "camara" ? (
         <div className="glass scanner__panel">
           <div className="scanner__camwrap">
-            <video ref={videoRef} playsInline muted className="scanner__video" />
+            <video ref={videoRef} playsInline muted className="scanner__video" aria-label="Vista de la cámara en vivo" />
             <canvas ref={overlayRef} className="scanner__overlay" aria-hidden="true" />
             <canvas ref={threeLiveRef} className="scanner__overlay scanner__overlay--3d" aria-hidden="true" />
           </div>

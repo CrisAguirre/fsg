@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
 import ErrorBoundary from './components/ui/ErrorBoundary.jsx'
+import UpdatePrompt from './components/ui/UpdatePrompt.jsx'
 import { registerServiceWorker } from './lib/pwa.js'
 import './index.css'
 import AppRoutes from './AppRoutes.jsx'
@@ -25,6 +26,7 @@ createRoot(document.getElementById('root')).render(
           <AppRoutes />
         </ErrorBoundary>
       </BrowserRouter>
+      <UpdatePrompt />
     </ThemeProvider>
   </StrictMode>,
 )

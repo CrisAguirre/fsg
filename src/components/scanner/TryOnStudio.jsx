@@ -379,7 +379,7 @@ export default function TryOnStudio({
           {tab === "camara" ? (
             <div className="glass scanner__panel">
               <div className="scanner__camwrap">
-                <video ref={videoRef} playsInline muted className="scanner__video" />
+                <video ref={videoRef} playsInline muted className="scanner__video" aria-label="Vista de la cámara en vivo" />
                 <canvas ref={overlayRef} className="scanner__overlay" aria-hidden="true" />
                 <canvas
                   ref={threeLiveRef}
@@ -517,7 +517,19 @@ export default function TryOnStudio({
                       <canvas
                         ref={photoCanvasRef}
                         className="scanner__preview"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={
+                          zoomed
+                            ? "Vista del probador ampliada. Activa para alejar"
+                            : "Vista del probador. Activa para ampliar el detalle"
+                        }
                         onClick={() => setZoomed((z) => !z)}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" && event.key !== " ") return;
+                          event.preventDefault();
+                          setZoomed((z) => !z);
+                        }}
                         title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"}
                       />
                       <canvas

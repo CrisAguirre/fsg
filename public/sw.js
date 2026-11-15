@@ -6,7 +6,7 @@
 //   - API y CDN (otro origen): no se interceptan; la app ya maneja timeouts,
 //     reintentos y caché de catálogo en localStorage.
 // Suba VERSION cuando quiera invalidar todas las cachés del cliente.
-const VERSION = "v2";
+const VERSION = "v3";
 const SHELL_CACHE = `gpv-shell-${VERSION}`;
 const RUNTIME_CACHE = `gpv-runtime-${VERSION}`;
 const CURRENT_CACHES = new Set([SHELL_CACHE, RUNTIME_CACHE]);
@@ -23,12 +23,13 @@ const PRECACHE = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(PRECACHE))
-      .then(() => self.skipWaiting()),
-  );
+  // Sin skipWaiting: la versión nueva queda en espera y la app avisa al usuario
+  // (UpdatePrompt). Así no se mezclan assets viejos y nuevos a mitad de sesión.
+  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(PRECACHE)));
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {

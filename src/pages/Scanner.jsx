@@ -723,7 +723,7 @@ export default function Scanner() {
               {liveOn && (
                 <>
                   <div className="scanner__camwrap">
-                    <video ref={videoRef} playsInline muted className="scanner__video" />
+                    <video ref={videoRef} playsInline muted className="scanner__video" aria-label="Vista de la cámara en vivo" />
                     <canvas ref={overlayRef} className="scanner__overlay" aria-hidden="true" />
                     <canvas ref={threeLiveRef} className="scanner__overlay scanner__overlay--3d" aria-hidden="true" />
                   </div>
@@ -755,7 +755,24 @@ export default function Scanner() {
                   <img ref={photoImgRef} src={preview} alt="rostro para análisis" className="scanner__preview" style={{ display: "none" }} />
                   <div className="scanner__montage">
                     <div className={`scanner__zoomwrap ${zoomed ? "zoomed" : ""}`}>
-                      <canvas ref={photoCanvasRef} className="scanner__preview" onClick={() => setZoomed((z) => !z)} title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"} />
+                      <canvas
+                        ref={photoCanvasRef}
+                        className="scanner__preview"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={
+                          zoomed
+                            ? "Vista previa ampliada. Activa para alejar"
+                            : "Vista previa con la montura. Activa para ampliar el detalle"
+                        }
+                        onClick={() => setZoomed((z) => !z)}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" && event.key !== " ") return;
+                          event.preventDefault();
+                          setZoomed((z) => !z);
+                        }}
+                        title={zoomed ? "Clic para alejar" : "Clic para ampliar detalle"}
+                      />
                       <canvas ref={threePhotoRef} className="scanner__overlay scanner__overlay--3d" aria-hidden="true" />
                     </div>
                     <LensControls lensStyle={lensStyle} tint={tryLens} onChange={handleLensStyle} disabled={!tryOn} />

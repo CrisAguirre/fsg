@@ -1,6 +1,6 @@
 // Panel flotante del lente: color, intensidad del color y opacidad tipo
 // transitions. Se monta sobre el preview del paso 2 y en el probador virtual.
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { LENS_COLORS, mixLensColor, normalizeLensStyle } from "../tryon/lensStyle.js";
 
 const clampPct = (v) => Math.round(Math.min(1, Math.max(0, Number(v) || 0)) * 100);
@@ -22,15 +22,28 @@ export default function LensControls({
   className = "",
 }) {
   const [open, setOpen] = useState(false);
+  const toggleRef = useRef(null);
   const id = useId();
   const style = normalizeLensStyle(lensStyle, tint);
   // Muestra el color tal como se verá con la intensidad actual.
   const preview = mixLensColor(style.color, Math.max(0.28, style.intensity));
   const update = (patch) => onChange?.({ ...style, ...patch });
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      toggleRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
   return (
     <div className={`lensctl ${open ? "lensctl--open" : ""} ${className}`.trim()}>
       <button
+        ref={toggleRef}
         type="button"
         className="lensctl__toggle"
         onClick={() => setOpen((v) => !v)}

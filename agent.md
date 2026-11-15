@@ -58,6 +58,8 @@ fsg/
 │   │   ├── layout/ (Navbar con links Escáner/Catálogo/Piloto/Admin + selector de tema, Footer, HomeBoot.jsx)
 │   │   ├── ui/GlassCard.jsx
 │   │   ├── ui/AppPreloader.jsx/.css # preloader con logo (overlay/página/inline)
+│   │   ├── ui/ErrorBoundary.jsx/.css # red de seguridad con logo + recarga
+│   │   ├── ui/UpdatePrompt.jsx/.css  # aviso de versión nueva del PWA (SW en espera)
 │   │   ├── scanner/               # UI presentacional extraída del escáner
 │   │   │   ├── FeedbackBox.jsx    # voto 1-5★
 │   │   │   ├── LenteDot.jsx       # muestra de tinte
@@ -344,12 +346,19 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   **GLB:** `cuadrado` 2,43 → 0,50 MB (poda de 10 juegos de UV sin texturas), `oval` 1,54 → 0,86 MB (texturas planas/sólidas a factores) y `redondo` 1,06 → 0,49 MB (dedup + recompresión conservando normal/roughness). Solo cuantización `KHR_mesh_quantization`, sin Draco/meshopt; validado con `gltf-transform validate` y captura headless del preview.
     *   **Pruebas:** `npm test` → **118/118** (17 archivos).
 
+27. **Accesibilidad y aviso de versión del PWA (2026-11-14):**
+    *   **SW en espera:** `public/sw.js` ya no llama `skipWaiting()` en `install`; escucha `SKIP_WAITING` por `postMessage` y sube `VERSION` a `v3`. `lib/pwa.js` expone `isPwaUpdateReady()`, `onPwaUpdate()` y `applyPwaUpdate()`; la recarga por `controllerchange` solo ocurre tras confirmar.
+    *   **Aviso:** `components/ui/UpdatePrompt.jsx` (montado en `main.jsx`) muestra "Nueva versión disponible" con **Actualizar** y **Ahora no**, sin bloquear la app. Verificado con un deploy simulado: el aviso aparece, la actualización recarga una vez y el aviso desaparece.
+    *   **Probador accesible:** el canvas ampliable del paso 2 y del probador independiente es `role="button"`, `tabIndex=0`, con `aria-label` dinámico y Enter/Espacio; los `<video>` tienen etiqueta. `LensControls` cierra con Escape y devuelve el foco al toggle; toggle, muestras y sliders tienen `:focus-visible`.
+    *   **Pruebas:** `npm test` → **118/118**; `test:pwa` → **1/1** con el SW en espera; `test:e2e` → **10/10**.
+
 ## Verificación técnica 2026-11-14 (materiales PBR)
 *   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
 *   `npm test` → **118/118** (17 archivos); `test:pose` → **14/14**; `test:alignment` → **19/19**.
 *   `npm run test:e2e` → **10/10**; `test:pwa` → **1/1**; `validate:glb` → **8/8**; `validate:pwa` → OK.
 *   `npm run build` → OK (`Scanner` 99.4 kB, `Frame3D` 16.66 kB diferido, Three.js en 47/248/352 kB; ningún chunk > 500 kB).
 *   GLB: `cuadrado` 0,50 MB · `oval` 0,86 MB · `redondo` 0,49 MB; comparación visual headless antes/después sin diferencias.
+*   PWA: `test:pwa` → **1/1** con el SW en espera; ciclo de actualización verificado con deploy simulado (aviso → Actualizar → recarga → sin aviso).
 *   Validación visual aislada: GLB de carey, dorado, negro, plateado y lentes claros/polarizados con brillos y sin artefactos; recorte 2D de carey y metal con reflejos y sin rectángulo de fondo.
 
 ## Verificación técnica 2026-11-13 (preloaders y modo ligero)

@@ -75,6 +75,7 @@ src/
 ├── components/layout/HomeBoot.jsx # overlay con logo + wakeBackend + precarga del escáner
 ├── components/ui/AppPreloader.jsx # preloader reutilizable con logo
 ├── components/ui/ErrorBoundary.jsx # red de seguridad con logo + recarga
+├── components/ui/UpdatePrompt.jsx  # aviso de versión nueva del PWA (SW en espera)
 ├── components/scanner/
 │   ├── FeedbackBox.jsx            # voto 1-5★
 │   ├── FrameStrip.jsx             # tira de monturas recomendadas sobre la foto
@@ -203,6 +204,16 @@ Definición de terminado:
   `KHR_mesh_quantization` (soportado por `GLTFLoader`), sin Draco/meshopt, y se
   verificaron con `gltf-transform validate` + captura headless del preview:
   misma forma y materiales que antes. El resto de formas (<0,3 MB) no se tocaron.
+- **Accesibilidad y actualización del PWA (2026-11-14):** `public/sw.js` ya no
+  hace `skipWaiting()` al instalar; la versión nueva queda en espera y
+  `components/ui/UpdatePrompt.jsx` avisa con "Actualizar / Ahora no".
+  `lib/pwa.js` expone `isPwaUpdateReady()`, `onPwaUpdate()` y
+  `applyPwaUpdate()` (postMessage `SKIP_WAITING` + recarga solo tras confirmar).
+  En el probador, el canvas ampliable responde a Enter/Espacio con
+  `role="button"` y `aria-label`, los videos tienen etiqueta, y `LensControls`
+  cierra con Escape devolviendo el foco al botón, con `:focus-visible` en
+  toggle, muestras y sliders. Verificado el ciclo completo con un deploy
+  simulado: aviso visible, actualización y recarga sin prompt residual.
 - **Materiales PBR y realismo (2026-11-14):** `frameStyle.js` expone
   `frameFinish()`/`frameMaterialProfile()` con metalness, roughness, clearcoat,
   envMapIntensity y tintStrength por acabado (metal, mixto, carey, cristal,
@@ -397,6 +408,12 @@ Definición de terminado:
   (`KHR_mesh_quantization`) sí es segura.
 - Forzar "modo completo" sin conexión: `readConnectionInfo` deja que offline gane
   sobre la preferencia manual.
+- Volver a poner `skipWaiting()` en el `install` del SW: la versión nueva debe
+  esperar a que el usuario confirme en `UpdatePrompt`; activarla sola mezcla
+  assets viejos y nuevos a mitad de sesión.
+- Hacer clicable un canvas sin teclado: el preview ampliable usa `role="button"`,
+  `tabIndex` y Enter/Espacio. Los controles del lente cierran con Escape y
+  devuelven el foco al toggle.
 - Duplicar `frameColorHex` o la clasificación de tintes en cada motor.
 - Duplicar la paleta o los presets de lente en cada motor: `lensStyle.js` es la
   fuente única. El tipo de lente fija color/intensidad/opacidad y el usuario

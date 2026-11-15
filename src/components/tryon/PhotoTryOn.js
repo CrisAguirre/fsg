@@ -74,23 +74,33 @@ function tintedFrame(asset, frame) {
   const x = c.getContext("2d");
   x.drawImage(img, 0, 0);
 
-  // El recorte base suele ser negro con brillos. Un relleno plano los borra;
-  // en su lugar se colorea y después se recupera la luminosidad original con
-  // el blend "luminosity", que conserva vetas, biseles y reflejos.
+  // El recorte base suele ser negro con brillos. Un relleno plano los borra.
+  // En acetato/carey se colorea y se recupera la luminosidad original; en
+  // metal/cristal el negro base no sirve, así que se reconstruye el cuerpo con
+  // el color del catálogo y se conservan solo brillos y sombras.
   if (!isDarkColor(color)) {
     x.globalCompositeOperation = "source-atop";
     x.globalAlpha = profile.tintStrength;
     x.fillStyle = color;
     x.fillRect(0, 0, c.width, c.height);
 
-    x.globalCompositeOperation = "luminosity";
-    x.globalAlpha = 1;
-    x.drawImage(img, 0, 0);
-
-    if (profile.finish === "metal" || profile.finish === "mixed") {
-      // Recupera los reflejos metálicos que el color base haya oscurecido.
+    if (profile.finish === "metal" || profile.finish === "mixed" || profile.finish === "transparent") {
+      const transparent = profile.finish === "transparent";
       x.globalCompositeOperation = "screen";
-      x.globalAlpha = 0.16;
+      x.globalAlpha = transparent ? 0.22 : 0.34;
+      x.drawImage(img, 0, 0);
+      x.globalCompositeOperation = "multiply";
+      x.globalAlpha = transparent ? 0.12 : 0.22;
+      x.drawImage(img, 0, 0);
+      // El brillo final se limita al alfa del armazón: un fillRect con "screen"
+      // teñiría también el fondo transparente y dibujaría un rectángulo.
+      x.globalCompositeOperation = "source-atop";
+      x.globalAlpha = transparent ? 0.08 : 0.12;
+      x.fillStyle = "#ffffff";
+      x.fillRect(0, 0, c.width, c.height);
+    } else {
+      x.globalCompositeOperation = "luminosity";
+      x.globalAlpha = 1;
       x.drawImage(img, 0, 0);
     }
     x.globalCompositeOperation = "source-over";

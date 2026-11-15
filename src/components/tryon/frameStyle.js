@@ -11,9 +11,9 @@ export function frameColorHex(name = "") {
   if (n.includes("dorado-verde") || n.includes("dorado verde")) return "#a89a4a";
   if (n.includes("dorado")) return "#c19a3a";
   if (n.includes("plateado") || n.includes("titanio") || n.includes("cristal")) return "#b8c0cc";
-  if (n.includes("carey oscuro") || n.includes("habana")) return "#5b2f12";
-  if (n.includes("carey claro") || n.includes("miel")) return "#a06a24";
-  if (n.includes("carey")) return "#6b3d14";
+  if (n.includes("carey oscuro") || n.includes("habana")) return "#4a240a";
+  if (n.includes("carey claro") || n.includes("miel")) return "#8a5518";
+  if (n.includes("carey")) return "#5c3112";
   if (n.includes("borgo")) return "#6b1a2a";
   if (n.includes("rojo") || n.includes("naranja")) return "#8f2a1e";
   if (n.includes("azul marino") || n.includes("azul oscuro")) return "#1e3a8a";

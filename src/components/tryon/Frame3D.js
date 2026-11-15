@@ -8,7 +8,7 @@ import { buildGlbGroup, loadGlb } from "./GlassesGLB.js";
 import { frameMaterialProfile, lensKind, LENS_KIND } from "./frameStyle.js";
 import { lensStyleKey, mixLensColor, normalizeLensStyle } from "./lensStyle.js";
 import { eyeAnchors, FACE_IDX } from "./landmarks.js";
-import { setupStudioEnvironment, disposeStudioEnvironment } from "./studioEnvironment.js";
+import { setupStudioEnvironment, disposeStudioEnvironment, addStudioLights } from "./studioEnvironment.js";
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -313,16 +313,7 @@ export class GlassesAR {
     // IBL neutro + ACES: los metales reflejan un estudio real y el acetato
     // gana brillos de laca sin quemar el color del catálogo.
     this.envTarget = setupStudioEnvironment(this.renderer, this.scene);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 0.7));
-    const dir = new THREE.DirectionalLight(0xfff4e6, 1.8);
-    dir.position.set(1.5, 2, 4);
-    this.scene.add(dir);
-    const fill = new THREE.DirectionalLight(0xbcd2ff, 0.6);
-    fill.position.set(-2, -1, 3);
-    this.scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xffffff, 0.7);
-    rim.position.set(-2, 2, -4);
-    this.scene.add(rim);
+    addStudioLights(this.scene);
     this.group = null;
     this.key = "";
     this.glbGroups = new Map();

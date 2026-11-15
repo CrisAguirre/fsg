@@ -87,6 +87,7 @@ src/
 │   └── RecommendationCard.jsx     # tarjeta de recomendación
 └── components/tryon/
     ├── frameStyle.js              # color de armazón + familia de tinte (fuente única)
+    ├── studioEnvironment.js       # IBL PMREM + ACES + luces de estudio compartidas
     ├── lensStyle.js               # paleta, presets y mezcla color/intensidad/opacidad del lente
     ├── arLoader.js                # import() único de Frame3D/Three.js
     ├── Frame3D.js                 # GlassesAR: pose + armazón procedural/GLB
@@ -133,7 +134,7 @@ npm run lint          # 0 warnings
 npm run lint:eslint   # accesibilidad + hooks (0)
 npm run lint:css      # stylelint (0)
 npm run typecheck     # tsc --checkJs (0)
-npm test              # vitest (104)
+npm test              # vitest (110)
 npm run test:e2e      # playwright (10; `npx playwright install chromium` la primera vez)
 npm run build         # 0 errores y ningún chunk > 500 kB
 npm run test:pose     # 14/14 verificaciones numéricas
@@ -173,21 +174,38 @@ Definición de terminado:
 - [ ] Documentación actualizada.
 - [ ] Sin fotos ni claves reales en el diff.
 
-## 4. Estado verificado (2026-11-13)
+## 4. Estado verificado (2026-11-14)
 
-- Frontend: build OK en ~1 s. `Scanner` = **97.8 kB**. `Three.js` se descarga
+- Frontend: build OK en ~1 s. `Scanner` = **99.5 kB**. `Three.js` se descarga
   solo al activar el 3D o al generar un montaje 3D del informe (chunks
-  45/246/352 kB).
+  47/248/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
-- `test`: **104/104**; `test:e2e`: **10/10**; `test:pwa`: **1/1**;
+- `test`: **110/110**; `test:e2e`: **10/10**; `test:pwa`: **1/1**;
   `test:pose`: **14/14**; `test:alignment`: **19/19**.
+- **Materiales PBR y realismo (2026-11-14):** `frameStyle.js` expone
+  `frameFinish()`/`frameMaterialProfile()` con metalness, roughness, clearcoat,
+  envMapIntensity y tintStrength por acabado (metal, mixto, carey, cristal,
+  mate, acetato). `GlassesGLB.applyFrameTint` tiñe todos los armazones con el
+  color del catálogo usando `frameMaterials` del manifest, conserva
+  normal/roughness maps y solo descarta el mapa base casi negro; acetato, carey
+  y cristal pasan a `MeshPhysicalMaterial` con clearcoat, los metales quedan en
+  `MeshStandardMaterial`. `studioEnvironment.js` centraliza `SRGBColorSpace`,
+  ACES (exposición 0.95), PMREM de `RoomEnvironment`
+  (`environmentIntensity` 0.65) y `addStudioLights()` (hemi 0.5, key neutra
+  1.25, fill 0.32, rim 0.5), compartido por `Frame3D` y `renderGLB`. La familia
+  de carey se oscureció (`#4a240a`/`#5c3112`/`#8a5518`) para que no se lea
+  naranja. En 2D, `PhotoTryOn` conserva brillos con `luminosity` en
+  acetato/carey, reconstruye el cuerpo metálico con `screen` + `multiply` y
+  limita la veladura blanca con `source-atop` para no teñir el fondo. Sin
+  cambios en contratos HTTP, Ley 1581 ni persistencia de fotos.
 - **Preloaders, despertar de Render y modo ligero (2026-11-13):** `index.html`
   trae un preloader estático con el logo (CSS inline, sin scripts inline por
   CSP) que `main.jsx` retira tras el montaje; `components/ui/AppPreloader.jsx`
   cubre rutas (`Suspense`) y el overlay del home. `lib/api.js` expone
   `wakeBackend()` (una sola petición `GET /health` compartida, timeout 60 s,
   caché de éxito 5 min) y `HomeBoot.jsx` lo dispara al entrar al home con
-  overlay saltable (máx. 2,8 s) + aviso flotante con reintento. `lib/connection.js`
+  overlay saltable (máx. 2,8 s) + aviso flotante con reintento; `Scanner.jsx`
+  también lo dispara al montar para enlaces directos. `lib/connection.js`
   + `useConnectionQuality.js` detectan save-data/2G/3G/downlink/RTT/offline y
   marcan `data-connection="light"`: se prioriza 2D, cámara a 640 px, fotos y
   JPEG reducidos, sin GLB en el informe ni precarga del escáner, y el CSS apaga
@@ -406,3 +424,10 @@ Definición de terminado:
 - Ignorar `lightweight` en los hooks de cámara/foto: `useLiveCameraTryOn` pide
   640 px y `usePhotoTryOn` reduce canvas y calidad JPEG; mantener esos límites
   evita volver a penalizar a los dispositivos lentos.
+- Duplicar luces, exposición o entorno entre `Frame3D` y `renderGLB`: la
+  iluminación vive en `studioEnvironment.js` (`setupStudioEnvironment` +
+  `addStudioLights`). Una key cálida o un `environmentIntensity` alto lavan el
+  carey y lo vuelven anaranjado.
+- Pintar brillos 2D con `fillRect` y `screen`/`multiply` sin `source-atop`: esos
+  blends también pintan el fondo transparente y dejan un rectángulo visible.
+  Cualquier veladura debe limitarse al alfa del armazón.

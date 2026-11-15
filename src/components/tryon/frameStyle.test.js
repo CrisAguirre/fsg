@@ -14,7 +14,7 @@ describe("frameColorHex", () => {
   it("mapea los materiales del catálogo a su hex", () => {
     expect(frameColorHex("Dorado")).toBe("#c19a3a");
     expect(frameColorHex("dorado rosa")).toBe("#d8a08a");
-    expect(frameColorHex("Carey oscuro")).toBe("#5b2f12");
+    expect(frameColorHex("Carey oscuro")).toBe("#4a240a");
     expect(frameColorHex("Negro")).toBe("#17171a");
     expect(frameColorHex("Negro mate")).toBe("#26262b"); // 'mate' tiene prioridad
     expect(frameColorHex("Azul marino")).toBe("#1e3a8a");

@@ -1,5 +1,5 @@
 # Grupo Prisma Visión — Glassescanner 3D · Contexto del Proyecto
-> Actualizado 2026-11-13: el escáner pasó a un **asistente de 3 pasos** (escaneo
+> Actualizado 2026-11-14: el escáner pasó a un **asistente de 3 pasos** (escaneo
 > sin monturas → cards de informe y monturas → escaneo obligatorio con la montura
 > puesta) con **informe membreteado descargable** (PDF/JSON) y % de compatibilidad
 > por forma, material, color y tipo de lente. Se añadió una **4.ª card opcional**
@@ -11,7 +11,7 @@
 > (`lensStyle.js`, `LensControls.jsx`). Fase 4 del backend cerrada
 > (Ruff/mypy/bandit limpios, 38/38 tests, cobertura 91 %, Docker sin root y
 > dependencias dev separadas). El
-> probador de foto pasó a **3D GLB primero** (pose real por matriz facial de MediaPipe, ancho físico según medidas, sombra de contacto) con el recorte 2D como respaldo. Se mantiene la refactorización del escáner del 25/10, con hooks y componentes extraídos, el code-splitting de Three.js (`Scanner` = **97.76 kB**, antes 651 kB) y la unificación de la lógica 3D en `frameStyle.js`. Los 8 GLB por forma tienen manifest y licencias CC BY 4.0 (`/creditos-3d`), validador `npm run validate:glb` (8/8) y verificación numérica `npm run test:pose` (14/14). Lint sin warnings, build OK y backend 38/38. El reentrenamiento ML del 25/10 **no se desplegó** (LOO 13 % vs baseline 33 %); el modelo proxy sigue como fallback y la corrección manual de forma es el mecanismo principal. Proceso de trabajo en [`AGENTS.md`](AGENTS.md).
+> probador de foto pasó a **3D GLB primero** (pose real por matriz facial de MediaPipe, ancho físico según medidas, sombra de contacto) con el recorte 2D como respaldo. Se mantiene la refactorización del escáner del 25/10, con hooks y componentes extraídos, el code-splitting de Three.js (`Scanner` = **97.76 kB**, antes 651 kB) y la unificación de la lógica 3D en `frameStyle.js`. Los materiales de las monturas usan perfiles PBR por acabado (`frameFinish`, `frameMaterialProfile`) e iluminación de estudio compartida (`studioEnvironment.js`: IBL PMREM + ACES) en el 3D y en el render GLB; el 2D conserva los brillos con blends. Los 8 GLB por forma tienen manifest y licencias CC BY 4.0 (`/creditos-3d`), validador `npm run validate:glb` (8/8) y verificación numérica `npm run test:pose` (14/14). Lint sin warnings, build OK y backend 38/38. El reentrenamiento ML del 25/10 **no se desplegó** (LOO 13 % vs baseline 33 %); el modelo proxy sigue como fallback y la corrección manual de forma es el mecanismo principal. Proceso de trabajo en [`AGENTS.md`](AGENTS.md).
 
 Este documento proporciona el contexto actual del proyecto para que otras inteligencias artificiales puedan continuar con el desarrollo.
 
@@ -22,7 +22,7 @@ Este documento proporciona el contexto actual del proyecto para que otras inteli
 *   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GlassesAR 3D procedural y GLB por forma, cargado de forma diferida), Canvas 2D (PhotoTryOn con recortes transparentes y GlassesOverlay procedural), Context API para temas (`ThemeProvider` + `useTheme`). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + Random Forest + SVM ML + MongoDB Motor).
 *   **Despliegue:** Front `https://glassescanner.vercel.app/` (Vercel) · Back `https://glassescanner-backend.onrender.com` (Render, Docker `python:3.11-slim` + sysdeps para OpenCV) · Mongo Atlas (`glassescanner`, seed local de 64 marcos).
 *   **Flujo del escáner (3 pasos):** (1) “Iniciar escaneo” → consentimiento → captura sin monturas; (2) cards de **informe del rostro** (foto original + montajes de las dos monturas mejor puntuadas, tipo, composición, medidas y % por forma/material/color/lente) y **monturas recomendadas** (probador 3D); (3) **escaneo obligatorio con la montura puesta**, habilitado solo tras confirmar la prueba física, que genera el **informe de ajuste** de esa montura (score, veredicto, centrado PD/IPD y motivos). Una **4.ª card opcional** abre el **probador virtual autónomo**: cámara en vivo con montura 3D o foto subida/capturada con modelo 2D/3D escogible, sin escaneo facial ni recomendaciones. Ambos informes se descargan en PDF (impresión del navegador) y JSON; nada se guarda en el servidor.
-*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-11-13 (preloaders + modo ligero): backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **104/104**, `npm run test:e2e` **10/10**, `npm run test:pwa` **1/1**, `npm run build` OK (`Scanner` 97.76 kB), `npm run test:pose` **14/14**, `npm run test:alignment` **19/19**, `npm run validate:glb` **8/8** y `npm run validate:pwa` OK.
+*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-11-14 (materiales PBR): backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **110/110**, `npm run test:e2e` **10/10**, `npm run test:pwa` **1/1**, `npm run build` OK (`Scanner` 99.54 kB), `npm run test:pose` **14/14**, `npm run test:alignment` **19/19**, `npm run validate:glb` **8/8** y `npm run validate:pwa` OK.
 
 ## Identidad Corporativa y Diseño (Design System)
 El diseño combina **Minimalismo Corporativo Prémium** con **Aeroglass / Glassmorphism** de alta gama óptica.
@@ -68,6 +68,7 @@ fsg/
 │   │   │   └── RecommendationCard.jsx
 │   │   └── tryon/
 │   │       ├── frameStyle.js      # color de armazón + familia de tinte (fuente única)
+│   │       ├── studioEnvironment.js # IBL PMREM + ACES + luces de estudio compartidas
 │   │       ├── lensStyle.js       # paleta, presets y mezcla color/intensidad/opacidad del lente
 │   │       ├── arLoader.js        # import() diferido de Frame3D/Three.js
 │   │       ├── PhotoTryOn.js      # try-on 2D fotorrealista (recortes webp) para modo foto
@@ -321,9 +322,23 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   **Pruebas:** `lensStyle.test.js` (14 casos) cubre presets, normalización, mezcla, opacidad y claves de caché.
 24. **Preloaders, despertar de Render y modo ligero (2026-11-13):**
     *   **Arranque:** `index.html` incluye un preloader estático con el logo (CSS inline; sin scripts inline por la CSP) que `main.jsx` retira tras dos frames de React. `components/ui/AppPreloader.jsx` es el preloader reutilizable (overlay/página/inline) que usan el `Suspense` de `AppRoutes.jsx` y el home.
-    *   **Despertar del backend:** `lib/api.js` expone `wakeBackend({ force })`: comparte una sola petición `GET /health` entre montajes/StrictMode, usa timeout de 60 s y recuerda el éxito 5 min. `components/layout/HomeBoot.jsx` lo dispara al entrar al home, muestra un overlay con logo (mín. 750 ms, máx. 2,8 s, botón “Continuar sin esperar”) y, si Render sigue arrancando, deja un aviso flotante con reintento. No cambia contratos HTTP.
+    *   **Despertar del backend:** `lib/api.js` expone `wakeBackend({ force })`: comparte una sola petición `GET /health` entre montajes/StrictMode, usa timeout de 60 s y recuerda el éxito 5 min. `components/layout/HomeBoot.jsx` lo dispara al entrar al home, muestra un overlay con logo (mín. 750 ms, máx. 2,8 s, botón “Continuar sin esperar”) y, si Render sigue arrancando, deja un aviso flotante con reintento. `pages/Scanner.jsx` también lo dispara al montar para enlaces directos a `/scanner`; si el home ya despertó el backend, resuelve desde caché sin petición nueva. No cambia contratos HTTP.
     *   **Modo ligero:** `lib/connection.js` detecta `saveData`, `effectiveType` (`slow-2g`/`2g`/`3g`), `downlink < 1,5 Mbps`, `rtt > 400 ms` y offline; `hooks/useConnectionQuality.js` lo hace reactivo y marca `data-connection="light"` en `<html>`. En ese modo se prioriza el 2D, se piden 640 px de cámara, se reducen fotos/canvas/JPEG, se omite el GLB del informe y no se precarga el chunk del escáner; el 3D manual sigue disponible. `index.css` apaga orbes, desenfoques y animaciones decorativas.
     *   **Precarga:** en red rápida, `HomeBoot` descarga el chunk de `Scanner` a los 1,5 s para adelantar la navegación.
+25. **Materiales PBR y realismo del ajuste (2026-11-14):**
+    *   **Perfiles por acabado:** `frameStyle.js` añade `FRAME_FINISH`, `frameFinish()` y `frameMaterialProfile()` con metalness, roughness, clearcoat, envMapIntensity y tintStrength para metal, mixto, carey, cristal, mate y acetato. `isDarkColor()` distingue tintes planos de negros.
+    *   **Tintado del catálogo:** `GlassesGLB.applyFrameTint` usa `frameMaterials` del manifest y tiñe todos los armazones con el color real; conserva normal/roughness maps, reemplaza solo el mapa base casi negro (luminancia 8×8) y promueve acetato/carey/cristal a `MeshPhysicalMaterial` para el clearcoat. Los metales quedan en `MeshStandardMaterial`.
+    *   **Iluminación compartida:** `studioEnvironment.js` configura `SRGBColorSpace`, ACES con exposición 0.95, PMREM de `RoomEnvironment` con `environmentIntensity` 0.65 y `addStudioLights()` (hemi 0.5, key neutra 1.25, fill 0.32, rim 0.5). Lo usan `Frame3D` y `renderGLB`; las lentes llevan clearcoat, ior 1.5 y envMap.
+    *   **Colores de carey:** la familia se oscureció a `#4a240a` (oscuro/habana), `#5c3112` (carey) y `#8a5518` (claro/miel) para que el render 3D y el 2D se lean como carey real y no como naranja claro.
+    *   **2D:** `PhotoTryOn` conserva brillos con `luminosity` en acetato/carey; en metal/cristal reconstruye el cuerpo con el color del catálogo (`screen` + `multiply`) y añade una veladura blanca limitada con `source-atop` para no teñir el fondo transparente. La sombra evita el doble oscurecimiento y el lente usa `multiply` + recuperación de reflejos.
+    *   **Pruebas:** `frameStyle.test.js` cubre acabados, perfiles y hex; `npm test` → **110/110**.
+
+## Verificación técnica 2026-11-14 (materiales PBR)
+*   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
+*   `npm test` → **110/110** (15 archivos); `test:pose` → **14/14**; `test:alignment` → **19/19**.
+*   `npm run test:e2e` → **10/10**; `test:pwa` → **1/1**; `validate:glb` → **8/8**; `validate:pwa` → OK.
+*   `npm run build` → OK (`Scanner` 99.54 kB, `Frame3D` 16.64 kB diferido, Three.js en 47/248/352 kB; ningún chunk > 500 kB).
+*   Validación visual aislada: GLB de carey, dorado, negro, plateado y lentes claros/polarizados con brillos y sin artefactos; recorte 2D de carey y metal con reflejos y sin rectángulo de fondo.
 
 ## Verificación técnica 2026-11-13 (preloaders y modo ligero)
 *   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.

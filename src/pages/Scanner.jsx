@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Navbar from "../components/layout/Navbar.jsx";
 import Footer from "../components/layout/Footer.jsx";
-import { analyzePhoto, recommend, listFrames, health, API_URL } from "../lib/api.js";
+import { analyzePhoto, recommend, listFrames, health, API_URL, wakeBackend } from "../lib/api.js";
 import { normalizeImageFile } from "../lib/imageUtils.js";
 import { lensCompatibility } from "../lib/lensCompatibility.js";
 import FeedbackBox from "../components/scanner/FeedbackBox.jsx";
@@ -199,6 +199,13 @@ export default function Scanner() {
           `No se pudo cargar el catálogo de monturas desde ${API_URL}. Revisa tu conexión o que el servidor de análisis esté activo.`,
         );
       });
+  }, []);
+
+  // Entrada directa a /scanner (enlace compartido): despierta Render con el
+  // mismo timeout largo del home. Si el home ya lo despertó, la promesa se
+  // comparte y resuelve desde caché sin una petición nueva ni descargas.
+  useEffect(() => {
+    wakeBackend().catch(() => {});
   }, []);
 
   // Liberar object URLs.

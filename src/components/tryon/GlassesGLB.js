@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { frameColorHex, frameMaterialProfile, isDarkColor, lensKind, LENS_KIND } from "./frameStyle.js";
 import { lensPreset, mixLensColor } from "./lensStyle.js";
-import { setupStudioEnvironment, disposeStudioEnvironment } from "./studioEnvironment.js";
+import { setupStudioEnvironment, disposeStudioEnvironment, addStudioLights } from "./studioEnvironment.js";
 
 const MANIFEST_URL = "/glasses/manifest.json";
 const DEFAULT_WIDTH = 2.1; // ancho total de montura en unidades IPD
@@ -402,15 +402,9 @@ export async function renderGLB(canvas, { forma = "rectangular", ipdPx = 100, ti
   renderer.setSize(W, H, false);
   const scene = new THREE.Scene();
   const env = setupStudioEnvironment(renderer, scene);
+  addStudioLights(scene);
   const cam = new THREE.OrthographicCamera(-W / 2, W / 2, H / 2, -H / 2, 1, 100);
   cam.position.set(0, 0, 10);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 0.7));
-  const dir = new THREE.DirectionalLight(0xfff4e6, 1.8);
-  dir.position.set(1.5, 2, 3);
-  scene.add(dir);
-  const fill = new THREE.DirectionalLight(0xbcd2ff, 0.6);
-  fill.position.set(-2, -1, 3);
-  scene.add(fill);
   const group = buildGlbGroup(loaded.gltf.scene, { targetWidth: ipdPx, entry: loaded.entry, tint });
   group.position.set(0, 0, 0);
   scene.add(group);

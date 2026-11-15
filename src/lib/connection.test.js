@@ -55,4 +55,24 @@ describe("readConnectionInfo", () => {
     expect(info.reason).toBe("offline");
     expect(info.label).toBe("Sin conexión");
   });
+
+  it("permite forzar modo ligero en una red rápida (Safari/Firefox)", () => {
+    const info = readConnectionInfo(nav({ effectiveType: "4g", downlink: 10, rtt: 80 }), true);
+    expect(info.lightweight).toBe(true);
+    expect(info.reason).toBe("manual");
+    expect(info.label).toBe("Modo ligero activado");
+  });
+
+  it("permite forzar modo completo aunque la red se detecte lenta", () => {
+    const info = readConnectionInfo(nav({ effectiveType: "3g" }), false);
+    expect(info.lightweight).toBe(false);
+    expect(info.reason).toBe("manual-full");
+    expect(info.label).toBe("Modo completo");
+  });
+
+  it("offline gana sobre cualquier preferencia manual", () => {
+    const info = readConnectionInfo({ onLine: false }, false);
+    expect(info.lightweight).toBe(true);
+    expect(info.reason).toBe("offline");
+  });
 });

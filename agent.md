@@ -22,7 +22,7 @@ Este documento proporciona el contexto actual del proyecto para que otras inteli
 *   **Stack Tecnológico:** Vite, React 19 + React Router, MediaPipe Tasks-Vision (FaceLandmarker 478 pts), Three.js (GlassesAR 3D procedural y GLB por forma, cargado de forma diferida), Canvas 2D (PhotoTryOn con recortes transparentes y GlassesOverlay procedural), Context API para temas (`ThemeProvider` + `useTheme`). Backend hermano: `../Glassescanner-backend` (FastAPI + MediaPipe Python + Random Forest + SVM ML + MongoDB Motor).
 *   **Despliegue:** Front `https://glassescanner.vercel.app/` (Vercel) · Back `https://glassescanner-backend.onrender.com` (Render, Docker `python:3.11-slim` + sysdeps para OpenCV) · Mongo Atlas (`glassescanner`, seed local de 64 marcos).
 *   **Flujo del escáner (3 pasos):** (1) “Iniciar escaneo” → consentimiento → captura sin monturas; (2) cards de **informe del rostro** (foto original + montajes de las dos monturas mejor puntuadas, tipo, composición, medidas y % por forma/material/color/lente) y **monturas recomendadas** (probador 3D); (3) **escaneo obligatorio con la montura puesta**, habilitado solo tras confirmar la prueba física, que genera el **informe de ajuste** de esa montura (score, veredicto, centrado PD/IPD y motivos). Una **4.ª card opcional** abre el **probador virtual autónomo**: cámara en vivo con montura 3D o foto subida/capturada con modelo 2D/3D escogible, sin escaneo facial ni recomendaciones. Ambos informes se descargan en PDF (impresión del navegador) y JSON; nada se guarda en el servidor.
-*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-11-14 (materiales PBR): backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **110/110**, `npm run test:e2e` **10/10**, `npm run test:pwa` **1/1**, `npm run build` OK (`Scanner` 99.54 kB), `npm run test:pose` **14/14**, `npm run test:alignment` **19/19**, `npm run validate:glb` **8/8** y `npm run validate:pwa` OK.
+*   **Estado Actual:** MVP funcional extremo a extremo con imagen corporativa oficial: landing + `/scanner` + `/catalogo` + `/admin/frames` + `/piloto` + `/creditos-3d`. Verificado 2026-11-14 (materiales PBR + GLB optimizados + MediaPipe 1.0.1): backend **38/38 tests PASS** (cobertura 91 %), frontend `npm run lint` **0 warnings**, `npm run lint:eslint` **0**, `npm run lint:css` **0**, `npm run typecheck` **0 errores**, `npm test` **118/118**, `npm run test:e2e` **10/10**, `npm run test:pwa` **1/1**, `npm run build` OK (`Scanner` 99.4 kB), `npm run test:pose` **14/14**, `npm run test:alignment` **19/19**, `npm run validate:glb` **8/8** y `npm run validate:pwa` OK.
 
 ## Identidad Corporativa y Diseño (Design System)
 El diseño combina **Minimalismo Corporativo Prémium** con **Aeroglass / Glassmorphism** de alta gama óptica.
@@ -84,12 +84,14 @@ fsg/
 │   │   ├── useLiveCameraTryOn.js  # getUserMedia + MediaPipe VIDEO + try-on en vivo
 │   │   ├── usePhotoTryOn.js       # MediaPipe IMAGE + try-on foto + descarga HD
 │   │   ├── useReportTryOn.js      # montajes del informe con estados de carga/error
-│   │   └── useConnectionQuality.js # red lenta/ahorro de datos + data-connection
+│   │   └── useConnectionQuality.js # red lenta + preferencia manual + data-connection
 │   ├── lib/
 │   │   ├── api.js                 # health, analyze (timeout 45s), recommend, frames con caché, feedback, CRUD, wakeBackend
-│   │   ├── connection.js          # detección de red lenta/ahorro de datos (pura)
+│   │   ├── connection.js          # detección de red lenta/ahorro de datos (pura) + override manual
 │   │   ├── faceLandmarker.js      # landmarker IMAGE compartido (GPU con fallback a CPU)
 │   │   ├── frameRanking.js        # ranking + diversidad por forma para el informe
+│   │   ├── lightweightPreference.js # preferencia manual de modo ligero (localStorage + memoria)
+│   │   ├── mediapipeConfig.js     # versión/WASM/modelo de MediaPipe (fuente única)
 │   │   ├── tryOnSnapshot.js       # top-2 monturas + montajes JPEG para el informe
 │   │   ├── imageUtils.js          # brillo y normalización de fotos
 │   │   ├── lensCompatibility.js   # reglas lente ↔ montura ↔ rostro
@@ -208,6 +210,7 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
 ### GLB y licencias
 
 - 8 formas con GLB en `public/glasses/`: rectangular, cuadrado, redondo, oval, aviador, wayfarer, cat-eye, rimless.
+- Tamaños tras la optimización del 2026-11-14: `cuadrado` 0,50 MB (antes 2,43), `oval` 0,86 MB (antes 1,54) y `redondo` 0,49 MB (antes 1,06); el resto ≤0,26 MB. Los tres usan `KHR_mesh_quantization` y conservan forma, materiales y atribución.
 - `manifest.json` define archivo, rotación, offset vertical, `scale` (zoom relativo), materiales de cristal/marco, autor, fuente y licencia.
 - `LICENSES.md` atribuye las 8 obras (CC BY 4.0) y `/creditos-3d` las muestra desde el manifest.
 - `npm run validate:glb` verifica archivo existente, campos obligatorios, licencia CC BY 4.0 y presencia en `LICENSES.md`.
@@ -333,11 +336,20 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   **2D:** `PhotoTryOn` conserva brillos con `luminosity` en acetato/carey; en metal/cristal reconstruye el cuerpo con el color del catálogo (`screen` + `multiply`) y añade una veladura blanca limitada con `source-atop` para no teñir el fondo transparente. La sombra evita el doble oscurecimiento y el lente usa `multiply` + recuperación de reflejos.
     *   **Pruebas:** `frameStyle.test.js` cubre acabados, perfiles y hex; `npm test` → **110/110**.
 
+26. **MediaPipe alineado, arranque en frío y GLB optimizados (2026-11-14):**
+    *   **Versión única:** `lib/mediapipeConfig.js` expone `MEDIAPIPE_VERSION` (**1.0.1**, igual que `@mediapipe/tasks-vision`), `MEDIAPIPE_WASM_URL` y `MEDIAPIPE_MODEL_URL`. `faceLandmarker.js` y `useLiveCameraTryOn.js` dejaron de hardcodear `0.10.14`; `mediapipeConfig.test.js` falla si el paquete sube sin actualizar la constante.
+    *   **Catálogo tras Render frío:** `Scanner.jsx` dispara `wakeBackend()` al montar y, si `listFrames()` falla por timeout, reintenta cuando la promesa del `/health` resuelve. El estado `backendOk` usa la misma promesa compartida.
+    *   **Modo ligero manual:** `lib/lightweightPreference.js` guarda `gpv.lightweight` (`1`/`0`/null) con respaldo en memoria; `useConnectionQuality` combina la detección del navegador con la preferencia y `Navbar` ofrece un ciclo **Auto → Ligero → Completo**. Offline siempre gana sobre la preferencia.
+    *   **Red de seguridad:** `components/ui/ErrorBoundary.jsx` envuelve `AppRoutes` en `main.jsx`; si un render falla muestra logo, mensaje y botones de recarga/inicio en vez de pantalla en blanco.
+    *   **GLB:** `cuadrado` 2,43 → 0,50 MB (poda de 10 juegos de UV sin texturas), `oval` 1,54 → 0,86 MB (texturas planas/sólidas a factores) y `redondo` 1,06 → 0,49 MB (dedup + recompresión conservando normal/roughness). Solo cuantización `KHR_mesh_quantization`, sin Draco/meshopt; validado con `gltf-transform validate` y captura headless del preview.
+    *   **Pruebas:** `npm test` → **118/118** (17 archivos).
+
 ## Verificación técnica 2026-11-14 (materiales PBR)
 *   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
-*   `npm test` → **110/110** (15 archivos); `test:pose` → **14/14**; `test:alignment` → **19/19**.
+*   `npm test` → **118/118** (17 archivos); `test:pose` → **14/14**; `test:alignment` → **19/19**.
 *   `npm run test:e2e` → **10/10**; `test:pwa` → **1/1**; `validate:glb` → **8/8**; `validate:pwa` → OK.
-*   `npm run build` → OK (`Scanner` 99.54 kB, `Frame3D` 16.64 kB diferido, Three.js en 47/248/352 kB; ningún chunk > 500 kB).
+*   `npm run build` → OK (`Scanner` 99.4 kB, `Frame3D` 16.66 kB diferido, Three.js en 47/248/352 kB; ningún chunk > 500 kB).
+*   GLB: `cuadrado` 0,50 MB · `oval` 0,86 MB · `redondo` 0,49 MB; comparación visual headless antes/después sin diferencias.
 *   Validación visual aislada: GLB de carey, dorado, negro, plateado y lentes claros/polarizados con brillos y sin artefactos; recorte 2D de carey y metal con reflejos y sin rectángulo de fondo.
 
 ## Verificación técnica 2026-11-13 (preloaders y modo ligero)

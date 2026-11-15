@@ -14,6 +14,8 @@ const LABELS = {
   downlink: "Conexión lenta",
   rtt: "Latencia alta",
   fast: "Conexión rápida",
+  manual: "Modo ligero activado",
+  "manual-full": "Modo completo",
 };
 
 /**
@@ -24,16 +26,23 @@ const LABELS = {
  * @property {string} effectiveType
  * @property {number} downlink
  * @property {number} rtt
- * @property {"offline"|"save-data"|"effective-type"|"downlink"|"rtt"|"fast"} reason
+ * @property {"offline"|"save-data"|"effective-type"|"downlink"|"rtt"|"fast"|"manual"|"manual-full"} reason
  * @property {string} label
  */
 
 /**
  * Lee la calidad de red del navegador sin depender de APIs propietarias.
+ * `preference` permite que el usuario fuerce modo ligero o completo cuando el
+ * navegador no expone Network Information API (Safari/Firefox). Offline siempre
+ * gana: sin red no tiene sentido "modo completo".
  * @param {any} [nav]
+ * @param {boolean|null} [preference] true = forzar ligero, false = forzar completo, null = auto
  * @returns {ConnectionInfo}
  */
-export function readConnectionInfo(nav = typeof navigator !== "undefined" ? navigator : null) {
+export function readConnectionInfo(
+  nav = typeof navigator !== "undefined" ? navigator : null,
+  preference = null,
+) {
   const connection = nav?.connection || nav?.mozConnection || nav?.webkitConnection || null;
   const online = nav?.onLine !== false;
   const saveData = Boolean(connection?.saveData);
@@ -41,7 +50,7 @@ export function readConnectionInfo(nav = typeof navigator !== "undefined" ? navi
   const downlink = Number(connection?.downlink);
   const rtt = Number(connection?.rtt);
 
-  /** @type {"offline"|"save-data"|"effective-type"|"downlink"|"rtt"|"fast"} */
+  /** @type {"offline"|"save-data"|"effective-type"|"downlink"|"rtt"|"fast"|"manual"|"manual-full"} */
   let reason = "fast";
   if (!online) reason = "offline";
   else if (saveData) reason = "save-data";
@@ -52,14 +61,27 @@ export function readConnectionInfo(nav = typeof navigator !== "undefined" ? navi
     reason = "rtt";
   }
 
+  let lightweight = reason !== "fast";
+  let label = LABELS[reason];
+
+  if (preference === true && online) {
+    lightweight = true;
+    reason = "manual";
+    label = LABELS.manual;
+  } else if (preference === false && online) {
+    lightweight = false;
+    reason = "manual-full";
+    label = LABELS["manual-full"];
+  }
+
   return {
-    lightweight: reason !== "fast",
+    lightweight,
     saveData,
     online,
     effectiveType,
     downlink: Number.isFinite(downlink) ? downlink : 0,
     rtt: Number.isFinite(rtt) ? rtt : 0,
     reason,
-    label: LABELS[reason],
+    label,
   };
 }

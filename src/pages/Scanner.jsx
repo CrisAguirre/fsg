@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Navbar from "../components/layout/Navbar.jsx";
 import Footer from "../components/layout/Footer.jsx";
-import { analyzePhoto, recommend, listFrames, health, API_URL, wakeBackend } from "../lib/api.js";
+import { analyzePhoto, recommend, listFrames, API_URL, wakeBackend } from "../lib/api.js";
 import { normalizeImageFile } from "../lib/imageUtils.js";
 import { lensCompatibility } from "../lib/lensCompatibility.js";
 import FeedbackBox from "../components/scanner/FeedbackBox.jsx";
@@ -183,29 +183,54 @@ export default function Scanner() {
   } = useReportTryOn({ lightweight });
 
   useEffect(() => {
-    health()
-      .then(() => setBackendOk(true))
-      .catch(() => setBackendOk(false));
-    listFrames()
-      .then((list) => {
-        setFrames(list);
-        if (list.length > 0 && !list.some((f) => f.id === (initialFrameRef.current || "F01"))) {
-          setTryId(list[0].id);
-        }
+    let alive = true;
+
+    const applyFrames = (list) => {
+      if (!alive) return;
+      setFrames(list);
+      if (list.length > 0 && !list.some((f) => f.id === (initialFrameRef.current || "F01"))) {
+        setTryId(list[0].id);
+      }
+    };
+
+    // Entrada directa a /scanner (enlace compartido): la misma promesa del home
+    // despierta Render con timeout largo. Si el home ya lo hizo, resuelve desde
+    // caché sin petición nueva.
+    const wake = wakeBackend();
+    wake
+      .then(() => {
+        if (alive) setBackendOk(true);
       })
       .catch(() => {
-        setBackendOk(false);
-        setError(
-          `No se pudo cargar el catálogo de monturas desde ${API_URL}. Revisa tu conexión o que el servidor de análisis esté activo.`,
-        );
+        if (alive) setBackendOk(false);
       });
-  }, []);
 
-  // Entrada directa a /scanner (enlace compartido): despierta Render con el
-  // mismo timeout largo del home. Si el home ya lo despertó, la promesa se
-  // comparte y resuelve desde caché sin una petición nueva ni descargas.
-  useEffect(() => {
-    wakeBackend().catch(() => {});
+    listFrames()
+      .then((list) => {
+        applyFrames(list);
+      })
+      .catch(async () => {
+        // Render en frío: el catálogo puede agotar su timeout antes de que el
+        // backend termine de arrancar. Se reintenta al resolverse `wake`.
+        try {
+          await wake;
+          if (!alive) return;
+          const list = await listFrames();
+          applyFrames(list);
+          setBackendOk(true);
+          setError("");
+        } catch {
+          if (!alive) return;
+          setBackendOk(false);
+          setError(
+            `No se pudo cargar el catálogo de monturas desde ${API_URL}. Revisa tu conexión o que el servidor de análisis esté activo.`,
+          );
+        }
+      });
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // Liberar object URLs.

@@ -3,16 +3,13 @@
 // consumidor duplica el modelo en memoria y puede fallar en móviles con poca RAM.
 // La telemetría de MediaPipe se corta antes de cargar el CDN (privacidad).
 import { blockMediapipeTelemetry } from "./mediapipeTelemetry.js";
-
-const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+import { MEDIAPIPE_MODEL_URL, MEDIAPIPE_WASM_URL } from "./mediapipeConfig.js";
 
 let landmarkerPromise = null;
 
 function create(fileset, FaceLandmarker, delegate) {
   return FaceLandmarker.createFromOptions(fileset, {
-    baseOptions: { modelAssetPath: MODEL_URL, delegate },
+    baseOptions: { modelAssetPath: MEDIAPIPE_MODEL_URL, delegate },
     runningMode: "IMAGE",
     numFaces: 1,
     outputFacialTransformationMatrixes: true,
@@ -29,7 +26,7 @@ export function getImageLandmarker() {
     landmarkerPromise = (async () => {
       blockMediapipeTelemetry();
       const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
-      const fileset = await FilesetResolver.forVisionTasks(WASM_URL);
+      const fileset = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL);
       try {
         return await create(fileset, FaceLandmarker, "GPU");
       } catch {

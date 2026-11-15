@@ -162,6 +162,20 @@
   letter-spacing: 0.02em;
 }
 
+/* Modo de datos: auto → ligero → completo */
+.data-mode-btn--light {
+  border-color: var(--border-accent);
+  color: var(--text-heading);
+}
+
+.data-mode-btn--full {
+  opacity: 0.72;
+}
+
+.data-mode-btn--full:hover {
+  opacity: 1;
+}
+
 .btn--sm {
   padding: 9px 18px;
   font-size: 0.8125rem;

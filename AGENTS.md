@@ -57,21 +57,24 @@ src/
 │   ├── useLiveCameraTryOn.js      # getUserMedia + MediaPipe VIDEO + try-on 3D/2D en vivo
 │   ├── usePhotoTryOn.js           # MediaPipe IMAGE + GLB 3D + recorte 2D + descarga HD
 │   ├── useReportTryOn.js          # montajes del informe (carga/error, respuestas obsoletas)
-│   └── useConnectionQuality.js    # red lenta/ahorro de datos + data-connection
+│   └── useConnectionQuality.js    # red lenta + preferencia manual + data-connection
 ├── lib/
 │   ├── api.js                     # cliente HTTP (timeouts, reintentos GET, caché de catálogo, wakeBackend)
 │   ├── compatibility.js           # % por forma/material/color/lente + centrado + ajuste
-│   ├── connection.js              # detección pura de red lenta/ahorro de datos
+│   ├── connection.js              # detección pura de red lenta/ahorro de datos + override manual
 │   ├── faceLabels.js              # formas y etiquetas faciales (fuente única)
 │   ├── faceLandmarker.js          # landmarker IMAGE compartido (GPU → CPU)
 │   ├── frameRanking.js            # ranking + diversidad por forma del informe
 │   ├── imageUtils.js              # brillo y normalización de fotos
 │   ├── lensCompatibility.js       # reglas lente ↔ montura ↔ rostro
+│   ├── lightweightPreference.js   # preferencia manual de modo ligero (localStorage + memoria)
+│   ├── mediapipeConfig.js         # versión/WASM/modelo de MediaPipe (fuente única)
 │   ├── mediapipeTelemetry.js      # corta la telemetría de MediaPipe (403)
 │   ├── pwa.js                     # registro del service worker (solo producción)
 │   └── tryOnSnapshot.js           # top-2 monturas + montajes JPEG del informe
 ├── components/layout/HomeBoot.jsx # overlay con logo + wakeBackend + precarga del escáner
 ├── components/ui/AppPreloader.jsx # preloader reutilizable con logo
+├── components/ui/ErrorBoundary.jsx # red de seguridad con logo + recarga
 ├── components/scanner/
 │   ├── FeedbackBox.jsx            # voto 1-5★
 │   ├── FrameStrip.jsx             # tira de monturas recomendadas sobre la foto
@@ -134,7 +137,7 @@ npm run lint          # 0 warnings
 npm run lint:eslint   # accesibilidad + hooks (0)
 npm run lint:css      # stylelint (0)
 npm run typecheck     # tsc --checkJs (0)
-npm test              # vitest (110)
+npm test              # vitest (118)
 npm run test:e2e      # playwright (10; `npx playwright install chromium` la primera vez)
 npm run build         # 0 errores y ningún chunk > 500 kB
 npm run test:pose     # 14/14 verificaciones numéricas
@@ -176,12 +179,30 @@ Definición de terminado:
 
 ## 4. Estado verificado (2026-11-14)
 
-- Frontend: build OK en ~1 s. `Scanner` = **99.5 kB**. `Three.js` se descarga
+- Frontend: build OK en ~1 s. `Scanner` = **99.4 kB**. `Three.js` se descarga
   solo al activar el 3D o al generar un montaje 3D del informe (chunks
   47/248/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
-- `test`: **110/110**; `test:e2e`: **10/10**; `test:pwa`: **1/1**;
+- `test`: **118/118**; `test:e2e`: **10/10**; `test:pwa`: **1/1**;
   `test:pose`: **14/14**; `test:alignment`: **19/19**.
+- **MediaPipe alineado y robustez de arranque (2026-11-14):** `lib/mediapipeConfig.js`
+  es la fuente única de `MEDIAPIPE_VERSION` (**1.0.1**, igual que el paquete),
+  `MEDIAPIPE_WASM_URL` y `MEDIAPIPE_MODEL_URL`; `faceLandmarker.js` y
+  `useLiveCameraTryOn.js` lo consumen y `mediapipeConfig.test.js` falla si la
+  dependencia se actualiza sin tocar la constante. `Scanner.jsx` reintenta
+  `listFrames()` cuando `wakeBackend()` resuelve, así el catálogo no queda vacío
+  si Render arranca después del primer timeout. `Navbar` añade un toggle de
+  datos **Auto → Ligero → Completo** (`lightweightPreference.js` +
+  `useConnectionQuality`) para Safari/Firefox, que no exponen Network Information
+  API; offline siempre gana. `ErrorBoundary.jsx` envuelve las rutas en
+  `main.jsx` y muestra logo + recarga si falla un render (WebGL/MediaPipe/chunk).
+- **GLB optimizados (2026-11-14):** `cuadrado` 2,43 → **0,50 MB** (se podaron
+  10 juegos de UV sin texturas), `oval` 1,54 → **0,86 MB** (texturas planas y
+  metalRough sólidas convertidas a factores) y `redondo` 1,06 → **0,49 MB**
+  (dedup + texturas recompresas, conservando normal/roughness). Los tres usan
+  `KHR_mesh_quantization` (soportado por `GLTFLoader`), sin Draco/meshopt, y se
+  verificaron con `gltf-transform validate` + captura headless del preview:
+  misma forma y materiales que antes. El resto de formas (<0,3 MB) no se tocaron.
 - **Materiales PBR y realismo (2026-11-14):** `frameStyle.js` expone
   `frameFinish()`/`frameMaterialProfile()` con metalness, roughness, clearcoat,
   envMapIntensity y tintStrength por acabado (metal, mixto, carey, cristal,
@@ -352,7 +373,8 @@ Definición de terminado:
    de volver a entrenar. No presentar accuracy no validada en la UI.
 3. Recalibrar scoring solo con `n≥30` feedback real (`../RECALIBRACION.md`).
 4. Decidir alcance del rebranding Grupo Prisma Visión (empresa vs. producto).
-5. Validar los 8 GLB en móvil real (iOS Safari / Android) antes del piloto.
+5. Validar los 8 GLB optimizados (cuantización incluida) en móvil real
+   (iOS Safari / Android) antes del piloto.
 6. Validar en hardware real la cámara en vivo: escala inicial del armazón,
    permisos HTTPS y seguimiento con MediaPipe/WebGL (el E2E los mockea).
 7. Limpiar el historial de commits (los mensajes actuales no son descriptivos).
@@ -366,6 +388,15 @@ Definición de terminado:
 ## 6. Riesgos que no se deben reintroducir
 
 - Importar `three` o `Frame3D` estáticamente en `Scanner.jsx`: rompe el code-splitting.
+- Escribir la versión de MediaPipe a mano en cada hook: `lib/mediapipeConfig.js`
+  es la fuente única y `mediapipeConfig.test.js` exige que coincida con el
+  paquete instalado. Bundle JS y WASM de versiones distintas rompen el landmarker.
+- Reemplazar un GLB sin revalidar: `gltf-transform validate`, `test:pose`,
+  `test:alignment`, `validate:glb` y una captura del preview. No usar Draco ni
+  meshopt sin registrar los decoders en `GLTFLoader`; la cuantización
+  (`KHR_mesh_quantization`) sí es segura.
+- Forzar "modo completo" sin conexión: `readConnectionInfo` deja que offline gane
+  sobre la preferencia manual.
 - Duplicar `frameColorHex` o la clasificación de tintes en cada motor.
 - Duplicar la paleta o los presets de lente en cada motor: `lensStyle.js` es la
   fuente única. El tipo de lente fija color/intensidad/opacidad y el usuario

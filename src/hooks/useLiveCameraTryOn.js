@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { drawGlasses, smoothLandmarks } from "../components/tryon/GlassesOverlay.js";
 import { loadGlassesAR } from "../components/tryon/arLoader.js";
 import { blockMediapipeTelemetry } from "../lib/mediapipeTelemetry.js";
+import { MEDIAPIPE_MODEL_URL, MEDIAPIPE_WASM_URL } from "../lib/mediapipeConfig.js";
 
 let glassesARClass = null;
 
@@ -55,13 +56,10 @@ export function useLiveCameraTryOn({ tryRef, onError, lightweight = false }) {
     liveSessionRef.current = session;
     blockMediapipeTelemetry();
     const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
-    const fileset = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm",
-    );
+    const fileset = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL);
     const landmarker = await FaceLandmarker.createFromOptions(fileset, {
       baseOptions: {
-        modelAssetPath:
-          "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+        modelAssetPath: MEDIAPIPE_MODEL_URL,
         delegate: "GPU",
       },
       outputFaceBlendshapes: false,

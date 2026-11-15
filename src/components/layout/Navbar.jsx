@@ -1,9 +1,24 @@
 import { Link } from 'react-router-dom';
 import { useTheme } from '../../context/useTheme';
+import { useConnectionQuality } from '../../hooks/useConnectionQuality.js';
 import './Navbar.css';
+
+const MODE_LABEL = { auto: 'Auto', light: 'Ligero', full: 'Completo' };
 
 function Navbar() {
   const { toggleTheme, isDark, logo } = useTheme();
+  const { preference, setLightweight } = useConnectionQuality();
+  const mode = preference === null ? 'auto' : preference ? 'light' : 'full';
+  const nextMode = mode === 'auto' ? 'light' : mode === 'light' ? 'full' : 'auto';
+  const modeTitle = {
+    auto: 'Datos: automático (clic para forzar modo ligero)',
+    light: 'Datos: modo ligero forzado (clic para modo completo)',
+    full: 'Datos: modo completo forzado (clic para volver a automático)',
+  }[mode];
+
+  const cycleMode = () => {
+    setLightweight(nextMode === 'auto' ? null : nextMode === 'light');
+  };
 
   return (
     <nav className="navbar" id="navbar">
@@ -31,6 +46,23 @@ function Navbar() {
         </ul>
 
         <div className="navbar__actions">
+          {/* Modo de datos: auto → ligero → completo (útil en Safari/Firefox,
+              que no exponen Network Information API). */}
+          <button
+            type="button"
+            className={`theme-toggle-btn data-mode-btn data-mode-btn--${mode}`}
+            onClick={cycleMode}
+            title={modeTitle}
+            aria-label={modeTitle}
+          >
+            <svg className="theme-toggle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 20V10" />
+              <path d="M18 20V4" />
+              <path d="M6 20v-4" />
+            </svg>
+            <span className="theme-toggle-label">{MODE_LABEL[mode]}</span>
+          </button>
+
           {/* Botón de cambio de tema: Vista Diurna / Nocturna */}
           <button
             type="button"

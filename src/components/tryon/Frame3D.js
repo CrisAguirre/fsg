@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { buildGlbGroup, loadGlb } from "./GlassesGLB.js";
 import { frameMaterialProfile, lensKind, LENS_KIND } from "./frameStyle.js";
 import { lensStyleKey, mixLensColor, normalizeLensStyle } from "./lensStyle.js";
+import { applySurfaceDetail, getSurfaceTextures } from "./surfaceTextures.js";
 import { eyeAnchors, FACE_IDX } from "./landmarks.js";
 import { setupStudioEnvironment, disposeStudioEnvironment, addStudioLights } from "./studioEnvironment.js";
 
@@ -24,36 +25,40 @@ function glassTintMaterial(tint = "monofocal") {
   }
   return new THREE.MeshPhysicalMaterial({
     color, transparent: true, opacity, roughness: 0.05, metalness: 0,
-    clearcoat: 1, clearcoatRoughness: 0.04, ior: 1.5, specularIntensity: 1,
-    envMapIntensity: 1.15, side: THREE.DoubleSide,
+    clearcoat: 1, clearcoatRoughness: 0.04, ior: 1.52, specularIntensity: 1,
+    envMapIntensity: 1.35, side: THREE.DoubleSide,
+    clearcoatNormalMap: getSurfaceTextures("transparent").clearcoatNormalMap,
+    clearcoatNormalScale: new THREE.Vector2(0.05, 0.05),
   });
 }
 
 function frameMaterial(frame) {
   const profile = frameMaterialProfile(frame);
-  const physical = profile.clearcoat >= 0.3;
-    const baseParams = {
-      color: new THREE.Color(profile.color),
-      metalness: profile.metalness,
-      roughness: profile.roughness,
-      envMapIntensity: profile.envMapIntensity,
-    ...(profile.opacity != null ? { transparent: true, opacity: profile.opacity } : {}),
-  };
-
-if (physical) {
-  return new THREE.MeshPhysicalMaterial({
-    ...baseParams,
+  // Físico siempre: el acetato gana laca (clearcoat) y el metal cepillado
+  // puede usar anisotropía, que MeshStandardMaterial no expone.
+  const material = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(profile.color),
+    metalness: profile.metalness,
+    roughness: profile.roughness,
+    envMapIntensity: profile.envMapIntensity,
     clearcoat: profile.clearcoat,
     clearcoatRoughness: profile.clearcoatRoughness,
+    ...(profile.opacity != null ? { transparent: true, opacity: profile.opacity } : {}),
   });
-}
-return new THREE.MeshStandardMaterial(baseParams);
+  return applySurfaceDetail(material, profile);
 }
 
 function metalAccentMaterial(color = 0xdfe6ef) {
-  return new THREE.MeshStandardMaterial({
-    color, metalness: 0.92, roughness: 0.28, envMapIntensity: 1.2,
+  const profile = frameMaterialProfile({ material: "metal", color: "#dfe6ef" });
+  const material = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(color),
+    metalness: profile.metalness,
+    roughness: profile.roughness,
+    envMapIntensity: profile.envMapIntensity,
+    clearcoat: profile.clearcoat,
+    clearcoatRoughness: profile.clearcoatRoughness,
   });
+  return applySurfaceDetail(material, profile);
 }
 
 // Contorno del lente en unidades locales (IPD = 1, ojos en x=±0.5).

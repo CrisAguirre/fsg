@@ -1,9 +1,12 @@
 // En desarrollo se pasa por el proxy de Vite (/api -> backend remoto) para que
 // el navegador no bloquee las llamadas por CORS. En producción se usa la URL
-// absoluta configurada en `.env`.
+// absoluta configurada en `.env` y, si falta, el backend real de Render: antes
+// caía a `http://localhost:8000`, lo que producía el error "No se pudo conectar
+// con el servidor de análisis" en cualquier deploy sin la variable configurada.
+const DEFAULT_PROD_API = "https://glassescanner-backend.onrender.com";
 const API_URL = import.meta.env.DEV
   ? import.meta.env.VITE_API_URL_DEV || "/api"
-  : import.meta.env.VITE_API_URL || "http://localhost:8000";
+  : import.meta.env.VITE_API_URL || DEFAULT_PROD_API;
 
 // Red inestable / Render en frío: los GET se reintentan con espera corta.
 // Las mutaciones no se reintentan solas (evita duplicar análisis o feedback).
@@ -86,9 +89,9 @@ let wakeAt = 0;
 /**
  * Despierta el backend con un timeout largo (Render puede tardar decenas de
  * segundos en arrancar). No bloquea el home: el preloader se puede saltar.
- * @param {{ force?: boolean }} [options]
+ * @param {{ force?: boolean, timeoutMs?: number }} [options]
  */
-export function wakeBackend({ force = false } = {}) {
+export function wakeBackend({ force = false, timeoutMs = WAKE_TIMEOUT_MS } = {}) {
   if (force) {
     wakePromise = null;
     wakeAt = 0;
@@ -98,7 +101,7 @@ export function wakeBackend({ force = false } = {}) {
   }
   if (wakePromise) return wakePromise;
 
-  wakePromise = health({ timeoutMs: WAKE_TIMEOUT_MS, retries: 0 })
+  wakePromise = health({ timeoutMs, retries: 0 })
     .then((data) => {
       wakeAt = Date.now();
       // El éxito se recuerda con `wakeAt`; liberar la promesa permite volver a
@@ -164,16 +167,34 @@ export async function listFrames(optica_id = null) {
 export async function analyzePhoto(fileOrBlob) {
   const fd = new FormData();
   fd.append("photo", fileOrBlob, "rostro.jpg");
-  const r = await fetchWithTimeout(
-    `${API_URL}/analyze`,
-    { method: "POST", body: fd },
-    ANALYZE_TIMEOUT_MS,
-  );
-  if (!r.ok) {
-    const errText = await r.text().catch(() => "");
-    throw new Error(`analyze ${r.status}: ${errText.slice(0, 200)}`);
+  let attempt = 0;
+  for (;;) {
+    try {
+      const r = await fetchWithTimeout(
+        `${API_URL}/analyze`,
+        { method: "POST", body: fd },
+        ANALYZE_TIMEOUT_MS,
+      );
+      if (!r.ok) {
+        const errText = await r.text().catch(() => "");
+        /** @type {Error & {status?: number}} */
+        const error = new Error(`analyze ${r.status}: ${errText.slice(0, 200)}`);
+        error.status = r.status;
+        throw error;
+      }
+      return await r.json();
+    } catch (error) {
+      // Un fallo de red o un timeout sí se reintenta una vez: /analyze no
+      // persiste la foto (STORE_PHOTOS=false), así que repetir es seguro.
+      const retryable = !(error && typeof error === "object" && "status" in error);
+      if (attempt < 1 && retryable) {
+        attempt += 1;
+        await sleep(900);
+        continue;
+      }
+      throw error;
+    }
   }
-  return r.json();
 }
 
 export const deletePhoto = () => req("/analyze/photo", { method: "DELETE" });

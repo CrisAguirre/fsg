@@ -1,7 +1,7 @@
 // Informe membreteado del escaneo: documento maquetado (portada, resumen, KPIs,
 // secciones numeradas y gráficos) que se ve igual en pantalla y en A4 impreso.
 // Se genera en el cliente: no se envía ni se guarda la foto.
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import logoBlack from "../../assets/logoblack.png";
 import {
   attrPercentages,
@@ -171,6 +171,19 @@ export default function ScanReport({
     () => buildReport({ mode, metrics, detectedShape, recs, frames, scanMeta, frame, fitRec }),
     [mode, metrics, detectedShape, recs, frames, scanMeta, frame, fitRec],
   );
+  const overlayRef = useRef(null);
+
+  // El informe es un diálogo a pantalla completa con scroll propio. Se bloquea
+  // el scroll del body para que no se muevan las dos capas a la vez y se
+  // restaura al cerrar, dejando al usuario en el mismo punto del resumen.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    if (overlayRef.current) overlayRef.current.scrollTop = 0;
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -197,13 +210,16 @@ export default function ScanReport({
   const esAjuste = mode === "fit" && !!data.montura_evaluada;
 
   return (
-    <div className="report-overlay" role="dialog" aria-modal="true" aria-label="Informe del escaneo">
+    <div className="report-overlay" role="dialog" aria-modal="true" aria-label="Informe del escaneo" ref={overlayRef}>
       <div className="report-toolbar">
         <div className="report-toolbar__title">
           <b>{esAjuste ? "Informe de ajuste" : "Informe del escaneo"}</b>
           <small>En PDF: elige “Guardar como PDF” en el diálogo de impresión.</small>
         </div>
         <div className="report-toolbar__actions">
+          <button type="button" className="btn btn--glass btn--sm" onClick={onClose}>
+            ← Volver al resumen
+          </button>
           <button type="button" className="btn btn--glass btn--sm" onClick={downloadJson}>
             ⬇ JSON
           </button>
@@ -214,9 +230,6 @@ export default function ScanReport({
             title="Abre el diálogo de impresión: elige Guardar como PDF"
           >
             ⬇ Descargar PDF
-          </button>
-          <button type="button" className="btn btn--glass btn--sm" onClick={onClose}>
-            ✕ Cerrar
           </button>
         </div>
       </div>

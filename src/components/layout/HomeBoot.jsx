@@ -1,64 +1,86 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "../../context/useTheme";
 import { useConnectionQuality } from "../../hooks/useConnectionQuality.js";
-import { wakeBackend } from "../../lib/api.js";
+import { listFrames, wakeBackend } from "../../lib/api.js";
 import AppPreloader from "../ui/AppPreloader.jsx";
 
-const MIN_OVERLAY_MS = 750;
-const MAX_OVERLAY_MS = 2800;
-const READY_VISIBLE_MS = 1800;
-const BOOT_KEY = "gpv.home.booted";
+// El overlay se muestra en cada carga completa del home (recarga o primera
+// visita), pero no al volver al home dentro de la misma SPA: eso sería
+// repetitivo. El estado de módulo se reinicia con la página.
+let bootShownThisLoad = false;
 
-function wasBooted() {
-  try {
-    return sessionStorage.getItem(BOOT_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function markBooted() {
-  try {
-    sessionStorage.setItem(BOOT_KEY, "1");
-  } catch {
-    /* sessionStorage puede fallar en modo privado */
-  }
-}
+const MIN_OVERLAY_MS = 900;
+const MAX_OVERLAY_MS = 12000;
+const READY_VISIBLE_MS = 2200;
 
 /**
- * Despierta Render al entrar al home y muestra un preloader con el logo. El
- * overlay se puede saltar; si el servidor tarda, queda un aviso no bloqueante.
+ * Despierta Render al entrar al home y muestra un preloader con el logo.
+ * Además del `/health` compartido, adelanta el catálogo de monturas para que
+ * el escáner no arranque vacío. El overlay se puede saltar y nunca bloquea el
+ * home más de `MAX_OVERLAY_MS`.
  */
 export default function HomeBoot() {
   const { logo } = useTheme();
   const { lightweight, label: connectionLabel } = useConnectionQuality();
   const [status, setStatus] = useState("waking");
-  const [overlay, setOverlay] = useState(() => !wasBooted());
+  const [catalogReady, setCatalogReady] = useState(false);
+  const [overlay, setOverlay] = useState(() => !bootShownThisLoad);
   const [readyVisible, setReadyVisible] = useState(true);
+  const [elapsed, setElapsed] = useState(0);
   const startedAtRef = useRef(0);
 
   const closeOverlay = useCallback(() => {
+    bootShownThisLoad = true;
     setOverlay(false);
-    markBooted();
   }, []);
 
-  // Al montar solo se lanza la petición; el estado inicial ya es "waking".
-  // La promesa se comparte con StrictMode y con cualquier otro montaje.
+  const preloadCatalog = useCallback(() => {
+    listFrames()
+      .catch(() => null)
+      .finally(() => setCatalogReady(true));
+  }, []);
+
+  // Al montar solo se lanzan las peticiones; el estado inicial ya es "waking".
+  // La promesa de `wakeBackend` se comparte con StrictMode y con el escáner.
   useEffect(() => {
     startedAtRef.current = Date.now();
+    let alive = true;
     wakeBackend()
-      .then(() => setStatus("awake"))
-      .catch(() => setStatus("error"));
-  }, []);
+      .then(() => {
+        if (!alive) return;
+        setStatus("awake");
+        preloadCatalog();
+      })
+      .catch(() => {
+        if (alive) setStatus("error");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [preloadCatalog]);
 
   const retry = useCallback(() => {
     setStatus("waking");
+    setCatalogReady(false);
     setReadyVisible(true);
+    setElapsed(0);
     startedAtRef.current = Date.now();
     wakeBackend({ force: true })
-      .then(() => setStatus("awake"))
+      .then(() => {
+        setStatus("awake");
+        preloadCatalog();
+      })
       .catch(() => setStatus("error"));
-  }, []);
+  }, [preloadCatalog]);
+
+  // Contador visible mientras Render arranca: el primer cold start puede tardar.
+  useEffect(() => {
+    if (!overlay || status !== "waking") return undefined;
+    const timer = setInterval(() => {
+      setElapsed(Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000)));
+    }, 500);
+    return () => clearInterval(timer);
+  }, [overlay, status]);
 
   // El overlay no debe bloquear el home si Render sigue arrancando.
   useEffect(() => {
@@ -68,12 +90,19 @@ export default function HomeBoot() {
   }, [overlay, closeOverlay]);
 
   // Si el backend responde rápido, se respeta un mínimo para evitar un flash.
+  // También se espera a que el catálogo esté listo (o haya fallado) para que el
+  // escáner no abra con la lista vacía.
   useEffect(() => {
-    if (!overlay || status !== "awake") return undefined;
+    if (!overlay) return undefined;
+    if (status === "error") {
+      const timer = setTimeout(closeOverlay, 1600);
+      return () => clearTimeout(timer);
+    }
+    if (status !== "awake" || !catalogReady) return undefined;
     const remaining = Math.max(0, MIN_OVERLAY_MS - (Date.now() - startedAtRef.current));
     const timer = setTimeout(closeOverlay, remaining);
     return () => clearTimeout(timer);
-  }, [overlay, status, closeOverlay]);
+  }, [overlay, status, catalogReady, closeOverlay]);
 
   // El aviso "Servidor listo" se oculta solo; no vuelve a encenderse solo.
   useEffect(() => {
@@ -94,8 +123,14 @@ export default function HomeBoot() {
 
   const showPill = !overlay && (status !== "awake" || readyVisible);
   const detail = status === "error"
-    ? "El servidor no respondió. Puedes continuar y reintentar."
-    : "Despertando el servidor de análisis…";
+    ? "El servidor no respondió. Puedes continuar y reintentar desde el aviso."
+    : status === "awake"
+      ? catalogReady
+        ? "Servidor listo. Catálogo de monturas preparado."
+        : "Servidor listo. Preparando el catálogo de monturas…"
+      : elapsed > 0
+        ? `Despertando el servidor de análisis… ${elapsed}s`
+        : "Despertando el servidor de análisis…";
 
   return (
     <>

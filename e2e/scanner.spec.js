@@ -126,7 +126,7 @@ test("el informe se abre membreteado y con compatibilidad por tipo", async ({ pa
 
   await expect(page.getByRole("button", { name: /Descargar PDF/ })).toBeVisible();
 
-  await page.getByRole("button", { name: /Cerrar/ }).click();
+  await page.getByRole("button", { name: /Volver al resumen/ }).click();
   await expect(page.locator(".scanner__hub")).toBeVisible();
 });
 

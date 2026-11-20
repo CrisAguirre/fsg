@@ -22,7 +22,15 @@
 .scanner__montage .scanner__zoomwrap { border-radius: 12px; }
 .scanner__zoomwrap .scanner__preview { max-height: none; object-fit: fill; }
 .scanner__row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
-.scanner__error { color: #ef4444; }
+.scanner__error { color: #ef4444; margin: 0; }
+.scanner__errorbox { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; padding: .8rem 1rem; border: 1px solid rgba(239, 68, 68, .38); border-radius: 12px; background: rgba(239, 68, 68, .08); }
+.scanner__errorbox .scanner__error { flex: 1 1 260px; }
+
+/* Transición suave entre pantallas del asistente: evita el salto seco al
+   pasar de captura a resumen o al abrir/cerrar un informe. */
+@keyframes scannerPhaseIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes reportFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.scanner__intro, .scanner__panel, .scanner__hub, .tryon, .scanner__recs-header { animation: scannerPhaseIn .24s ease-out; }
 .scanner__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
 .verdict--compatible { border-left: 3px solid #22c55e; }
 .verdict--parcial { border-left: 3px solid #eab308; }
@@ -61,6 +69,14 @@
 .scanner__live-select { display: flex; gap: .45rem; align-items: center; font-size: .85rem; color: var(--text-secondary); flex-wrap: wrap; }
 @keyframes scannerBlink { 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .scanner__live-dot { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .report-overlay,
+  .scanner__intro,
+  .scanner__panel,
+  .scanner__hub,
+  .tryon,
+  .scanner__recs-header { animation: none; }
+}
 
 /* Ficha del modelo en el probador */
 .scanner__trydetail { display: grid; gap: .4rem; padding: .7rem .8rem; border-radius: 12px; background: var(--bg-elevated); border: 1px solid var(--border-glass); }
@@ -171,8 +187,8 @@
 }
 
 /* ── Informe membreteado (pantalla + impresión A4) ── */
-.report-overlay { position: fixed; inset: 0; z-index: 1100; overflow: auto; padding: 1rem; background: rgba(6, 8, 12, .86); backdrop-filter: blur(6px); display: grid; justify-items: center; align-content: start; gap: .8rem; }
-.report-toolbar { width: min(880px, 100%); display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; color: #e8eef7; }
+.report-overlay { position: fixed; inset: 0; z-index: 1100; overflow: auto; overscroll-behavior: contain; padding: 1rem; background: rgba(6, 8, 12, .94); backdrop-filter: blur(6px); display: grid; justify-items: center; align-content: start; gap: .8rem; animation: reportFadeIn .22s ease-out; }
+.report-toolbar { position: sticky; top: 0; z-index: 2; width: min(880px, 100%); display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; color: #e8eef7; padding: .4rem .5rem; border-radius: 12px; background: rgba(6, 8, 12, .74); backdrop-filter: blur(8px); }
 .report-toolbar__title { display: grid; gap: .1rem; }
 .report-toolbar__title small { color: #9fb0c4; font-size: .72rem; }
 .report-toolbar__actions { display: flex; flex-wrap: wrap; gap: .4rem; }

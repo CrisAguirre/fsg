@@ -91,6 +91,7 @@ src/
 │   └── RecommendationCard.jsx     # tarjeta de recomendación
 └── components/tryon/
     ├── frameStyle.js              # color de armazón + familia de tinte (fuente única)
+    ├── surfaceTextures.js         # micro-texturas PBR procedurales por acabado
     ├── studioEnvironment.js       # IBL PMREM + ACES + luces de estudio compartidas
     ├── lensStyle.js               # paleta, presets y mezcla color/intensidad/opacidad del lente
     ├── arLoader.js                # import() único de Frame3D/Three.js
@@ -178,9 +179,27 @@ Definición de terminado:
 - [ ] Documentación actualizada.
 - [ ] Sin fotos ni claves reales en el diff.
 
-## 4. Estado verificado (2026-11-14)
+## 4. Estado verificado (2026-11-19)
 
-- Frontend: build OK en ~1 s. `Scanner` = **99.4 kB**. `Three.js` se descarga
+- **Escaneo sin monturas, conexión y realismo (2026-11-19):** la cámara del
+  escaneo (`capture`/`captureFit`) ya no dibuja monturas: `tryState.on` solo es
+  `true` en `catalog`/`tryon` y `useLiveCameraTryOn` deja únicamente los puntos
+  faciales. `api.js` usa `https://glassescanner-backend.onrender.com` como
+  fallback de producción (antes `http://localhost:8000`), reintenta `/analyze`
+  una vez ante fallo de red y `Scanner.jsx` distingue timeout, 5xx y red, con
+  botón **↻ Reintentar análisis** sobre la foto ya capturada. `ScanReport` es un
+  diálogo con scroll propio (body bloqueado), toolbar sticky, cierre con Escape
+  y **← Volver al resumen**; al cambiar de fase se vuelve arriba y las
+  transiciones respetan `prefers-reduced-motion`. `surfaceTextures.js` genera
+  grano de acetato, veta de carey, cepillado metálico y micro-grano mate
+  (color/normal/roughness/clearcoat normal) y `Frame3D`/`GlassesGLB` los aplican
+  sin pisar los mapas horneados de los GLB; el entorno de estudio usa softboxes
+  PMREM y las lentes suben a ior 1.52/envMap 1.35. `HomeBoot` muestra el overlay
+  en cada carga completa (mín. 0,9 s, máx. 12 s, contador y botón para saltar) y
+  adelanta `GET /frames`. También se corrigió la revocación de object URLs en
+  StrictMode, que dejaba la vista previa en negro en desarrollo.
+
+- Frontend: build OK en ~1 s. `Scanner` = **101.4 kB**. `Three.js` se descarga
   solo al activar el 3D o al generar un montaje 3D del informe (chunks
   47/248/352 kB).
 - Lint: **0 warnings**; ESLint, Stylelint y `tsc --checkJs`: **0**.
@@ -235,8 +254,9 @@ Definición de terminado:
   CSP) que `main.jsx` retira tras el montaje; `components/ui/AppPreloader.jsx`
   cubre rutas (`Suspense`) y el overlay del home. `lib/api.js` expone
   `wakeBackend()` (una sola petición `GET /health` compartida, timeout 60 s,
-  caché de éxito 5 min) y `HomeBoot.jsx` lo dispara al entrar al home con
-  overlay saltable (máx. 2,8 s) + aviso flotante con reintento; `Scanner.jsx`
+  caché de éxito 5 min) y `HomeBoot.jsx` lo dispara al entrar al home con overlay
+  saltable (mín. 0,9 s, máx. 12 s; contador visible y «Continuar sin esperar») +
+  aviso flotante con reintento; `Scanner.jsx`
   también lo dispara al montar para enlaces directos. `lib/connection.js`
   + `useConnectionQuality.js` detectan save-data/2G/3G/downlink/RTT/offline y
   marcan `data-connection="light"`: se prioriza 2D, cámara a 640 px, fotos y
@@ -461,8 +481,20 @@ Definición de terminado:
 - Registrar el SW en desarrollo: `lib/pwa.js` solo lo hace en producción para no
   romper el HMR de Vite.
 - Bloquear el home esperando a Render: el overlay de `HomeBoot.jsx` se puede
-  saltar y expira a los 2,8 s; el aviso flotante con reintento es la única señal
-  que debe quedar si el backend sigue frío.
+  saltar y expira a los 12 s; el aviso flotante con reintento es la única señal
+  que debe quedar si el backend sigue frío. No volver a mostrarlo una sola vez
+  por sesión ni a recortarlo a 2,8 s: el cold start de Render puede tardar más.
+- Encender el try-on en la cámara de `capture`/`captureFit`: el escaneo facial y
+  el escaneo con montura física solo capturan la foto y dibujan puntos faciales.
+  `tryState.on` debe seguir limitado a `catalog`/`tryon`.
+- Volver a `http://localhost:8000` como fallback de producción en `api.js`: sin
+  `VITE_API_URL`, el deploy mostraba el error rojo de conexión. El fallback es el
+  backend real de Render.
+- Revocar un object URL en el cleanup de un efecto que depende del preview:
+  StrictMode simula el desmontaje y deja el `<img>` sin cargar (vista previa
+  negra). Se revoca la URL anterior cuando llega una nueva, no en el cleanup.
+- Pisar el mapa base de un GLB que ya trae textura: `applySurfaceDetail` solo
+  rellena los mapas ausentes; `forceMap` se reserva para el armazón procedural.
 - Añadir scripts inline al preloader estático de `index.html`: la CSP de
   `vercel.json` no los permite. El preloader usa solo CSS inline y el logo
   `/icons/icon-192.png`.

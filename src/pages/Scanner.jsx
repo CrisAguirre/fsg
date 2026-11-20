@@ -65,6 +65,7 @@ export default function Scanner() {
   const [frames, setFrames] = useState([]);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
+  const [lastFailed, setLastFailed] = useState(null);
   const [backendOk, setBackendOk] = useState(null);
 
   // Probador 3D (solo en el paso de monturas).
@@ -130,10 +131,23 @@ export default function Scanner() {
   /** @type {import("../types").TryState} */
   const initialTryRef = { on: true, forma: "rectangular", frame: null, metrics: null, alpha: 0.95, tint: "monofocal", lensStyle: lensPreset("monofocal"), use3D: true };
   const tryRef = useRef(initialTryRef);
-  const tryState = { on: tryOn && !showOriginal, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity, tint: tryLens, lensStyle, use3D };
+  // El escaneo facial (y el escaneo con montura) solo captura la foto: no debe
+  // superponer una montura virtual. El armazón 3D se enciende únicamente en el
+  // probador del paso 2 y en la opción 4 (TryOnStudio).
+  const liveTryOn = tryOn && !showOriginal && (phase === "catalog" || phase === "tryon");
+  const tryState = { on: liveTryOn, forma: tryFrame?.forma ?? "rectangular", frame: tryFrame ?? null, metrics, alpha: tryOpacity, tint: tryLens, lensStyle, use3D };
   useEffect(() => {
     tryRef.current = tryState;
   });
+
+  // Al cambiar de pantalla el foco visual debe volver arriba: sin esto, al
+  // cerrar un informe o volver al resumen el usuario quedaba a mitad de página.
+  useEffect(() => {
+    if (phase === "report" || phase === "fitReport") return;
+    const reduce = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+  }, [phase]);
 
   const {
     videoRef,
@@ -233,9 +247,22 @@ export default function Scanner() {
     };
   }, []);
 
-  // Liberar object URLs.
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
-  useEffect(() => () => { if (fitPreview) URL.revokeObjectURL(fitPreview); }, [fitPreview]);
+  // Liberar object URLs: se revoca la anterior cuando llega una nueva, nunca en
+  // el cleanup del efecto. StrictMode simula un desmontaje al montar y revocar
+  // ahí dejaba la URL muerta antes de que el <img> oculto la cargara (preview
+  // negro en desarrollo).
+  const previousPreviewRef = useRef(null);
+  useEffect(() => {
+    const previous = previousPreviewRef.current;
+    if (previous && previous !== preview) URL.revokeObjectURL(previous);
+    previousPreviewRef.current = preview;
+  }, [preview]);
+  const previousFitPreviewRef = useRef(null);
+  useEffect(() => {
+    const previous = previousFitPreviewRef.current;
+    if (previous && previous !== fitPreview) URL.revokeObjectURL(previous);
+    previousFitPreviewRef.current = fitPreview;
+  }, [fitPreview]);
 
   useEffect(() => {
     if (phase === "captureFit" && tab === "camara") {
@@ -413,6 +440,7 @@ export default function Scanner() {
       return;
     }
     setError("");
+    setLastFailed(null);
     setLoading("Analizando proporciones faciales…");
     if (mode === "scan") {
       setMetrics(null);
@@ -420,6 +448,19 @@ export default function Scanner() {
       setShowAllRecs(false);
     }
     try {
+      // Si Render estaba dormido o la primera comprobación falló, se intenta
+      // despertarlo antes de subir la foto. Así el error rojo solo aparece
+      // cuando de verdad no hay conexión.
+      if (backendOk === false) {
+        setLoading("Despertando el servidor de análisis…");
+        try {
+          await wakeBackend({ force: true, timeoutMs: 25000 });
+          setBackendOk(true);
+        } catch {
+          /* el análisis mostrará el error definitivo */
+        }
+        setLoading("Analizando proporciones faciales…");
+      }
       const m = await analyzePhoto(target);
       if (!m || !m.face_detected) {
         throw new Error(m?.warnings?.[0] || "No se detectó un rostro frontal claro. Asegúrate de mirar de frente y tener buena luz.");
@@ -445,16 +486,27 @@ export default function Scanner() {
         setPhase("hub");
       }
     } catch (e) {
-      const netErr = e instanceof TypeError || /failed to fetch|load failed|networkerror|api 5\d\d/i.test(e.message || "");
+      const status = Number(e?.status) || 0;
+      const netErr = e instanceof TypeError || /failed to fetch|load failed|networkerror/i.test(e.message || "");
       const msg = e.name === "AbortError"
-        ? "El servidor tardó en responder. Por favor intenta de nuevo."
-        : netErr
-          ? "No se pudo conectar con el servidor de análisis. Revisa tu conexión y vuelve a intentar."
-          : (e.message || "Error al analizar la imagen.");
+        ? "El servidor tardó en responder. Vuelve a intentar."
+        : status >= 500
+          ? `El servidor de análisis respondió con un error temporal (${status}). Vuelve a intentar en unos segundos.`
+          : netErr
+            ? "No se pudo conectar con el servidor de análisis. Revisa tu conexión y vuelve a intentar."
+            : (e.message || "Error al analizar la imagen.");
       setError(msg);
+      setLastFailed({ target, mode, targetFrameId });
+      if (netErr || status >= 500) setBackendOk(false);
     } finally {
       setLoading("");
     }
+  }
+
+  /** Repite el último análisis fallido sin volver a capturar la foto. */
+  function retryAnalysis() {
+    if (!lastFailed?.target) return;
+    runAnalysis(lastFailed.target, lastFailed.mode, lastFailed.targetFrameId);
   }
 
   async function handleScanFit(customFile = null) {
@@ -885,7 +937,16 @@ export default function Scanner() {
         )}
 
         {phase !== "tryon" && loading && <p className="scanner__loading" role="status">{loading}</p>}
-        {phase !== "tryon" && error && <p className="scanner__error">{error}</p>}
+        {phase !== "tryon" && error && (
+          <div className="scanner__errorbox" role="alert">
+            <p className="scanner__error">{error}</p>
+            {lastFailed?.target ? (
+              <button type="button" className="btn btn--glass btn--sm" onClick={retryAnalysis}>
+                ↻ Reintentar análisis
+              </button>
+            ) : null}
+          </div>
+        )}
 
         {phase !== "start" && phase !== "tryon" && (
           <div className="scanner__row scanner__footer-actions">

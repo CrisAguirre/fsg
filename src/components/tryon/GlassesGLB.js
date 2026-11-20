@@ -6,6 +6,7 @@
 import * as THREE from "three";
 import { frameColorHex, frameMaterialProfile, isDarkColor, lensKind, LENS_KIND } from "./frameStyle.js";
 import { lensPreset, mixLensColor } from "./lensStyle.js";
+import { applySurfaceDetail, getSurfaceTextures } from "./surfaceTextures.js";
 import { setupStudioEnvironment, disposeStudioEnvironment, addStudioLights } from "./studioEnvironment.js";
 
 const MANIFEST_URL = "/glasses/manifest.json";
@@ -191,8 +192,9 @@ function shouldDropBaseMap(material, colorHex, darkTarget, forceReplace) {
 }
 
 function cloneFrameMaterial(source, profile, colorHex, dropMap) {
-  let m = source.clone();
-  if (profile.clearcoat >= 0.3) m = ensurePhysical(m);
+  // Los armazones se construyen siempre en físico: además del clearcoat,
+  // habilita ior/specular/sheen y anisotropía para el metal cepillado.
+  let m = ensurePhysical(source.clone());
   if (colorHex && m.color) m.color.set(colorHex);
   if (dropMap) m.map = null;
   if ("metalness" in m) m.metalness = profile.metalness;
@@ -206,6 +208,8 @@ function cloneFrameMaterial(source, profile, colorHex, dropMap) {
     m.transparent = true;
     m.opacity = profile.opacity;
   }
+  // Micro-textura procedural (grano, veta, cepillado) cuando el GLB no la trae.
+  applySurfaceDetail(m, profile);
   m.userData = { ...m.userData, owned: true };
   m.needsUpdate = true;
   return m;
@@ -215,6 +219,7 @@ function applyLensTint(root, entry, tint) {
   const wanted = new Set(entry?.lensMaterials || []);
   if (!wanted.size) return;
   const { color, opacity } = lensTint(tint, entry.lensOpacity);
+  const glass = getSurfaceTextures("transparent");
   root.traverse((o) => {
     if (!o.isMesh) return;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
@@ -237,10 +242,14 @@ function applyLensTint(root, entry, tint) {
       if ("clearcoat" in c) {
         c.clearcoat = 1;
         c.clearcoatRoughness = 0.04;
+        if (!c.clearcoatNormalMap) {
+          c.clearcoatNormalMap = glass.clearcoatNormalMap;
+          c.clearcoatNormalScale = new THREE.Vector2(0.05, 0.05);
+        }
       }
-      if ("ior" in c) c.ior = 1.5;
+      if ("ior" in c) c.ior = 1.52;
       if ("specularIntensity" in c) c.specularIntensity = 1;
-      if ("envMapIntensity" in c) c.envMapIntensity = 1.15;
+      if ("envMapIntensity" in c) c.envMapIntensity = 1.35;
       c.userData = { ...c.userData, owned: true };
       c.needsUpdate = true;
       changed = true;

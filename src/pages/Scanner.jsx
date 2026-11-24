@@ -837,7 +837,7 @@ export default function Scanner() {
                     onSelect={(id) => { setTryId(id); setTryOn(true); }}
                   />
                   <small className="scanner__sub">
-                    Modelos 3D con licencia CC BY 4.0 · <Link to="/creditos-3d">autores y atribuciones</Link>
+                    Modelos 3D con licencias abiertas · <Link to="/creditos-3d">autores y atribuciones</Link>
                   </small>
                   {fitInfo && (
                     <small className="scanner__sub">

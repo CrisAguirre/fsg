@@ -1,5 +1,5 @@
 {
-  "_comment": "Modelos 3D por forma para el probador. Todos CC-BY-4.0; ver LICENSES.md. rot en grados [x,y,z]; y en unidades IPD.",
+  "_comment": "Modelos 3D por forma para el probador (CC-BY-4.0 / CC0-1.0); ver LICENSES.md. rot en grados [x,y,z]; y en unidades IPD.",
   "rectangular": {
     "file": "rectangular.glb",
     "rot": [1, 0, 0],
@@ -67,21 +67,21 @@
   },
   "oval": {
     "file": "oval.glb",
-    "rot": [3, 0, 0],
+    "rot": [0, 0, 0],
     "y": 0,
     "scale": 0.82,
-    "lensMaterials": ["blinn1"],
+    "lensMaterials": ["Grey-green tinted lens"],
     "lensOpacity": 0.16,
-    "frameMaterials": ["lambert1"],
-    "frameMaterial": "acetato",
-    "source": "glasses (23).glb",
-    "title": "Glasses",
-    "author": "ingscappatura",
-    "author_url": "https://sketchfab.com/ingscappatura",
-    "source_url": "https://sketchfab.com/3d-models/glasses-d940a9c448ae4c1bb04f84b0f61f41d7",
-    "license": "CC-BY-4.0",
-    "license_url": "https://creativecommons.org/licenses/by/4.0/",
-    "modified": "Centrado, escalado por IPD, orientado y cristales aclarados para try-on."
+    "frameMaterials": ["Tortoiseshell acetate"],
+    "frameMaterial": "carey",
+    "source": "sunglasses.glb (sunglasses-453a7394)",
+    "title": "Sunglasses (Tortoiseshell Acetate)",
+    "author": "Innerscene 3D Parts Library",
+    "author_url": "https://www.innerscene.com",
+    "source_url": "https://www.innerscene.com/tools/library/3d-parts/sunglasses-453a7394",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "modified": "Centrado, escalado por IPD y cristales aclarados para try-on."
   },
   "aviador": {
     "file": "aviador.glb",

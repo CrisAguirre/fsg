@@ -38,7 +38,8 @@ function Creditos3D() {
           <h1>Créditos de los <span className="text-gradient">modelos 3D</span></h1>
           <p>
             Las monturas del probador virtual son obras de terceros distribuidas
-            bajo <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">Creative Commons Atribución 4.0 (CC BY 4.0)</a>.
+            bajo <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">Creative Commons Atribución 4.0 (CC BY 4.0)</a>{' '}
+            o <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">Dominio Público (CC0 1.0)</a>.
             Grupo Prisma Visión las adapta para el try-on; la licencia no implica
             respaldo de los autores.
           </p>
@@ -57,7 +58,7 @@ function Creditos3D() {
             <article className="glass credits__card" key={item.forma}>
               <div className="credits__card-head">
                 <span className="tag tag--highlight">{item.forma}</span>
-                <span className="tag">CC BY 4.0</span>
+                <span className="tag">{(item.license || 'CC BY 4.0').replace(/-/g, ' ')}</span>
               </div>
               <h2>{item.title || item.file}</h2>
               <p className="credits__author">

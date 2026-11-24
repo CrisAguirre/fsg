@@ -90,8 +90,9 @@ for (const forma of FORMAS) {
   if (entry.targetWidth != null && (!Number.isFinite(Number(entry.targetWidth)) || Number(entry.targetWidth) <= 0)) {
     fail(`[${forma}] "targetWidth" debe ser numérico > 0.`);
   }
-  if (!String(entry.license || "").toUpperCase().includes("CC-BY-4.0")) {
-    fail(`[${forma}] licencia ausente o distinta de CC-BY-4.0.`);
+  const lic = String(entry.license || "").toUpperCase();
+  if (!lic.includes("CC-BY-4.0") && !lic.includes("CC0")) {
+    fail(`[${forma}] licencia ausente o no permitida (CC-BY-4.0 / CC0): ${entry.license || "vacía"}.`);
   }
   if (!entry.author || !entry.source_url || !entry.title) {
     fail(`[${forma}] faltan author/title/source_url para la atribución.`);

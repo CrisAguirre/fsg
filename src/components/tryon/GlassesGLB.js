@@ -194,9 +194,17 @@ function shouldDropBaseMap(material, colorHex, darkTarget, forceReplace) {
 function cloneFrameMaterial(source, profile, colorHex, dropMap) {
   // Los armazones se construyen siempre en físico: además del clearcoat,
   // habilita ior/specular/sheen y anisotropía para el metal cepillado.
+  const hadBakedMap = Boolean(source.map) && !dropMap;
   let m = ensurePhysical(source.clone());
-  if (colorHex && m.color) m.color.set(colorHex);
   if (dropMap) m.map = null;
+  if (colorHex && m.color) {
+    m.color.set(colorHex);
+    // El mapa de carey (horneado del GLB o procedural cálido) ya aporta vetas
+    // oscuras y miel: mezclarlo hacia blanco evita que el multiplicador lo aplaste.
+    if (profile.finish === "carey") {
+      m.color.lerp(new THREE.Color(0xffffff), hadBakedMap ? 0.68 : 0.45);
+    }
+  }
   // Respeta metalnessMap / roughnessMap cuando el GLB ya los trae horneados
   // (p. ej. monturas con bisagras metálicas sobre acetato en un mismo material).
   if ("metalness" in m && !m.metalnessMap) m.metalness = profile.metalness;
@@ -221,6 +229,7 @@ function applyLensTint(root, entry, tint) {
   const wanted = new Set(entry?.lensMaterials || []);
   if (!wanted.size) return;
   const { color, opacity } = lensTint(tint, entry.lensOpacity);
+  const kind = lensKind(tint);
   const glass = getSurfaceTextures("transparent");
   root.traverse((o) => {
     if (!o.isMesh) return;
@@ -240,18 +249,25 @@ function applyLensTint(root, entry, tint) {
       c.opacity = opacity;
       c.depthWrite = false;
       if ("metalness" in c) c.metalness = 0;
-      if ("roughness" in c) c.roughness = 0.06;
+      if ("roughness" in c) c.roughness = 0.025;
       if ("clearcoat" in c) {
         c.clearcoat = 1;
-        c.clearcoatRoughness = 0.04;
+        c.clearcoatRoughness = 0.02;
         if (!c.clearcoatNormalMap) {
           c.clearcoatNormalMap = glass.clearcoatNormalMap;
-          c.clearcoatNormalScale = new THREE.Vector2(0.05, 0.05);
+          c.clearcoatNormalScale = new THREE.Vector2(0.03, 0.03);
         }
       }
-      if ("ior" in c) c.ior = 1.52;
+      if ("ior" in c) c.ior = 1.54;
       if ("specularIntensity" in c) c.specularIntensity = 1;
-      if ("envMapIntensity" in c) c.envMapIntensity = 1.35;
+      if ("specularColor" in c) c.specularColor = new THREE.Color(0xe6f7ff);
+      if ("envMapIntensity" in c) c.envMapIntensity = 1.85;
+      if ("iridescence" in c) {
+        // Simula el reflejo antirreflejo (AR verde-azulado) de lentes oftálmicos.
+        c.iridescence = kind === LENS_KIND.SUN ? 0.14 : 0.3;
+        c.iridescenceIOR = 1.34;
+        c.iridescenceThicknessRange = [180, 380];
+      }
       c.userData = { ...c.userData, owned: true };
       c.needsUpdate = true;
       changed = true;
@@ -268,6 +284,7 @@ function applyLensTint(root, entry, tint) {
  */
 function applyFrameTint(root, entry, frame) {
   const wanted = new Set(entry?.frameMaterials || []);
+  const lenses = new Set(entry?.lensMaterials || []);
   const auto = wanted.size === 0;
   const colorHex = frame?.color ? frameColorHex(frame.color) : (entry?.frameColor || "");
   if (!colorHex && !wanted.size) return;
@@ -283,9 +300,21 @@ function applyFrameTint(root, entry, frame) {
     let changed = false;
     const next = mats.map((m) => {
       if (!m) return m;
-      if (!auto && !wanted.has(m.name)) return m;
+      if (!auto && !wanted.has(m.name)) {
+        // Realza reflejos IBL en detalles secundarios (bisagras metálicas, nose pads)
+        // sin alterar el color propio que trae el GLB.
+        if (!lenses.has(m.name) && "envMapIntensity" in m) {
+          const accent = ensurePhysical(m.clone());
+          accent.envMapIntensity = Math.max(accent.envMapIntensity ?? 1, 1.3);
+          accent.userData = { ...accent.userData, owned: true };
+          accent.needsUpdate = true;
+          changed = true;
+          return accent;
+        }
+        return m;
+      }
       if (auto && (
-        (entry?.lensMaterials || []).includes(m.name)
+        lenses.has(m.name)
         || /nose|pad|plaqueta|tornillo|screw/i.test(String(m.name || ""))
         || (m.transparent && (m.opacity ?? 1) < 0.5)
       )) return m;

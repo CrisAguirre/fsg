@@ -27,16 +27,21 @@ function buildStudioScene() {
     return mesh;
   };
 
-  // Softbox superior: el reflejo largo que recorre el puente y las patillas.
-  panel(6.5, 2.2, 0xffffff, 4.2, [0, 4.4, 0.2], [-Math.PI / 2, 0, 0]);
-  // Lateral frío (relleno).
-  panel(2.6, 4.4, 0xbcd4ff, 2.1, [-4.4, 0.6, 0.4], [0, Math.PI / 2, 0]);
-  // Lateral cálido (key suave).
-  panel(2.6, 4.4, 0xfff1d6, 2.4, [4.4, 0.6, 0.4], [0, -Math.PI / 2, 0]);
-  // Frontal muy tenue: evita que el frente quede completamente negro.
-  panel(4.4, 2.6, 0xffffff, 0.85, [0, 0.4, 5.2], [0, 0, 0]);
-  // Piso oscuro: los reflejos inferiores no rebotan blanco puro.
-  panel(14, 14, 0x05070a, 1, [0, -3.2, 0], [-Math.PI / 2, 0, 0]);
+  // Softbox cenital alargada: tira especular nítida a lo largo de puente, aros y patillas.
+  panel(8.2, 1.35, 0xffffff, 5.8, [0, 4.2, 1.4], [-Math.PI / 2 + 0.18, 0, 0]);
+  // Tira especular alta secundaria para definir el filo del bisel superior.
+  panel(7.0, 0.9, 0xeaf2ff, 3.2, [0, 2.9, 3.6], [-0.55, 0, 0]);
+  // Lateral frío (relleno direccional).
+  panel(2.2, 4.6, 0xbcd4ff, 2.9, [-4.5, 0.7, 1.1], [0, Math.PI / 2 - 0.18, 0]);
+  // Lateral cálido (key especular suave).
+  panel(2.2, 4.6, 0xfff1d6, 3.3, [4.5, 0.7, 1.1], [0, -Math.PI / 2 + 0.18, 0]);
+  // Acentos traseros (rim en el IBL para separar bordes oscuros).
+  panel(2.8, 1.8, 0xffffff, 2.6, [-3.0, 2.6, -3.6], [0.4, 0.55, 0]);
+  panel(2.8, 1.8, 0xffffff, 2.6, [3.0, 2.6, -3.6], [0.4, -0.55, 0]);
+  // Frontal muy tenue: evita que las caras planas queden muertas.
+  panel(4.6, 2.2, 0xffffff, 0.75, [0, 0.25, 5.2], [0, 0, 0]);
+  // Piso oscuro: mantiene alto contraste en los reflejos inferiores del bisel.
+  panel(14, 14, 0x04060a, 1, [0, -3.2, 0], [-Math.PI / 2, 0, 0]);
 
   return scene;
 }
@@ -79,8 +84,8 @@ export function setupStudioEnvironment(renderer, scene) {
     const target = pmrem.fromScene(studio, 0.02);
     scene.environment = target.texture;
     // El IBL aporta reflejos y micro-contraste, no la luz difusa principal:
-    // por encima de ~0.9 los acetatos se lavan y el carey se lee anaranjado.
-    scene.environmentIntensity = 0.8;
+    // con ACES y piso oscuro, ~0.95 da brillos nítidos de laca/metal sin lavar el color.
+    scene.environmentIntensity = 0.95;
     return target;
   } catch {
     // Sin WebGL2/PMREM se intenta el entorno neutro de Three.js; si también
@@ -116,18 +121,18 @@ export function disposeStudioEnvironment(scene, target) {
  */
 export function addStudioLights(scene) {
   if (!scene) return;
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x2c3442, 0.45));
-  const key = new THREE.DirectionalLight(0xffffff, 1.35);
-  key.position.set(1.8, 2.4, 4.5);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x242c38, 0.34));
+  const key = new THREE.DirectionalLight(0xffffff, 1.45);
+  key.position.set(1.8, 2.5, 4.5);
   scene.add(key);
-  const fill = new THREE.DirectionalLight(0xc8d8ff, 0.38);
-  fill.position.set(-2.2, -1, 3);
+  const fill = new THREE.DirectionalLight(0xc8d8ff, 0.34);
+  fill.position.set(-2.3, -0.8, 3);
   scene.add(fill);
-  const rim = new THREE.DirectionalLight(0xffffff, 0.62);
-  rim.position.set(-2.4, 2.4, -4);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.78);
+  rim.position.set(-2.2, 2.6, -4);
   scene.add(rim);
   // Luz de rebote inferior: separa la montura de la mejilla sin aplanarla.
-  const bounce = new THREE.DirectionalLight(0xffe9d2, 0.12);
+  const bounce = new THREE.DirectionalLight(0xffe9d2, 0.14);
   bounce.position.set(0, -2.5, 2.5);
   scene.add(bounce);
 }

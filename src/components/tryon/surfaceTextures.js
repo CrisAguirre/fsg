@@ -123,52 +123,64 @@ function buildFinish(finish) {
       const u = x / SIZE;
       const v = y / SIZE;
       let h;
-      let c;
       let r;
+      let cr;
+      let cg;
+      let cb;
 
       if (isMetal) {
         // Cepillado: ruido muy estirado en X (rayas horizontales finas).
-        const brushed = smoothNoise(u * 5, v * 190, seed) * 0.65
-          + smoothNoise(u * 34, v * 320, seed + 1) * 0.35;
+        const brushed = smoothNoise(u * 6, v * 210, seed) * 0.65
+          + smoothNoise(u * 38, v * 340, seed + 1) * 0.35;
         h = brushed;
-        c = 0.95 + (brushed - 0.5) * 0.09;
-        // El mapa modula el roughness del perfil, no lo reemplaza: se mantiene
-        // cerca de 1 para que un metal pulido no acabe como un espejo.
-        r = 0.93 + (brushed - 0.5) * 0.14;
+        const c = 0.94 + (brushed - 0.5) * 0.12;
+        cr = c; cg = c; cb = c;
+        // Modula el roughness del perfil sin convertir un metal cepillado en espejo.
+        r = 0.92 + (brushed - 0.5) * 0.18;
       } else if (isCarey) {
-        // Vetas tipo tortuga: bandas oscuras irregulares sobre el color base.
-        const veins = fbm(u * 3.1, v * 2.3, seed, 4);
-        const vein = smoothstep(0.43, 0.63, veins);
-        const grain = smoothNoise(u * 95, v * 95, seed + 2);
-        h = vein * 0.45 + grain * 0.55;
-        c = 0.97 - vein * 0.44 - (grain - 0.5) * 0.04;
-        r = 0.93 + vein * 0.05 + (grain - 0.5) * 0.04;
+        // Carey orgánico: manchas translúcidas ámbar cálido y vetas oscuras profundas.
+        const warpX = fbm(u * 2.2, v * 2.2, seed + 5, 2) * 0.45;
+        const warpY = fbm(u * 2.2, v * 2.2, seed + 9, 2) * 0.45;
+        const veins = fbm((u + warpX) * 3.4, (v + warpY) * 2.6, seed, 4);
+        const flecks = fbm(u * 7.5, v * 6.0, seed + 11, 3);
+        const darkSpot = smoothstep(0.46, 0.68, veins * 0.78 + flecks * 0.22);
+        const amberSpot = 1 - smoothstep(0.28, 0.5, veins);
+        const grain = smoothNoise(u * 90, v * 90, seed + 2);
+        h = darkSpot * 0.25 + grain * 0.2;
+        // Tonos miel/ámbar cálido en zonas claras y espresso profundo en vetas.
+        cr = (0.98 + amberSpot * 0.02 - darkSpot * 0.66) - (grain - 0.5) * 0.03;
+        cg = (0.76 + amberSpot * 0.14 - darkSpot * 0.57) - (grain - 0.5) * 0.03;
+        cb = (0.48 + amberSpot * 0.12 - darkSpot * 0.39) - (grain - 0.5) * 0.02;
+        r = 0.92 + darkSpot * 0.06 + (grain - 0.5) * 0.04;
       } else if (isMatte) {
-        const grain = fbm(u * 72, v * 72, seed, 2);
-        h = grain;
-        c = 0.95 + (grain - 0.5) * 0.05;
-        r = 0.97 + (grain - 0.5) * 0.04;
+        const grain = fbm(u * 78, v * 78, seed, 2);
+        h = grain * 0.8;
+        const c = 0.95 + (grain - 0.5) * 0.06;
+        cr = c; cg = c; cb = c;
+        r = 0.97 + (grain - 0.5) * 0.05;
       } else if (isGlass) {
         const grain = smoothNoise(u * 55, v * 55, seed);
-        h = grain * 0.35;
-        c = 0.99 - (grain - 0.5) * 0.02;
-        r = 0.88 + (grain - 0.5) * 0.06;
+        h = grain * 0.25;
+        const c = 0.995 - (grain - 0.5) * 0.015;
+        cr = c; cg = c; cb = c;
+        r = 0.9 + (grain - 0.5) * 0.05;
       } else {
-        // Acetato: grano fino de pulido + una veta de flujo muy suave.
-        const grain = fbm(u * 82, v * 82, seed, 3);
-        const flow = smoothNoise(u * 4, v * 13, seed + 3);
-        h = grain * 0.7 + flow * 0.3;
-        c = 0.95 + (grain - 0.5) * 0.05 + (flow - 0.5) * 0.025;
-        r = 0.94 + (grain - 0.5) * 0.06;
+        // Acetato pulido: veta laminar muy sutil sin grano áspero de plástico.
+        const grain = fbm(u * 85, v * 85, seed, 2);
+        const flow = smoothNoise(u * 3.5, v * 14, seed + 3);
+        h = grain * 0.35 + flow * 0.45;
+        const c = 0.96 + (grain - 0.5) * 0.035 + (flow - 0.5) * 0.04;
+        cr = c; cg = c; cb = c;
+        r = 0.93 + (flow - 0.5) * 0.07 + (grain - 0.5) * 0.04;
       }
 
       const i = (y * SIZE + x) * 4;
-      const cc = Math.max(0, Math.min(255, Math.round(c * 255)));
-      color[i] = cc;
-      color[i + 1] = cc;
-      color[i + 2] = cc;
+      const clampByte = (v) => Math.max(0, Math.min(255, Math.round(v * 255)));
+      color[i] = clampByte(cr);
+      color[i + 1] = clampByte(cg);
+      color[i + 2] = clampByte(cb);
       color[i + 3] = 255;
-      const rr = Math.max(0, Math.min(255, Math.round(r * 255)));
+      const rr = clampByte(r);
       rough[i] = rr;
       rough[i + 1] = rr;
       rough[i + 2] = rr;
@@ -177,16 +189,16 @@ function buildFinish(finish) {
     }
   }
 
-  const strength = isMetal ? 3.2 : isCarey ? 2.2 : isMatte ? 1.2 : isGlass ? 0.8 : 1.7;
+  const strength = isMetal ? 2.8 : isCarey ? 1.1 : isMatte ? 1.3 : isGlass ? 0.6 : 0.95;
   const normal = buildNormal(height, strength);
-  const repeat = isMetal ? 1 : 2;
+  const repeat = isMetal ? 2 : 2;
   return {
     colorMap: makeTexture(color, { repeat, srgb: true }),
     normalMap: makeTexture(normal, { repeat }),
     roughnessMap: makeTexture(rough, { repeat }),
     clearcoatNormalMap: makeTexture(normal, { repeat: repeat * 2 }),
-    normalScale: isMetal ? 0.32 : isCarey ? 0.2 : isMatte ? 0.12 : isGlass ? 0.05 : 0.16,
-    clearcoatNormalScale: isGlass ? 0.03 : 0.08,
+    normalScale: isMetal ? 0.26 : isCarey ? 0.11 : isMatte ? 0.13 : isGlass ? 0.04 : 0.09,
+    clearcoatNormalScale: isGlass ? 0.025 : 0.05,
   };
 }
 
@@ -223,17 +235,17 @@ export function applySurfaceDetail(material, profile = {}, { forceMap = false } 
       );
     }
     material.ior = 1.5;
-    material.specularIntensity = 0.55;
+    material.specularIntensity = finish === "matte" ? 0.35 : 0.85;
     material.specularColor = new THREE.Color(0xffffff);
     if (finish === "acetate" || finish === "carey") {
-      // Laca de acetato: un sheen cálido muy leve en los bordes.
-      material.sheen = 0.16;
-      material.sheenRoughness = 0.7;
+      // Laca de acetato pulido: un sheen cálido sutil en los bordes rasantes.
+      material.sheen = 0.12;
+      material.sheenRoughness = 0.6;
       material.sheenColor = new THREE.Color(0xfff4e6);
     }
     if (finish === "metal" || finish === "mixed") {
       // Reflejos alargados en el metal cepillado.
-      material.anisotropy = 0.6;
+      material.anisotropy = 0.72;
       material.anisotropyRotation = 0;
     }
   }

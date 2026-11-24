@@ -63,28 +63,28 @@ export function frameFinish(frame = {}) {
 // convertir los metales en plástico.
 const FINISH_PROFILE = {
   [FRAME_FINISH.METAL]: {
-    metalness: 0.92, roughness: 0.28, clearcoat: 0.12, clearcoatRoughness: 0.24,
-    envMapIntensity: 1.2, tintStrength: 0.82,
+    metalness: 0.94, roughness: 0.22, clearcoat: 0.18, clearcoatRoughness: 0.18,
+    envMapIntensity: 1.38, tintStrength: 0.82,
   },
   [FRAME_FINISH.MIXED]: {
-    metalness: 0.62, roughness: 0.32, clearcoat: 0.45, clearcoatRoughness: 0.22,
-    envMapIntensity: 1.05, tintStrength: 0.8,
+    metalness: 0.68, roughness: 0.26, clearcoat: 0.58, clearcoatRoughness: 0.14,
+    envMapIntensity: 1.18, tintStrength: 0.8,
   },
   [FRAME_FINISH.CAREY]: {
-    metalness: 0.02, roughness: 0.34, clearcoat: 0.9, clearcoatRoughness: 0.14,
-    envMapIntensity: 0.78, tintStrength: 0.9,
+    metalness: 0.02, roughness: 0.22, clearcoat: 0.98, clearcoatRoughness: 0.07,
+    envMapIntensity: 1.05, tintStrength: 0.9,
   },
   [FRAME_FINISH.TRANSPARENT]: {
-    metalness: 0, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.05,
-    envMapIntensity: 1.1, tintStrength: 0.45, opacity: 0.82,
+    metalness: 0, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.04,
+    envMapIntensity: 1.25, tintStrength: 0.45, opacity: 0.82,
   },
   [FRAME_FINISH.MATTE]: {
-    metalness: 0.02, roughness: 0.62, clearcoat: 0.12, clearcoatRoughness: 0.45,
-    envMapIntensity: 0.5, tintStrength: 0.88,
+    metalness: 0.02, roughness: 0.58, clearcoat: 0.1, clearcoatRoughness: 0.45,
+    envMapIntensity: 0.62, tintStrength: 0.88,
   },
   [FRAME_FINISH.ACETATE]: {
-    metalness: 0.04, roughness: 0.38, clearcoat: 0.72, clearcoatRoughness: 0.18,
-    envMapIntensity: 0.72, tintStrength: 0.9,
+    metalness: 0.04, roughness: 0.24, clearcoat: 0.94, clearcoatRoughness: 0.08,
+    envMapIntensity: 1.0, tintStrength: 0.9,
   },
 };
 

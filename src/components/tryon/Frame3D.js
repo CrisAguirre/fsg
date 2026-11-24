@@ -23,12 +23,17 @@ function glassTintMaterial(tint = "monofocal") {
     case LENS_KIND.PROGRESSIVE: color = 0x9dc0e6; opacity = 0.3; break;
     default: break;
   }
+  const kind = lensKind(tint);
   return new THREE.MeshPhysicalMaterial({
-    color, transparent: true, opacity, roughness: 0.05, metalness: 0,
-    clearcoat: 1, clearcoatRoughness: 0.04, ior: 1.52, specularIntensity: 1,
-    envMapIntensity: 1.35, side: THREE.DoubleSide,
+    color, transparent: true, opacity, roughness: 0.025, metalness: 0,
+    clearcoat: 1, clearcoatRoughness: 0.02, ior: 1.54, specularIntensity: 1,
+    specularColor: new THREE.Color(0xe6f7ff),
+    envMapIntensity: 1.85, side: THREE.DoubleSide,
+    iridescence: kind === LENS_KIND.SUN ? 0.14 : 0.3,
+    iridescenceIOR: 1.34,
+    iridescenceThicknessRange: [180, 380],
     clearcoatNormalMap: getSurfaceTextures("transparent").clearcoatNormalMap,
-    clearcoatNormalScale: new THREE.Vector2(0.05, 0.05),
+    clearcoatNormalScale: new THREE.Vector2(0.03, 0.03),
   });
 }
 

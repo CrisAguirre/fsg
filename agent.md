@@ -368,6 +368,15 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   Se entregó el informe técnico completo como PDF A4 de 15 páginas en `../Informe-Fixes-Glassescanner-2026-11-19.pdf` (fuera del repo, no versionado): diagnóstico, cinco fixes con código, tabla de materiales, verificación, archivos modificados, riesgos evitados, pendientes y mensaje de commit sugerido.
     *   Sin cambios en contratos HTTP, Ley 1581 ni assets GLB. Sigue pendiente la validación en hardware real de la cámara en vivo.
 
+30. **Realismo PBR (Plan A) y reemplazos parciales de GLB (2026-11-24):**
+    *   Se reemplazaron `aviador.glb` (Khronos `SunglassesKhronos.glb`, CC-BY-4.0, commit `50d60c6`) y `oval.glb` (Innerscene `sunglasses-453a7394`, CC0-1.0, commit `30c18cd`), ampliando `validate_glb_manifest.mjs` para aceptar CC0-1.0 y añadiendo `ensureBoxUVs()` y preservación de `metalnessMap`/`roughnessMap` en `GlassesGLB.js`. Los otros 5 GLB quedaron diferidos por decisión del usuario.
+    *   A nivel de código (pendiente de commit): `studioEnvironment.js` refuerza reflejos de bisel y separación trasera (`environmentIntensity` 0.95); `frameStyle.js` pule clearcoat/roughness/`envMapIntensity`; `surfaceTextures.js` regenera carey RGB con domain warping, metal cepillado con `repeat: 2` (anisotropía 0.72) y acetato laminar suave; `GlassesGLB.js` y `Frame3D.js` añaden recubrimiento AR (`iridescence`, `ior` 1.54, `envMapIntensity` 1.85), mezcla hacia blanco en carey para preservar vetas y realce IBL en piezas secundarias; `manifest.json` ajusta `aviador` (`["temples"]`) y `rimless` (`lensMaterials`).
+    *   Sin cambios en contratos HTTP ni Ley 1581.
+
+## Verificación técnica 2026-11-24 (Plan A — realismo PBR)
+*   `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
+*   `npm test` → **118/118**; `validate:glb` → **8/8**; `test:pose` → **14/14**; `test:alignment` → **19/19**; `build` OK (`Scanner` 101.40 kB, `Frame3D` 22.89 kB); `validate:pwa` OK.
+
 ## Verificación técnica 2026-11-24 (confirmación + entregable)
 *   Working tree limpio; commit `a91cb80` verificado con `git show --stat` (12 archivos, 642 inserciones / 115 borrados).
 *   Gate revalidado sin cambios: `lint`/`lint:eslint`/`lint:css`/`typecheck` → **0**; `npm test` **118/118**; `test:e2e` **10/10**; `build` OK; `test:pose` **14/14**; `test:alignment` **19/19**; `validate:glb` **8/8**; `validate:pwa` OK.

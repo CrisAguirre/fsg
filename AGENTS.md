@@ -181,6 +181,27 @@ Definición de terminado:
 
 ## 4. Estado verificado (2026-11-24)
 
+- **Realismo PBR de monturas y lentes — Plan A + reemplazos parciales GLB (2026-11-24):**
+  el usuario confirmó `aviador.glb` (Khronos `SunglassesKhronos.glb`, CC-BY-4.0,
+  commit `50d60c6`, junto con `ensureBoxUVs()` y preservación de
+  `metalnessMap`/`roughnessMap` en `GlassesGLB.js`) y `oval.glb` (Innerscene
+  `sunglasses-453a7394`, CC0-1.0, commit `30c18cd`, con soporte CC0 en
+  `validate_glb_manifest.mjs`). Los 5 reemplazos GLB restantes quedan diferidos;
+  sobre el código actual se aplicaron mejoras PBR pendientes de commit:
+  - `studioEnvironment.js`: softbox cenital estrecha (5.8) + tira alta de bisel,
+    laterales direccionales, acentos traseros en IBL, piso oscuro,
+    `environmentIntensity` 0.95 y luces (`key` 1.45, `rim` 0.78).
+  - `frameStyle.js`: menor roughness y mayor clearcoat/`envMapIntensity` por acabado.
+  - `surfaceTextures.js`: carey procedural RGB con domain warping (ámbar/espresso),
+    metal cepillado con `repeat: 2` y anisotropía 0.72, acetato más suave y
+    `specularIntensity` 0.85 (0.35 mate).
+  - `GlassesGLB.js` y `Frame3D.js`: lentes con reflejo AR (`iridescence` 0.3 /
+    0.14 en sol, `ior` 1.54, `roughness` 0.025, `envMapIntensity` 1.85), mezcla
+    hacia blanco en carey (0.68 horneado / 0.45 procedural) y realce IBL en
+    bisagras/plaquetas (`envMapIntensity >= 1.3`).
+  - `public/glasses/manifest.json`: `aviador` restringe `frameMaterials` a
+    `["temples"]`; `rimless` añade `lensMaterials: ["03_-_Default"]`.
+
 - **Cambios confirmados e informe entregado (2026-11-24):** el juego de cambios
   del 19/11 quedó confirmado por el usuario en el commit `a91cb80` (12 archivos;
   mensaje «4566», no descriptivo — ver deuda §5.7). Gate ejecutado completo:
@@ -353,7 +374,7 @@ Definición de terminado:
   el POST a `odml.pa.googleapis.com/v1/log` respondía 403 y ensuciaba la consola;
   ahora se corta con un `Response` 200 vacío sin abrir conexión (privacidad).
 - `test:pose`: **14/14**; `test:alignment`: **19/19**.
-- `validate:glb`: **8/8** modelos CC BY 4.0.
+- `validate:glb`: **8/8** modelos (CC-BY-4.0 y CC0-1.0).
 - **CSP enforcing (2026-11-06):** `vercel.json` ahora usa `Content-Security-Policy`
   (antes era `Content-Security-Policy-Report-Only`). Verificar en producción que no
   bloquea recursos legítimos tras el próximo deploy a Vercel.

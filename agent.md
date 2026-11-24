@@ -363,6 +363,16 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   **Vista previa negra (StrictMode):** los object URLs de `preview`/`fitPreview` se revocaban en el cleanup del efecto; StrictMode simulaba el desmontaje y el `<img>` oculto quedaba sin cargar. Ahora se revoca la URL anterior cuando llega una nueva.
     *   **Pruebas:** `npm test` → **118/118**; `test:e2e` → **10/10** (el cierre del informe se actualizó a **← Volver al resumen**); flujo real verificado con Playwright + backend Render: subida → `/analyze` → `/recommend` → informe → catálogo 3D GLB.
 
+29. **Confirmación del commit e informe entregado (2026-11-24):**
+    *   El usuario confirmó los cambios del 19/11 en el commit `a91cb80` (12 archivos; mensaje «4566», pendiente de higiene según §5.7 de `AGENTS.md`). Working tree limpio; deploy lo decide el usuario.
+    *   Se entregó el informe técnico completo como PDF A4 de 15 páginas en `../Informe-Fixes-Glassescanner-2026-11-19.pdf` (fuera del repo, no versionado): diagnóstico, cinco fixes con código, tabla de materiales, verificación, archivos modificados, riesgos evitados, pendientes y mensaje de commit sugerido.
+    *   Sin cambios en contratos HTTP, Ley 1581 ni assets GLB. Sigue pendiente la validación en hardware real de la cámara en vivo.
+
+## Verificación técnica 2026-11-24 (confirmación + entregable)
+*   Working tree limpio; commit `a91cb80` verificado con `git show --stat` (12 archivos, 642 inserciones / 115 borrados).
+*   Gate revalidado sin cambios: `lint`/`lint:eslint`/`lint:css`/`typecheck` → **0**; `npm test` **118/118**; `test:e2e` **10/10**; `build` OK; `test:pose` **14/14**; `test:alignment` **19/19**; `validate:glb` **8/8**; `validate:pwa` OK.
+*   PDF revisado página por página (portada, índice, secciones de Fixes 1/4 y cierre), 15 páginas, encabezado/pie con numeración y logo incrustado.
+
 ## Verificación técnica 2026-11-19 (escaneo sin monturas + realismo)
 *   Frontend `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
 *   `npm test` → **118/118** (17 archivos); `npm run test:e2e` → **10/10**.

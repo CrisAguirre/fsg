@@ -68,7 +68,7 @@ function Creditos3D() {
               </p>
               {item.source_url && (
                 <p className="credits__source">
-                  <a href={item.source_url} target="_blank" rel="noopener noreferrer">Ver obra original en Sketchfab ↗</a>
+                  <a href={item.source_url} target="_blank" rel="noopener noreferrer">Ver obra original ↗</a>
                 </p>
               )}
               <p className="credits__changes">

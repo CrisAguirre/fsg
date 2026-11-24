@@ -179,8 +179,18 @@ Definición de terminado:
 - [ ] Documentación actualizada.
 - [ ] Sin fotos ni claves reales en el diff.
 
-## 4. Estado verificado (2026-11-19)
+## 4. Estado verificado (2026-11-24)
 
+- **Cambios confirmados e informe entregado (2026-11-24):** el juego de cambios
+  del 19/11 quedó confirmado por el usuario en el commit `a91cb80` (12 archivos;
+  mensaje «4566», no descriptivo — ver deuda §5.7). Gate ejecutado completo:
+  `lint`/`lint:eslint`/`lint:css`/`typecheck` sin hallazgos, `npm test` 118/118,
+  `test:e2e` 10/10, `build` OK, `test:pose` 14/14, `test:alignment` 19/19,
+  `validate:glb` 8/8 y `validate:pwa` OK; flujo real contra Render y
+  `vite preview` verificados. El informe técnico se entregó como PDF A4 de
+  15 páginas en `../Informe-Fixes-Glassescanner-2026-11-19.pdf` (fuera del repo,
+  no versionado). Sigue pendiente la validación en hardware real de la cámara
+  en vivo (§5.6). Sin cambios en contratos HTTP ni Ley 1581.
 - **Escaneo sin monturas, conexión y realismo (2026-11-19):** la cámara del
   escaneo (`capture`/`captureFit`) ya no dibuja monturas: `tryState.on` solo es
   `true` en `catalog`/`tryon` y `useLiveCameraTryOn` deja únicamente los puntos

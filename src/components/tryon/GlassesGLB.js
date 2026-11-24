@@ -197,8 +197,10 @@ function cloneFrameMaterial(source, profile, colorHex, dropMap) {
   let m = ensurePhysical(source.clone());
   if (colorHex && m.color) m.color.set(colorHex);
   if (dropMap) m.map = null;
-  if ("metalness" in m) m.metalness = profile.metalness;
-  if ("roughness" in m) m.roughness = profile.roughness;
+  // Respeta metalnessMap / roughnessMap cuando el GLB ya los trae horneados
+  // (p. ej. monturas con bisagras metálicas sobre acetato en un mismo material).
+  if ("metalness" in m && !m.metalnessMap) m.metalness = profile.metalness;
+  if ("roughness" in m && !m.roughnessMap) m.roughness = profile.roughness;
   if ("clearcoat" in m) {
     m.clearcoat = profile.clearcoat;
     m.clearcoatRoughness = profile.clearcoatRoughness;
@@ -339,6 +341,43 @@ function mainLensMeshes(meshes) {
 }
 
 /**
+ * Genera UVs triplanares cuando el GLB no incluye `TEXCOORD_0` (p. ej. `cuadrado`):
+ * sin coordenadas UV cualquier mapa procedural muestrea un único píxel (0, 0) y
+ * las vetas de carey o el micro-grano no se ven.
+ */
+function ensureBoxUVs(geometry) {
+  const pos = geometry?.attributes?.position;
+  if (!pos || geometry.attributes.uv) return;
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  const size = new THREE.Vector3();
+  box?.getSize(size);
+  const span = Math.max(size.x, size.y, size.z, 1e-6);
+  if (!geometry.attributes.normal) geometry.computeVertexNormals();
+  const norm = geometry.attributes.normal;
+  const uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = (pos.getX(i) - box.min.x) / span;
+    const y = (pos.getY(i) - box.min.y) / span;
+    const z = (pos.getZ(i) - box.min.z) / span;
+    const nx = Math.abs(norm.getX(i));
+    const ny = Math.abs(norm.getY(i));
+    const nz = Math.abs(norm.getZ(i));
+    if (nx >= ny && nx >= nz) {
+      uv[i * 2] = z * 2;
+      uv[i * 2 + 1] = y * 2;
+    } else if (ny >= nx && ny >= nz) {
+      uv[i * 2] = x * 2;
+      uv[i * 2 + 1] = z * 2;
+    } else {
+      uv[i * 2] = x * 2;
+      uv[i * 2 + 1] = y * 2;
+    }
+  }
+  geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+}
+
+/**
  * Construye un grupo listo para GlassesAR:
  * raíz con transform identidad, hijo normalizado a `targetWidth` unidades IPD.
  */
@@ -346,7 +385,10 @@ export function buildGlbGroup(scene, { targetWidth = DEFAULT_WIDTH, entry = null
   const model = scene.clone(true);
   model.traverse((o) => {
     if (o.isCamera || o.isLight) o.visible = false;
-    if (o.isMesh) o.frustumCulled = false;
+    if (o.isMesh) {
+      o.frustumCulled = false;
+      ensureBoxUVs(o.geometry);
+    }
   });
 
   // Centrar el modelo antes de rotarlo para que gire sobre su propio centro.

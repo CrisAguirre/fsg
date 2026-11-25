@@ -169,7 +169,15 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
   const qMid = { x: (m.lc.x + m.rc.x) / 2, y: (m.lc.y + m.rc.y) / 2 };
   const dp = Math.hypot(p1.x - p0.x, p1.y - p0.y);
   if (dp < 1) return null;
-  const scale = m.ipdPx / dp;
+  let fitScale = 1;
+  const ipdMm = Number(metrics?.ipd_mm_est) || 63;
+  const nominalIpdRatio = Number(meta.ipdRatio) || (dp / aw);
+  if (Number(frame?.ancho_total_mm) > 0 && nominalIpdRatio > 0) {
+    const assetWidthIpd = 1 / nominalIpdRatio;
+    const targetWidthIpd = clamp(Number(frame.ancho_total_mm) / ipdMm, 1.75, 2.55);
+    fitScale = clamp(targetWidthIpd / assetWidthIpd, 0.88, 1.18);
+  }
+  const scale = (m.ipdPx / dp) * fitScale;
   const angle = Math.atan2(m.rc.y - m.lc.y, m.rc.x - m.lc.x) - Math.atan2(p1.y - p0.y, p1.x - p0.x);
 
   const frameCanvas = tintedFrame(asset, frame);
@@ -234,7 +242,7 @@ export async function drawPhotoTryOn(ctx, lm, cw, ch, frame, metrics, opts = {})
   const frameH = ah * scale;
   return {
     ...m,
-    fitScale: 1,
+    fitScale: Number(fitScale.toFixed(2)),
     lensW: frameW,
     lensH: frameH,
     frameW,

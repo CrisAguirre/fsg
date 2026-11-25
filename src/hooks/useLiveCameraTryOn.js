@@ -118,6 +118,7 @@ export function useLiveCameraTryOn({ tryRef, onError, lightweight = false }) {
                     }
                     if (!arLiveRef.current && threeLiveRef.current) {
                       arLiveRef.current = new glassesARClass(threeLiveRef.current);
+                      arLiveRef.current.poseSmoothing = 0.55;
                     }
                     const ar = arLiveRef.current;
                     if (ar) {

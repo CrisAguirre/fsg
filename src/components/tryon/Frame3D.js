@@ -221,7 +221,8 @@ function glbTargetWidth(frame, metrics) {
   if (ipd > 0 && Number(frame?.ancho_total_mm) > 0) {
     width = Number(frame.ancho_total_mm) / ipd;
   } else if (ipd > 0 && Number(frame?.A_mm) > 0 && Number(frame?.D_mm) > 0) {
-    width = (2 * Number(frame.A_mm) + Number(frame.D_mm)) / ipd;
+    // 2*A + D es solo la medida óptica; las charnelas/bordes añaden ~14 mm al ancho total.
+    width = (2 * Number(frame.A_mm) + Number(frame.D_mm) + 14) / ipd;
   }
   return clamp(width, 1.7, 2.6);
 }
@@ -266,22 +267,18 @@ export function frameDims(frame, metrics) {
 }
 
 export function estimatePose(lm, cw = 1, ch = 1) {
-  // Ancla compartida con el motor 2D: iris cuando la malla trae 478 puntos y
-  // los centros son utilizables; si no, punto medio de las esquinas oculares.
-  const anchors = eyeAnchors(lm, 1, 1);
+  // Ancla compartida con el motor 2D en píxeles reales (`cw`, `ch`): usar 1×1
+  // distorsionaba la IPD en fotos/videos verticales cuando había inclinación.
+  const w = cw || 1;
+  const h = ch || 1;
+  const anchors = eyeAnchors(lm, w, h);
   if (!anchors) return null;
-  const eyeL = anchors.lc;
-  const eyeR = anchors.rc;
+  const eyeL = { x: anchors.lc.x / w, y: anchors.lc.y / h };
+  const eyeR = { x: anchors.rc.x / w, y: anchors.rc.y / h };
   const nose = lm[FACE_IDX.nose], fore = lm[FACE_IDX.forehead], chin = lm[FACE_IDX.chin];
   const cx = (eyeL.x + eyeR.x) / 2, cy = (eyeL.y + eyeR.y) / 2;
-  const ipd = anchors.ipdPx;
-  // Los landmarks vienen normalizados por ancho (x) y alto (y). El roll visual
-  // debe calcularse en píxeles: sin la relación de aspecto, una foto vertical
-  // duplicaba el ángulo respecto al motor 2D.
-  const roll = Math.atan2(
-    (anchors.rc.y - anchors.lc.y) * (ch || 1),
-    (anchors.rc.x - anchors.lc.x) * (cw || 1),
-  );
+  const ipd = anchors.ipdPx / w;
+  const roll = anchors.ang;
   const dl = Math.hypot(nose.x - eyeL.x, nose.y - eyeL.y) || 1e-6;
   const dr = Math.hypot(nose.x - eyeR.x, nose.y - eyeR.y) || 1e-6;
   const yaw = clamp(((dr - dl) / (dr + dl)) * 2.4, -0.65, 0.65);
@@ -335,10 +332,23 @@ export class GlassesAR {
     // barras sobre las mejillas. Se recortan detrás del plano frontal.
     this.clipBack = false;
     this.clipBackZ = -0.15;
+    // Oclusor craneal invisible: escribe solo en el depth buffer para ocultar
+    // la patilla lejana detrás de la sien/mejilla al girar la cabeza (tanto en
+    // cámara en vivo como en foto) sin recortar el aro frontal ni las bisagras.
+    this.occluder = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 20, 16),
+      new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: true }),
+    );
+    this.occluder.renderOrder = -1;
+    this.scene.add(this.occluder);
     // Estilo de lente (color/intensidad/opacidad) aplicado en caliente sobre
     // los materiales ya construidos, sin reconstruir el GLB en cada slider.
     this.lensStyle = null;
     this.lensStyleKey = "";
+    // Factor (0..1] para suavizar yaw/pitch/roll en cámara en vivo al ritmo
+    // de `smoothLandmarks`, evitando que la rotación tiemble respecto al rostro.
+    this.poseSmoothing = 1;
+    this._lastEuler = null;
   }
 
   /**
@@ -478,7 +488,7 @@ export class GlassesAR {
     const base = estimatePose(lm, cw, ch);
     if (!base) return null;
     const override = poseOverride?.matrix ? poseFromMatrix(poseOverride.matrix) : poseOverride;
-    const pose = override
+    let pose = override
       ? {
         ...base,
         yaw: Number.isFinite(override.yaw) ? override.yaw : base.yaw,
@@ -486,18 +496,58 @@ export class GlassesAR {
         roll: Number.isFinite(override.roll) ? override.roll : base.roll,
       }
       : base;
+    const alpha = clamp(this.poseSmoothing ?? 1, 0.1, 1);
+    if (alpha < 1) {
+      if (this._lastEuler) {
+        const lerp = (a, b) => a + (b - a) * alpha;
+        pose = {
+          ...pose,
+          yaw: lerp(this._lastEuler.yaw, pose.yaw),
+          pitch: lerp(this._lastEuler.pitch, pose.pitch),
+          roll: lerp(this._lastEuler.roll, pose.roll),
+        };
+      }
+      this._lastEuler = { yaw: pose.yaw, pitch: pose.pitch, roll: pose.roll };
+    } else {
+      this._lastEuler = null;
+    }
     const px = pose.cx * cw - cw / 2;
     const py = -(pose.cy * ch - ch / 2);
     this.group.position.set(px, py, 0);
-    const s = pose.ipd * cw;
-    this.group.scale.setScalar(Math.max(1e-6, s));
+    // `pose.ipd * cw` ya está proyectado en 2D (acortado por cos(yaw)). Compensar
+    // ese factor evita que la rotación 3D vuelva a encoger la montura en giros.
+    const euler = new THREE.Euler(pose.pitch, pose.yaw, -pose.roll, "YXZ");
+    const localX = new THREE.Vector3(1, 0, 0).applyEuler(euler);
+    const projScale = clamp(Math.hypot(localX.x, localX.y), 0.55, 1);
+    const s = Math.max(1e-6, (pose.ipd * cw) / projScale);
+    this.group.scale.setScalar(s);
     // Orden YXZ: guiño (yaw) + cabeceo (pitch) + giro (roll)
-    this.group.rotation.set(pose.pitch, pose.yaw, -pose.roll, "YXZ");
+    this.group.rotation.copy(euler);
     this.group.updateMatrixWorld(true);
+    if (this.occluder) {
+      // Ancho de cabeza estimado con las sienes (234/454) para adaptar la oclusión
+      // a caras anchas o estrechas sin tapar los aros ni la patilla cercana.
+      const tl = lm[234], tr = lm[454];
+      const tPx = tl && tr
+        ? Math.hypot((tr.x - tl.x) * cw, (tr.y - tl.y) * ch)
+        : 0;
+      const headRatio = tPx > 1 ? clamp(tPx / s, 1.75, 2.45) : 2.05;
+      const headW = s * headRatio * 0.5;
+      const headH = s * 1.38;
+      const headD = s * 0.95;
+      const centerLocal = new THREE.Vector3(0, -s * 0.14, -s * 1.16).applyEuler(euler);
+      this.occluder.position.set(px + centerLocal.x, py + centerLocal.y, centerLocal.z);
+      this.occluder.scale.set(headW, headH, headD);
+      this.occluder.rotation.copy(euler);
+      this.occluder.visible = true;
+    }
     if (this.clipBack) {
-      // Plano local z = clipBackZ (negativo) transformado a mundo con la pose
-      // del grupo: conserva el frente y elimina las patillas hacia -z.
-      const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -this.clipBackZ);
+      // Plano local seguro detrás de cristales/bisagras: recorta las patillas
+      // largas en fotos frontales sin cortar monturas curvas (wayfarer/cuadrado).
+      const clipZ = Number.isFinite(this.group.userData?.clipBackZ)
+        ? this.group.userData.clipBackZ
+        : this.clipBackZ;
+      const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -clipZ);
       plane.applyMatrix4(this.group.matrixWorld);
       this.renderer.clippingPlanes = [plane];
     } else if (this.renderer.clippingPlanes.length) {
@@ -528,6 +578,8 @@ export class GlassesAR {
   }
 
   clear() {
+    this._lastEuler = null;
+    if (this.occluder) this.occluder.visible = false;
     if (!this.renderer) return;
     // El canvas ya tiene contexto WebGL: getContext("2d") devuelve null.
     // Para limpiarlo hay que usar el renderer y mantener el fondo transparente.
@@ -550,6 +602,12 @@ export class GlassesAR {
     this.glbToken += 1;
     this.pendingGlbForma = "";
     this.usingGlb = false;
+    if (this.occluder) {
+      this.scene?.remove(this.occluder);
+      this.occluder.geometry?.dispose?.();
+      this.occluder.material?.dispose?.();
+      this.occluder = null;
+    }
     disposeStudioEnvironment(this.scene, this.envTarget);
     this.envTarget = null;
     try {

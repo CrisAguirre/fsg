@@ -452,7 +452,23 @@ export function buildGlbGroup(scene, { targetWidth = DEFAULT_WIDTH, entry = null
 
   let box = new THREE.Box3().setFromObject(outer);
   const size = box.getSize(new THREE.Vector3());
-  const scale = targetWidth / Math.max(size.x, 1e-6);
+  // Escalado por el frente óptico de la montura (primer 22 % de profundidad):
+  // modelos con patillas abiertas (p. ej. `oval`, `wayfarer`, `redondo`) tienen
+  // una caja total más ancha que el frente, lo que encogía los aros ~12-15 %.
+  const frontBox = new THREE.Box3();
+  const frontZCut = box.max.z - size.z * 0.22;
+  const tmpV = new THREE.Vector3();
+  outer.traverse((o) => {
+    if (!(o instanceof THREE.Mesh) || !o.geometry?.attributes?.position) return;
+    const pos = o.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i += 1) {
+      tmpV.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+      if (tmpV.z >= frontZCut) frontBox.expandByPoint(tmpV);
+    }
+  });
+  const frontSize = frontBox.isEmpty() ? size : frontBox.getSize(new THREE.Vector3());
+  const refWidth = frontSize.x > size.x * 0.4 ? frontSize.x : size.x;
+  const scale = targetWidth / Math.max(refWidth, 1e-6);
   outer.scale.setScalar(scale);
   outer.updateMatrixWorld(true);
 
@@ -462,12 +478,16 @@ export function buildGlbGroup(scene, { targetWidth = DEFAULT_WIDTH, entry = null
   // declara cristales, se mantiene el centrado por la caja completa.
   const lensMeshes = mainLensMeshes(findLensMeshes(outer, entry));
   const lensBox = lensMeshes.length ? boxOfMeshes(lensMeshes) : null;
-  const center = lensBox && !lensBox.isEmpty()
+  const hasLensBox = !!(lensBox && !lensBox.isEmpty());
+  const center = hasLensBox
     ? lensBox.getCenter(new THREE.Vector3())
     : box.getCenter(new THREE.Vector3());
+  // Pivotar en el plano óptico de los cristales (z = 0) evita que al girar
+  // la cabeza (yaw) la montura se desplace lateralmente respecto a las pupilas.
+  const zAnchor = hasLensBox ? center.z : box.max.z - 0.08;
   outer.position.x -= center.x;
   outer.position.y -= center.y - (Number(entry?.y) || 0);
-  outer.position.z -= box.max.z; // plano frontal en z=0; patillas hacia -z
+  outer.position.z -= zAnchor;
 
   applyFrameTint(outer, entry, frame);
   applyLensTint(outer, entry, tint);
@@ -478,9 +498,15 @@ export function buildGlbGroup(scene, { targetWidth = DEFAULT_WIDTH, entry = null
     if (o instanceof THREE.Mesh) o.userData.sharedGlb = true; // geometría/materiales del caché
   });
 
+  // Límite seguro de recorte trasero detrás de los cristales y bisagras para
+  // no mutilar el aro frontal en monturas curvas como `wayfarer` o `cuadrado`.
+  const lensMinLocalZ = hasLensBox ? lensBox.min.z - zAnchor : -0.14;
+  const clipBackZ = Math.max(-0.48, Math.min(-0.22, lensMinLocalZ - 0.16));
+
   const root = new THREE.Group();
   root.add(outer);
   root.userData.glassesGlb = true;
+  root.userData.clipBackZ = clipBackZ;
   return root;
 }
 

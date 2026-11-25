@@ -373,6 +373,16 @@ Three.js solo se descarga cuando el usuario activa el probador 3D. Ya no hay war
     *   A nivel de código (pendiente de commit): `studioEnvironment.js` refuerza reflejos de bisel y separación trasera (`environmentIntensity` 0.95); `frameStyle.js` pule clearcoat/roughness/`envMapIntensity`; `surfaceTextures.js` regenera carey RGB con domain warping, metal cepillado con `repeat: 2` (anisotropía 0.72) y acetato laminar suave; `GlassesGLB.js` y `Frame3D.js` añaden recubrimiento AR (`iridescence`, `ior` 1.54, `envMapIntensity` 1.85), mezcla hacia blanco en carey para preservar vetas y realce IBL en piezas secundarias; `manifest.json` ajusta `aviador` (`["temples"]`) y `rimless` (`lensMaterials`).
     *   Sin cambios en contratos HTTP ni Ley 1581.
 
+31. **Colocación, escala, pose y oclusión 3D/2D (2026-11-25):**
+    *   **Texturas/UVs uniformes y carey saturado:** `GlassesGLB.ensureBoxUVs()` genera proyección triplanar proporcional en todas las mallas sin mapas horneados (resolviendo UVs comprimidas como `0.24×0.06` en `cat-eye` o estiradas en `rectangular`/`wayfarer`), y `surfaceTextures.js` aumenta contraste/frecuencia del carey procedural.
+    *   **Escala y pivote 3D:** `buildGlbGroup()` escala por el ancho del frente óptico (`frontBox`) en lugar de las patillas abiertas (`oval`/`wayfarer`/`redondo` recuperan su ancho real), centra `z` en el plano óptico de los cristales y calcula `clipBackZ` seguro detrás de bisagras (sin mutilar `wayfarer`).
+    *   **Pose en giros y cámara en vivo:** `Frame3D.estimatePose()` usa píxeles reales (`cw`, `ch`), `render()` compensa el acortamiento por `cos(yaw)`, añade un oclusor craneal invisible (`colorWrite: false, depthWrite: true`) calibrado con `234`/`454` para ocultar la patilla lejana al girar, y `useLiveCameraTryOn` aplica `poseSmoothing: 0.55`. `manifest.json` calibra `y` por forma (`oval` `-0.04`, `aviador` `-0.06`, `redondo` `-0.02`, `rimless` `+0.02`).
+    *   **Motores 2D y CSS:** `PhotoTryOn.js` escala según `ancho_total_mm / ipd`, `GlassesOverlay.js` centra los lentes en `±(A+D)/2` a lo largo del eje ocular y `Scanner.css` añade `display: block` al canvas base para evitar desfase vertical de 4 px en foto.
+
+## Verificación técnica 2026-11-25 (colocación y encaje)
+*   `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
+*   `npm test` → **119/119**; `validate:glb` → **8/8**; `test:pose` → **14/14**; `test:alignment` → **19/19**; `build` OK; `validate:pwa` OK; `test:e2e` → **10/10**.
+
 ## Verificación técnica 2026-11-24 (Plan A — realismo PBR)
 *   `npm run lint`, `lint:eslint`, `lint:css`, `typecheck` → **0 hallazgos**.
 *   `npm test` → **118/118**; `validate:glb` → **8/8**; `test:pose` → **14/14**; `test:alignment` → **19/19**; `build` OK (`Scanner` 101.40 kB, `Frame3D` 22.89 kB); `validate:pwa` OK.

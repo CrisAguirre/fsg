@@ -179,7 +179,27 @@ Definición de terminado:
 - [ ] Documentación actualizada.
 - [ ] Sin fotos ni claves reales en el diff.
 
-## 4. Estado verificado (2026-11-24)
+## 4. Estado verificado (2026-11-25)
+
+- **Calibración de colocación, escala y oclusión 3D/2D en foto y vivo (2026-11-25):**
+  - `GlassesGLB.js`: UVs triplanares uniformes (`ensureBoxUVs`) para todos los
+    GLB sin texturas horneadas (`cat-eye`, `rectangular`, `wayfarer`, `cuadrado`,
+    `rimless` y `temples` de `aviador`); escalado por ancho del **frente óptico**
+    (evita encogimiento de `oval`/`wayfarer`/`redondo` por patillas abiertas);
+    pivote Z en el centro óptico de los cristales (`zAnchor`) y `clipBackZ`
+    seguro por modelo detrás de cristales/bisagras (evita cortar `wayfarer`).
+  - `Frame3D.js` + `useLiveCameraTryOn.js`: `estimatePose` calcula `ipd` en
+    píxeles reales (`cw`, `ch`) sin deformación en fotos/videos verticales
+    inclinados; `render()` compensa el acortamiento proyectivo `cos(yaw)` para
+    mantener escala real al girar el rostro; oclusor craneal invisible (`depthWrite: true`,
+    `colorWrite: false`) adaptado al ancho temporal (`234`/`454`) que oculta
+    la patilla lejana en vivo sin cortar el aro frontal; `poseSmoothing: 0.55`
+    sincronizado con `smoothLandmarks` y fallback `(2*A + D + 14)/ipd`.
+  - `manifest.json`: offsets verticales anatómicos (`oval` `-0.04`, `aviador`
+    `-0.06`, `redondo` `-0.02`, `rimless` `+0.02`).
+  - `PhotoTryOn.js` + `usePhotoTryOn.js` + `GlassesOverlay.js` + `Scanner.css`:
+    escalado 2D por `ancho_total_mm / ipd`, centrado vectorial por `(A+D)/2`
+    rotado con el ángulo ocular y `display: block` en `.scanner__zoomwrap .scanner__preview`.
 
 - **Realismo PBR de monturas y lentes — Plan A + reemplazos parciales GLB (2026-11-24):**
   el usuario confirmó `aviador.glb` (Khronos `SunglassesKhronos.glb`, CC-BY-4.0,

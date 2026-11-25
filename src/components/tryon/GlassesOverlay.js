@@ -255,8 +255,21 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
     ctx.restore();
   };
 
-  paintLens(lc.x, lc.y, -1);
-  paintLens(rc.x, rc.y, 1);
+  // Centrado óptico real: los lentes quedan a ±(A+D)/2 del punto medio entre ojos,
+  // coincidiendo con Frame3D cuando hay medidas del marco e IPD.
+  let lensCX = ipdPx * 0.5;
+  if (frame?.A_mm && frame?.D_mm && ipdMm > 0 && ipdPx > 1) {
+    lensCX = clamp((ipdPx * (frame.A_mm + frame.D_mm) / 2) / ipdMm, ipdPx * 0.4, ipdPx * 0.7);
+  }
+  const midX = (lc.x + rc.x) / 2;
+  const midY = (lc.y + rc.y) / 2;
+  const ux = Math.cos(ang);
+  const uy = Math.sin(ang);
+  const cxL = { x: midX - ux * lensCX, y: midY - uy * lensCX };
+  const cxR = { x: midX + ux * lensCX, y: midY + uy * lensCX };
+
+  paintLens(cxL.x, cxL.y, -1);
+  paintLens(cxR.x, cxR.y, 1);
 
   // Puente según forma: wayfarer = ojo de cerradura, metal = fino + plaquetas, acetato = silla gruesa
   const noseX = m.nose.x * cw;
@@ -265,17 +278,26 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
   if (frame?.D_mm && metrics?.nose_bridge_mm_est) {
     bridgeLift = clamp(0.28 * (frame.D_mm / metrics.nose_bridge_mm_est), 0.2, 0.38);
   }
+  const innerLX = cxL.x + ux * (W / 2);
+  const innerLY = cxL.y + uy * (W / 2);
+  const innerRX = cxR.x - ux * (W / 2);
+  const innerRY = cxR.y - uy * (W / 2);
+  const outerLX = cxL.x - ux * (W / 2);
+  const outerLY = cxL.y - uy * (W / 2);
+  const outerRX = cxR.x + ux * (W / 2);
+  const outerRY = cxR.y + uy * (W / 2);
+
   ctx.strokeStyle = isRimless ? "rgba(200,230,255,.55)" : isMetal ? metalGradient(ctx, ipdPx, rimDark, rimLight) : rimDark;
   ctx.lineWidth = isRimless ? edge : edge * (forma === "wayfarer" ? 1.1 : 0.9);
   ctx.beginPath();
   if (forma === "wayfarer") {
     // ojo de cerradura: doble curva
-    ctx.moveTo(lc.x + W / 2, lc.y - H * 0.3);
-    ctx.quadraticCurveTo(noseX - W * 0.08, noseY - H * bridgeLift, noseX, noseY - H * (bridgeLift - 0.12));
-    ctx.quadraticCurveTo(noseX + W * 0.08, noseY - H * bridgeLift, rc.x - W / 2, rc.y - H * 0.3);
+    ctx.moveTo(innerLX + uy * H * 0.3, innerLY - ux * H * 0.3);
+    ctx.quadraticCurveTo(noseX - ux * W * 0.08, noseY - H * bridgeLift, noseX, noseY - H * (bridgeLift - 0.12));
+    ctx.quadraticCurveTo(noseX + ux * W * 0.08, noseY - H * bridgeLift, innerRX + uy * H * 0.3, innerRY - ux * H * 0.3);
   } else {
-    ctx.moveTo(lc.x + W / 2, lc.y - H * 0.12);
-    ctx.quadraticCurveTo(noseX, noseY - H * bridgeLift, rc.x - W / 2, rc.y - H * 0.12);
+    ctx.moveTo(innerLX + uy * H * 0.12, innerLY - ux * H * 0.12);
+    ctx.quadraticCurveTo(noseX, noseY - H * bridgeLift, innerRX + uy * H * 0.12, innerRY - ux * H * 0.12);
   }
   ctx.stroke();
   // filete de luz del puente (volumen)
@@ -283,8 +305,8 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
     ctx.strokeStyle = rimLight;
     ctx.lineWidth = Math.max(1, edge * 0.28);
     ctx.beginPath();
-    ctx.moveTo(lc.x + W / 2, lc.y - H * 0.12 - edge * 0.35);
-    ctx.quadraticCurveTo(noseX, noseY - H * bridgeLift - edge * 0.35, rc.x - W / 2, rc.y - H * 0.12 - edge * 0.35);
+    ctx.moveTo(innerLX + uy * (H * 0.12 + edge * 0.35), innerLY - ux * (H * 0.12 + edge * 0.35));
+    ctx.quadraticCurveTo(noseX, noseY - H * bridgeLift - edge * 0.35, innerRX + uy * (H * 0.12 + edge * 0.35), innerRY - ux * (H * 0.12 + edge * 0.35));
     ctx.stroke();
   }
   // plaquetas nasales en metal/mixto
@@ -295,7 +317,7 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
     const padW = Math.max(2.5, ipdPx * 0.032), padH = Math.max(5, ipdPx * 0.06);
     for (const s of [-1, 1]) {
       ctx.beginPath();
-      ctx.ellipse(noseX + s * padW * 1.7, noseY + padH * 0.5, padW / 2, padH / 2, s * 0.25, 0, Math.PI * 2);
+      ctx.ellipse(noseX + s * padW * 1.7, noseY + padH * 0.5, padW / 2, padH / 2, ang + s * 0.25, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
@@ -304,15 +326,15 @@ export function drawGlasses(ctx, lm, vw, vh, cw, ch, forma = "rectangular", colo
   ctx.strokeStyle = isRimless ? "rgba(200,230,255,.55)" : rimDark;
   ctx.lineWidth = edge * 0.85;
   ctx.beginPath();
-  ctx.moveTo(lc.x - W / 2, lc.y - H * 0.1);
-  ctx.lineTo(lc.x - W / 2 - ipdPx * 0.45, lc.y - H * 0.18);
-  ctx.moveTo(rc.x + W / 2, rc.y - H * 0.1);
-  ctx.lineTo(rc.x + W / 2 + ipdPx * 0.45, rc.y - H * 0.18);
+  ctx.moveTo(outerLX + uy * H * 0.1, outerLY - ux * H * 0.1);
+  ctx.lineTo(outerLX - ux * ipdPx * 0.45 + uy * H * 0.18, outerLY - uy * ipdPx * 0.45 - ux * H * 0.18);
+  ctx.moveTo(outerRX + uy * H * 0.1, outerRY - ux * H * 0.1);
+  ctx.lineTo(outerRX + ux * ipdPx * 0.45 + uy * H * 0.18, outerRY + uy * ipdPx * 0.45 - ux * H * 0.18);
   ctx.stroke();
   ctx.fillStyle = isMetal ? "#dfe6ef" : rimLight;
-  for (const hx of [lc.x - W / 2, rc.x + W / 2]) {
+  for (const [hx, hy] of [[outerLX + uy * H * 0.1, outerLY - ux * H * 0.1], [outerRX + uy * H * 0.1, outerRY - ux * H * 0.1]]) {
     ctx.beginPath();
-    ctx.arc(hx, lc.y - H * 0.1, Math.max(1.2, edge * 0.3), 0, Math.PI * 2);
+    ctx.arc(hx, hy, Math.max(1.2, edge * 0.3), 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();

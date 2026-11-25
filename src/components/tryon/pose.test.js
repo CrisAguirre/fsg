@@ -64,4 +64,16 @@ describe("estimatePose (heurístico de respaldo)", () => {
     set(lm, 362, 0.56, 0.4); set(lm, 263, 0.62, 0.4);
     expect(estimatePose(lm).yaw).toBeLessThan(-0.05);
   });
+
+  it("conserva la IPD y el roll en píxeles sobre fotos o videos verticales inclinados", () => {
+    const lm = frontal();
+    // Cabeza inclinada 45° en un frame vertical 720×1280
+    set(lm, 33, 0.35, 0.40); set(lm, 133, 0.43, 0.445);
+    set(lm, 362, 0.55, 0.5125); set(lm, 263, 0.63, 0.5575);
+    const p = estimatePose(lm, 720, 1280);
+    const dx = (0.59 - 0.39) * 720;
+    const dy = (0.535 - 0.4225) * 1280;
+    expect(p.ipd * 720).toBeCloseTo(Math.hypot(dx, dy), 4);
+    expect(p.roll).toBeCloseTo(Math.atan2(dy, dx), 5);
+  });
 });

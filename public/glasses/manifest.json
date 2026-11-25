@@ -39,7 +39,7 @@
   "redondo": {
     "file": "redondo.glb",
     "rot": [1, 0, 0],
-    "y": 0,
+    "y": -0.02,
     "scale": 0.8,
     "lensMaterials": ["Glass__Solid__White", "Glass__Solid__White1", "Glass__Solid__White2", "Glass__Solid__White__1", "Glass__Solid__White__11"],
     "lensOpacity": 0.16,
@@ -68,7 +68,7 @@
   "oval": {
     "file": "oval.glb",
     "rot": [0, 0, 0],
-    "y": 0,
+    "y": -0.04,
     "scale": 0.82,
     "lensMaterials": ["Grey-green tinted lens"],
     "lensOpacity": 0.16,
@@ -86,7 +86,7 @@
   "aviador": {
     "file": "aviador.glb",
     "rot": [0, 0, 0],
-    "y": 0,
+    "y": -0.06,
     "scale": 0.78,
     "lensMaterials": ["lens_interior", "lens_exterior"],
     "lensOpacity": 0.16,
@@ -142,7 +142,7 @@
   "rimless": {
     "file": "rimless.glb",
     "rot": [4, 90, 0],
-    "y": 0,
+    "y": 0.02,
     "scale": 0.74,
     "lensMaterials": ["03_-_Default"],
     "lensOpacity": 0.14,

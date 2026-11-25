@@ -195,7 +195,7 @@ export function usePhotoTryOn({
             setFitInfo({
               ipdPx: Math.round(fit.ipdPx),
               angDeg: Number(fit.angDeg.toFixed(1)),
-              fitScale: 1,
+              fitScale: fit.fitScale ?? 1,
               warnings: fit.warnings,
               lensW: Math.round(fit.frameW),
               lensH: Math.round(fit.frameH),

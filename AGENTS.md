@@ -190,11 +190,15 @@ Definición de terminado:
     seguro por modelo detrás de cristales/bisagras (evita cortar `wayfarer`).
   - `Frame3D.js` + `useLiveCameraTryOn.js`: `estimatePose` calcula `ipd` en
     píxeles reales (`cw`, `ch`) sin deformación en fotos/videos verticales
-    inclinados; `render()` compensa el acortamiento proyectivo `cos(yaw)` para
-    mantener escala real al girar el rostro; oclusor craneal invisible (`depthWrite: true`,
-    `colorWrite: false`) adaptado al ancho temporal (`234`/`454`) que oculta
-    la patilla lejana en vivo sin cortar el aro frontal; `poseSmoothing: 0.55`
-    sincronizado con `smoothLandmarks` y fallback `(2*A + D + 14)/ipd`.
+    inclinados y usa la punta nasal (`lm[1]`) para el `pitch` de respaldo;
+    `render()` aplica `Euler(-pitch, -yaw, -roll, "YXZ")` para que las tres
+    rotaciones acompañen la cabeza sin invertirse (antes `yaw` y `pitch`
+    giraban al revés en cámara y fotos), compensa el acortamiento proyectivo
+    `cos(yaw)` y añade un oclusor craneal invisible (`depthWrite: true`,
+    `colorWrite: false`) adaptado al ancho temporal (`234`/`454`); el loop en
+    vivo deduplica frames repetidos de video (`currentTime`), reinicia el
+    suavizado si se pierde el rostro y usa suavizado adaptativo (`0.35..0.85`)
+    compartido entre landmarks y rotación (`poseSmoothing`).
   - `manifest.json`: offsets verticales anatómicos (`oval` `-0.04`, `aviador`
     `-0.06`, `redondo` `-0.02`, `rimless` `+0.02`).
   - `PhotoTryOn.js` + `usePhotoTryOn.js` + `GlassesOverlay.js` + `Scanner.css`:

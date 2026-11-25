@@ -75,24 +75,39 @@ export function useLiveCameraTryOn({ tryRef, onError, lightweight = false }) {
     }
     landmarkerRef.current = landmarker;
 
+    let lastVideoTime = -1;
+    let lastTs = 0;
     const loop = async () => {
       if (session !== liveSessionRef.current) return;
       const v = videoRef.current;
       const cnv = overlayRef.current;
-      if (v && cnv && v.videoWidth) {
+      if (v && cnv && v.videoWidth && v.readyState >= 2 && v.currentTime !== lastVideoTime) {
+        lastVideoTime = v.currentTime;
         // Usar resolución real del video (no clientWidth) para no deformar el montaje.
         // El CSS (.scanner__overlay 100%) se encarga del escalado visual.
-        cnv.width = v.videoWidth;
-        cnv.height = v.videoHeight;
+        if (cnv.width !== v.videoWidth || cnv.height !== v.videoHeight) {
+          cnv.width = v.videoWidth;
+          cnv.height = v.videoHeight;
+        }
         try {
-          const res = landmarker.detectForVideo(v, performance.now());
+          const now = Math.max(lastTs + 1, performance.now());
+          lastTs = now;
+          const res = landmarker.detectForVideo(v, now);
           const pts = res?.faceLandmarks?.[0]?.length ?? 0;
           setLivePts(pts);
           const ctx = cnv.getContext("2d");
           ctx.clearRect(0, 0, cnv.width, cnv.height);
           if (pts > 0) {
             const raw = res.faceLandmarks[0];
-            const lm = smoothLandmarks(smoothLmRef.current, raw, 0.55);
+            // Suavizado adaptativo: estable cuando el rostro está quieto (0.35)
+            // y ágil cuando gira o cabecea rápido (hasta 0.85) sin retraso.
+            const prevLm = smoothLmRef.current;
+            let smoothAlpha = 0.55;
+            if (prevLm && prevLm.length === raw.length && raw[168] && prevLm[168]) {
+              const speed = Math.hypot(raw[168].x - prevLm[168].x, raw[168].y - prevLm[168].y);
+              smoothAlpha = Math.min(0.85, Math.max(0.35, 0.35 + speed * 28));
+            }
+            const lm = smoothLandmarks(prevLm, raw, smoothAlpha);
             smoothLmRef.current = lm;
             const t = tryRef.current;
             // El 3D vive en su propio canvas; el 2D queda como fallback.
@@ -118,10 +133,10 @@ export function useLiveCameraTryOn({ tryRef, onError, lightweight = false }) {
                     }
                     if (!arLiveRef.current && threeLiveRef.current) {
                       arLiveRef.current = new glassesARClass(threeLiveRef.current);
-                      arLiveRef.current.poseSmoothing = 0.55;
                     }
                     const ar = arLiveRef.current;
                     if (ar) {
+                      ar.poseSmoothing = smoothAlpha;
                       ar.setModel(t.frame, t.tint, t.metrics);
                       ar.setLensStyle(t.lensStyle, t.tint);
                       const mat = res?.facialTransformationMatrixes?.[0]?.data ?? null;
@@ -166,6 +181,7 @@ export function useLiveCameraTryOn({ tryRef, onError, lightweight = false }) {
               }
             }
           } else {
+            smoothLmRef.current = null;
             try {
               arLiveRef.current?.clear();
             } catch {

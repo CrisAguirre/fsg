@@ -283,7 +283,11 @@ export function estimatePose(lm, cw = 1, ch = 1) {
   const dr = Math.hypot(nose.x - eyeR.x, nose.y - eyeR.y) || 1e-6;
   const yaw = clamp(((dr - dl) / (dr + dl)) * 2.4, -0.65, 0.65);
   const faceH = Math.hypot(chin.x - fore.x, chin.y - fore.y) || 1e-6;
-  const pitch = clamp((((nose.y - cy) / faceH) - 0.14) * 3.2, -0.38, 0.38);
+  // Usa la punta de la nariz (1) cuando está disponible para el pitch de respaldo;
+  // el puente (168) queda a la altura de los ojos y saturaba a -22°.
+  const tip = lm[1];
+  const refNose = tip && Number.isFinite(tip.y) && Math.abs(tip.y - nose.y) > 0.02 ? tip : nose;
+  const pitch = clamp((((refNose.y - cy) / faceH) - 0.14) * 3.2, -0.38, 0.38);
   return { cx, cy, ipd, roll, yaw, pitch, anchor: anchors.source };
 }
 
@@ -477,8 +481,8 @@ export class GlassesAR {
     if (this.canvas.width !== Math.round(cw) || this.canvas.height !== Math.round(ch)) {
       this.canvas.width = Math.round(cw);
       this.canvas.height = Math.round(ch);
+      this.renderer.setSize(cw, ch, false);
     }
-    this.renderer.setSize(cw, ch, false);
     this.camera.left = -cw / 2; this.camera.right = cw / 2;
     this.camera.top = ch / 2; this.camera.bottom = -ch / 2;
     this.camera.updateProjectionMatrix();
@@ -516,7 +520,10 @@ export class GlassesAR {
     this.group.position.set(px, py, 0);
     // `pose.ipd * cw` ya está proyectado en 2D (acortado por cos(yaw)). Compensar
     // ese factor evita que la rotación 3D vuelva a encoger la montura en giros.
-    const euler = new THREE.Euler(pose.pitch, pose.yaw, -pose.roll, "YXZ");
+    // En la convención de MediaPipe (matriz facial y heurístico), +yaw apunta
+    // al lado derecho del sujeto (izquierda de imagen) y +pitch mira arriba; en
+    // Three.js (Y arriba, Z hacia cámara) los tres ejes llevan signo opuesto.
+    const euler = new THREE.Euler(-pose.pitch, -pose.yaw, -pose.roll, "YXZ");
     const localX = new THREE.Vector3(1, 0, 0).applyEuler(euler);
     const projScale = clamp(Math.hypot(localX.x, localX.y), 0.55, 1);
     const s = Math.max(1e-6, (pose.ipd * cw) / projScale);

@@ -138,20 +138,20 @@ function buildFinish(finish) {
         // Modula el roughness del perfil sin convertir un metal cepillado en espejo.
         r = 0.92 + (brushed - 0.5) * 0.18;
       } else if (isCarey) {
-        // Carey orgánico: manchas translúcidas ámbar cálido y vetas oscuras profundas.
-        const warpX = fbm(u * 2.2, v * 2.2, seed + 5, 2) * 0.45;
-        const warpY = fbm(u * 2.2, v * 2.2, seed + 9, 2) * 0.45;
-        const veins = fbm((u + warpX) * 3.4, (v + warpY) * 2.6, seed, 4);
-        const flecks = fbm(u * 7.5, v * 6.0, seed + 11, 3);
-        const darkSpot = smoothstep(0.46, 0.68, veins * 0.78 + flecks * 0.22);
-        const amberSpot = 1 - smoothstep(0.28, 0.5, veins);
-        const grain = smoothNoise(u * 90, v * 90, seed + 2);
-        h = darkSpot * 0.25 + grain * 0.2;
-        // Tonos miel/ámbar cálido en zonas claras y espresso profundo en vetas.
-        cr = (0.98 + amberSpot * 0.02 - darkSpot * 0.66) - (grain - 0.5) * 0.03;
-        cg = (0.76 + amberSpot * 0.14 - darkSpot * 0.57) - (grain - 0.5) * 0.03;
-        cb = (0.48 + amberSpot * 0.12 - darkSpot * 0.39) - (grain - 0.5) * 0.02;
-        r = 0.92 + darkSpot * 0.06 + (grain - 0.5) * 0.04;
+        // Carey orgánico: motas espresso profundas y áreas translúcidas ámbar/caramelo.
+        const warpX = fbm(u * 3.0, v * 3.0, seed + 5, 2) * 0.38;
+        const warpY = fbm(u * 3.0, v * 3.0, seed + 9, 2) * 0.38;
+        const veins = fbm((u + warpX) * 4.8, (v + warpY) * 4.2, seed, 4);
+        const flecks = fbm(u * 9.5, v * 8.0, seed + 11, 3);
+        const darkSpot = smoothstep(0.41, 0.62, veins * 0.74 + flecks * 0.26);
+        const amberSpot = 1 - smoothstep(0.24, 0.46, veins);
+        const grain = smoothNoise(u * 95, v * 95, seed + 2);
+        h = darkSpot * 0.2 + grain * 0.16;
+        // Ámbar/miel saturado en zonas claras y espresso oscuro en manchas.
+        cr = (0.88 + amberSpot * 0.08 - darkSpot * 0.76) - (grain - 0.5) * 0.03;
+        cg = (0.48 + amberSpot * 0.15 - darkSpot * 0.42) - (grain - 0.5) * 0.025;
+        cb = (0.16 + amberSpot * 0.07 - darkSpot * 0.14) - (grain - 0.5) * 0.015;
+        r = 0.91 + darkSpot * 0.07 + (grain - 0.5) * 0.04;
       } else if (isMatte) {
         const grain = fbm(u * 78, v * 78, seed, 2);
         h = grain * 0.8;

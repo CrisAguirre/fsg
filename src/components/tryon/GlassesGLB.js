@@ -199,10 +199,11 @@ function cloneFrameMaterial(source, profile, colorHex, dropMap) {
   if (dropMap) m.map = null;
   if (colorHex && m.color) {
     m.color.set(colorHex);
-    // El mapa de carey (horneado del GLB o procedural cálido) ya aporta vetas
-    // oscuras y miel: mezclarlo hacia blanco evita que el multiplicador lo aplaste.
+    // El mapa de carey (horneado del GLB o procedural RGB cálido) ya aporta vetas
+    // espresso y ámbar: acercar el tinte al blanco conserva la saturación y el
+    // contraste entre manchas oscuras y zonas translúcidas miel.
     if (profile.finish === "carey") {
-      m.color.lerp(new THREE.Color(0xffffff), hadBakedMap ? 0.68 : 0.45);
+      m.color.lerp(new THREE.Color(0xffffff), hadBakedMap ? 0.68 : 0.72);
     }
   }
   // Respeta metalnessMap / roughnessMap cuando el GLB ya los trae horneados
@@ -369,29 +370,38 @@ function mainLensMeshes(meshes) {
   return meshes.filter((_, i) => widths[i] >= max * 0.4);
 }
 
+function hasBakedTextures(material) {
+  if (!material) return false;
+  const mats = Array.isArray(material) ? material : [material];
+  return mats.some((m) => m && (m.map || m.normalMap || m.roughnessMap || m.metalnessMap));
+}
+
 /**
- * Genera UVs triplanares cuando el GLB no incluye `TEXCOORD_0` (p. ej. `cuadrado`):
- * sin coordenadas UV cualquier mapa procedural muestrea un único píxel (0, 0) y
- * las vetas de carey o el micro-grano no se ven.
+ * Genera UVs triplanares proporcionales al espacio físico de la montura cuando
+ * el GLB no trae texturas horneadas (`map`/`normalMap`/`roughnessMap`): varios
+ * modelos sin textura tienen UVs ausentes (`cuadrado`, `aviador`), comprimidas
+ * en una esquina (`cat-eye` 0.24×0.06) o escaladas por pieza (`rimless`), lo
+ * que estira o borra las vetas de carey, el cepillado metálico y el micro-grano.
  */
-function ensureBoxUVs(geometry) {
+function ensureBoxUVs(mesh, modelBox, modelSpan) {
+  const geometry = mesh?.geometry;
   const pos = geometry?.attributes?.position;
-  if (!pos || geometry.attributes.uv) return;
-  geometry.computeBoundingBox();
-  const box = geometry.boundingBox;
-  const size = new THREE.Vector3();
-  box?.getSize(size);
-  const span = Math.max(size.x, size.y, size.z, 1e-6);
+  if (!pos || geometry.userData.boxUvApplied || hasBakedTextures(mesh.material)) return;
   if (!geometry.attributes.normal) geometry.computeVertexNormals();
   const norm = geometry.attributes.normal;
   const uv = new Float32Array(pos.count * 2);
+  const vPos = new THREE.Vector3();
+  const vNorm = new THREE.Vector3();
+  const normMat = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
   for (let i = 0; i < pos.count; i += 1) {
-    const x = (pos.getX(i) - box.min.x) / span;
-    const y = (pos.getY(i) - box.min.y) / span;
-    const z = (pos.getZ(i) - box.min.z) / span;
-    const nx = Math.abs(norm.getX(i));
-    const ny = Math.abs(norm.getY(i));
-    const nz = Math.abs(norm.getZ(i));
+    vPos.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+    vNorm.fromBufferAttribute(norm, i).applyMatrix3(normMat);
+    const x = (vPos.x - modelBox.min.x) / modelSpan;
+    const y = (vPos.y - modelBox.min.y) / modelSpan;
+    const z = (vPos.z - modelBox.min.z) / modelSpan;
+    const nx = Math.abs(vNorm.x);
+    const ny = Math.abs(vNorm.y);
+    const nz = Math.abs(vNorm.z);
     if (nx >= ny && nx >= nz) {
       uv[i * 2] = z * 2;
       uv[i * 2 + 1] = y * 2;
@@ -404,6 +414,7 @@ function ensureBoxUVs(geometry) {
     }
   }
   geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  geometry.userData.boxUvApplied = true;
 }
 
 /**
@@ -412,16 +423,19 @@ function ensureBoxUVs(geometry) {
  */
 export function buildGlbGroup(scene, { targetWidth = DEFAULT_WIDTH, entry = null, tint = "monofocal", frame = null } = {}) {
   const model = scene.clone(true);
+  model.updateMatrixWorld(true);
+  const box0 = new THREE.Box3().setFromObject(model);
+  const size0 = box0.getSize(new THREE.Vector3());
+  const span0 = Math.max(size0.x, size0.y, size0.z, 1e-6);
   model.traverse((o) => {
     if (o.isCamera || o.isLight) o.visible = false;
     if (o.isMesh) {
       o.frustumCulled = false;
-      ensureBoxUVs(o.geometry);
+      ensureBoxUVs(o, box0, span0);
     }
   });
 
   // Centrar el modelo antes de rotarlo para que gire sobre su propio centro.
-  const box0 = new THREE.Box3().setFromObject(model);
   if (!box0.isEmpty()) {
     const c0 = box0.getCenter(new THREE.Vector3());
     model.position.sub(c0);
